@@ -24,10 +24,12 @@ product, or a generic automation platform.
 
 - 2026-08-08 — Standalone POC project initialized.
 - 2026-08-09 — First local workday slice implemented and verified.
+- 2026-08-09 — First responsive product landing page implemented locally.
 
 ## Products
 
 - Native macOS POC runnable locally through Swift Package Manager.
+- Dependency-free static product landing page runnable from `site/`.
 
 ## Features (shipped)
 
@@ -41,6 +43,9 @@ product, or a generic automation platform.
   Codex CLI without storing an API key in the app.
 - Local organization folders containing inspectable JSON state and ordinary
   employee files.
+- A responsive landing page led by the real Mac application, one concrete
+  workday, the first three employees, and the intended commercial model:
+  one-time workplace ownership with optional employee subscriptions.
 
 ## Work queue
 

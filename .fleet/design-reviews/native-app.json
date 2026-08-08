@@ -1,0 +1,59 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "agent-office",
+  "target": "native Mac organization home",
+  "mode": "overhaul",
+  "register": "product",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [
+      "https://github.com/a16z-infra/ai-town",
+      "Spiritfarer character warmth and environmental storytelling",
+      "Things for calm native Mac information hierarchy"
+    ],
+    "probes": [
+      "hand-painted golden-hour dollhouse office",
+      "named employee character atlas",
+      "native three-pane organization home"
+    ],
+    "selected": "handcrafted dollhouse office at golden hour",
+    "approval": "pending",
+    "before": ""
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "width": 1420,
+        "path": "artifacts/design/organization-home-current.png"
+      }
+    ],
+    "projectCheck": {
+      "command": "swift test && swift build",
+      "status": "passed"
+    },
+    "critique": {
+      "score": 0,
+      "maximum": 40
+    },
+    "audit": {
+      "score": 0,
+      "maximum": 20
+    },
+    "unresolved": {
+      "p0": 0,
+      "p1": 0
+    },
+    "detector": {
+      "posture": "advisory",
+      "findings": []
+    }
+  },
+  "ownerFeedback": {
+    "decision": "pending",
+    "note": ""
+  }
+}

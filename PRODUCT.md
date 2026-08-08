@@ -32,6 +32,19 @@ with a role, memory, workspace, responsibilities, skills, and eventually
 scoped authority. Models, tools, and machines can change without replacing the
 employee.
 
+## Commercial Model
+
+The Mac workplace is intended to be a one-time paid application: the owner
+buys and keeps the environment where their organization lives. AI employees
+are separate employable products. Some may be included as a starter team;
+others may be optional subscriptions because their creators continuously
+operate models, tools, proprietary data, skills, or machines on the employee's
+behalf.
+
+The owner subscribes to people, not generic software seats. Each employee must
+declare the permissions and recurring costs it requires, and the organization
+may grant less authority when the employee supports a safe reduced mode.
+
 ## Operating Context
 
 The owner opens a native Mac application, sees a cosy two-dimensional office,
@@ -50,6 +63,7 @@ State and artifacts remain in a local organization folder.
 - A future employee may be human or AI and may receive skills, a separate
   machine, integrations, permissions, budgets, and guardrails.
 - The product name is deliberately undecided.
+- No dollar price, checkout, or employee marketplace is validated or live yet.
 
 ## Brand Commitments
 
@@ -81,4 +95,3 @@ State and artifacts remain in a local organization folder.
 
 Core state and actions must remain available outside the 2D scene through
 native text, controls, keyboard navigation, and reduced-motion behavior.
-

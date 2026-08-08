@@ -43,3 +43,17 @@ human onboarding, or production permission system yet.
 
 The future employee marketplace is tracked in
 [issue #1](https://github.com/sass-maker/agent-office/issues/1).
+
+## Preview the landing page
+
+The marketing page is dependency-free and uses the real application artwork:
+
+```bash
+python3 -m http.server 4173 --directory site
+```
+
+Open `http://localhost:4173`.
+
+The intended commercial model is explicit on the page: the Mac workplace is a
+one-time purchase, while optional employees may be separate subscriptions.
+Prices, checkout, and the employee marketplace are not live.

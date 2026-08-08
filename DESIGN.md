@@ -75,3 +75,21 @@ do not use pixel fonts for functional text.
   information encoded by color alone.
 - The workplace remains useful at narrower window sizes by collapsing the right
   rail into a native inspector rather than shrinking functional text.
+
+## Marketing surface
+
+The landing page is a Persuade surface inside the same world. It presents the
+Mac workplace as a substantial keepsake object the owner buys once, not a
+generic SaaS shell. Named employee folios sit beside that permanent workplace
+and explain optional subscriptions without resembling a pricing table.
+
+The first viewport must make the real application the dominant proof. A
+visitor then follows one actual workday before meeting Maya, Nia, and Theo.
+Use dark spruce as the presentation-case field, walnut as structural material,
+paper for work records, and the golden office as the light source. Avoid the
+standard centered SaaS hero, feature-card grids, fake social proof, and future
+platform diagrams.
+
+Marketing motion is one spatial reveal: the presentation case opens into the
+workplace and the workday advances as the visitor scrolls. Reduced Motion keeps
+the complete composition visible and removes travel.

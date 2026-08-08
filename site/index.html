@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#173b3a">
+    <meta name="description" content="A cosy native Mac workplace for named AI employees who research, write, review, and report back.">
+    <title>Agent Office — a little company that wakes up when you do</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to the workplace</a>
+
+    <header class="site-header" aria-label="Primary navigation">
+      <a class="wordmark" href="#top" aria-label="Agent Office home">
+        <span class="house-mark" aria-hidden="true">
+          <span></span>
+        </span>
+        <span class="brand-copy">Agent Office <small>working title</small></span>
+      </a>
+      <nav>
+        <a href="#workday">The workday</a>
+        <a href="#team">The first team</a>
+        <a href="#ownership">How you buy</a>
+      </nav>
+      <details class="mobile-menu">
+        <summary>Explore</summary>
+        <div>
+          <a href="#workday">The workday</a>
+          <a href="#team">The first team</a>
+          <a href="#ownership">How you buy</a>
+        </div>
+      </details>
+      <a class="header-action" href="#workday">See it work</a>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="availability"><span aria-hidden="true"></span> Native Mac proof of concept</p>
+          <h1 id="hero-title">A little company that wakes up when you do.</h1>
+          <p class="hero-lede">Buy the workplace once. Hire AI employees as you need them. Give them an outcome, start the day, and let the right people take it from there.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#workday">See a workday <span aria-hidden="true">↓</span></a>
+            <a class="button button-quiet" href="#ownership">How ownership works</a>
+          </div>
+        </div>
+
+        <div class="keepsake" aria-label="The real Agent Office Mac application">
+          <div class="case-lid" aria-hidden="true">
+            <span class="case-emblem"><span></span></span>
+            <p>Your company.<br>In one beautiful place.</p>
+          </div>
+          <figure class="mac-window">
+            <div class="window-bar" aria-hidden="true">
+              <i></i><i></i><i></i>
+              <span>Willow Studio · Day 1</span>
+            </div>
+            <img src="assets/workplace.jpg" width="1800" height="1141" fetchpriority="high" decoding="async" alt="The Agent Office Mac app showing a cosy cutaway office, three employees, a goal, blockers, and a task board.">
+          </figure>
+          <div class="case-plaque">macOS · local files · you end the day</div>
+        </div>
+      </section>
+
+      <section class="workday" id="workday" aria-labelledby="workday-title">
+        <div class="workday-intro">
+          <p class="section-kicker">One useful day</p>
+          <h2 id="workday-title">You set the outcome.<br>The team owns the process.</h2>
+          <p>No prompt choreography. No workflow builder. You hire people with responsibilities, then see the work move between them.</p>
+        </div>
+
+        <div class="day-ledger">
+          <ol class="day-steps" aria-label="A content team workday">
+            <li class="day-step is-active" data-scene="research" aria-current="step">
+              <time datetime="09:00">9:00</time>
+              <div>
+                <strong>Nia finds the question worth answering.</strong>
+                <p>She studies the product, researches the audience, and leaves evidence the rest of the team can inspect.</p>
+              </div>
+            </li>
+            <li class="day-step" data-scene="write">
+              <time datetime="10:30">10:30</time>
+              <div>
+                <strong>Theo turns evidence into a useful article.</strong>
+                <p>He works from Nia's research and hands a real Markdown draft to Maya.</p>
+              </div>
+            </li>
+            <li class="day-step" data-scene="review">
+              <time datetime="13:00">1:00</time>
+              <div>
+                <strong>Maya reviews the work—not the transcript.</strong>
+                <p>She can approve it, request a bounded revision, or bring a real blocker back to you.</p>
+              </div>
+            </li>
+            <li class="day-step" data-scene="report">
+              <time datetime="17:00">5:00</time>
+              <div>
+                <strong>The day ends with artifacts and a report.</strong>
+                <p>Everyone rests. Tomorrow, the organization starts from what it already knows.</p>
+              </div>
+            </li>
+          </ol>
+
+          <aside class="work-record" aria-live="polite">
+            <div class="record-pin" aria-hidden="true"></div>
+            <p class="record-label">Now in the office</p>
+            <p class="record-person" data-record-person>Nia · Audience Researcher</p>
+            <h3 data-record-title>Finding the audience question</h3>
+            <div class="record-progress" aria-hidden="true"><span data-record-progress></span></div>
+            <dl>
+              <div><dt>Input</dt><dd data-record-input>Product brief</dd></div>
+              <div><dt>Leaves behind</dt><dd data-record-output>Research notes</dd></div>
+              <div><dt>Next handoff</dt><dd data-record-next>Theo</dd></div>
+            </dl>
+            <p class="illustrative-note">Illustrative state from the working local POC.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section class="team" id="team" aria-labelledby="team-title">
+        <div class="team-heading">
+          <div>
+            <p class="section-kicker">The first team</p>
+            <h2 id="team-title">Hire a person, not a prompt.</h2>
+          </div>
+          <p>Every employee has a name, responsibility, workspace, manager, and bounded way of working. Models and tools can change without replacing who they are.</p>
+        </div>
+
+        <div class="employee-shelf">
+          <article class="employee-folio maya">
+            <div class="folio-topline"><span>Included in the POC</span><span>Manager</span></div>
+            <div class="portrait"><img src="assets/employees.png" width="1536" height="1024" loading="lazy" decoding="async" alt="Maya, the editorial manager, holding a notebook."></div>
+            <div class="folio-copy">
+              <p class="folio-number">Employee 01</p>
+              <h3>Maya</h3>
+              <p class="role">Editorial Manager</p>
+              <ul>
+                <li>Owns the content outcome</li>
+                <li>Reviews work and asks for revisions</li>
+                <li>Reports back to you</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="employee-folio nia">
+            <div class="folio-topline"><span>Included in the POC</span><span>Research</span></div>
+            <div class="portrait"><img src="assets/employees.png" width="1536" height="1024" loading="lazy" decoding="async" alt="Nia, the audience researcher, reading from a notebook."></div>
+            <div class="folio-copy">
+              <p class="folio-number">Employee 02</p>
+              <h3>Nia</h3>
+              <p class="role">Audience Researcher</p>
+              <ul>
+                <li>Studies your product context</li>
+                <li>Finds useful questions</li>
+                <li>Leaves evidence for the team</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="employee-folio theo">
+            <div class="folio-topline"><span>Included in the POC</span><span>Writing</span></div>
+            <div class="portrait"><img src="assets/employees.png" width="1536" height="1024" loading="lazy" decoding="async" alt="Theo, the content writer, holding a mug and notebook."></div>
+            <div class="folio-copy">
+              <p class="folio-number">Employee 03</p>
+              <h3>Theo</h3>
+              <p class="role">Content Writer</p>
+              <ul>
+                <li>Writes from shared evidence</li>
+                <li>Responds to manager review</li>
+                <li>Produces ordinary local files</li>
+              </ul>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="ownership" id="ownership" aria-labelledby="ownership-title">
+        <div class="ownership-copy">
+          <p class="section-kicker">A different way to buy software</p>
+          <h2 id="ownership-title">Own the workplace.<br>Subscribe to the people.</h2>
+          <p>The Mac application is intended as a one-time purchase. It is your company's permanent home: its rooms, memory, files, and daily rhythm.</p>
+          <p>Employees can be optional subscriptions because their creators may continuously provide models, proprietary skills, data, tools, or machines. Hire only the people you need. End an employee subscription without losing the workplace.</p>
+          <p class="model-status">Commercial model decided · pricing and checkout not live</p>
+        </div>
+
+        <div class="ownership-objects" aria-label="Ownership model">
+          <div class="workplace-deed">
+            <span class="deed-mark" aria-hidden="true"><span></span></span>
+            <p class="deed-type">The workplace</p>
+            <h3>One-time purchase</h3>
+            <p>Native Mac application<br>Local organization files<br>Your permanent company home</p>
+            <strong>Buy once · keep it</strong>
+          </div>
+          <div class="employee-pass">
+            <div class="mini-portraits" aria-hidden="true"><span>M</span><span>N</span><span>T</span></div>
+            <p class="deed-type">Employable people</p>
+            <h3>Optional subscriptions</h3>
+            <p>Skills and model operation<br>Declared permission needs<br>Independent creators later</p>
+            <strong>Hire only who you need</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="preview" id="preview" aria-labelledby="preview-title">
+        <div>
+          <p class="section-kicker">Developer preview</p>
+          <h2 id="preview-title">Run the little company from source.</h2>
+          <p>If you want to inspect today's build, the proof of concept runs a bounded content-team day and saves JSON state and Markdown artifacts on your Mac. This is local build access—not the eventual owner onboarding flow.</p>
+        </div>
+        <div class="terminal" aria-label="Local run command">
+          <div class="terminal-bar"><i></i><i></i><i></i><span>Terminal</span></div>
+          <code><span>cd</span> agent-office<br><span>swift run</span> AgentOffice</code>
+          <button type="button" data-copy-command aria-label="Copy local run command">Copy command</button>
+          <p data-copy-status aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="closing" aria-labelledby="closing-title">
+        <div class="closing-house" aria-hidden="true"><span></span></div>
+        <p>Start with three useful people.</p>
+        <h2 id="closing-title">Then let the company grow around the work.</h2>
+        <a class="button button-light" href="#workday">Watch the first workday <span aria-hidden="true">↑</span></a>
+      </section>
+    </main>
+
+    <footer>
+      <a class="wordmark" href="#top"><span class="house-mark" aria-hidden="true"><span></span></span><span>Agent Office</span></a>
+      <p>Working title. Native Mac POC. Built for real work, not busywork.</p>
+      <p>© 2026</p>
+    </footer>
+  </body>
+</html>

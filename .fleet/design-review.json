@@ -2,45 +2,53 @@
   "$schema": "fleet.design-review.v1",
   "version": 1,
   "project": "agent-office",
-  "target": "native Mac organization home",
-  "mode": "overhaul",
-  "register": "product",
+  "target": "golden-hour product landing page",
+  "mode": "preserve",
+  "register": "brand",
   "context": {
     "product": "PRODUCT.md",
     "design": "DESIGN.md"
   },
   "direction": {
     "references": [
-      "https://github.com/a16z-infra/ai-town",
-      "Spiritfarer character warmth and environmental storytelling",
-      "Things for calm native Mac information hierarchy"
+      "artifacts/design/organization-home-current.png",
+      "DESIGN.md golden-hour dollhouse world",
+      "artifacts/design/landing-compositions.png"
     ],
     "probes": [
-      "hand-painted golden-hour dollhouse office",
-      "named employee character atlas",
-      "native three-pane organization home"
+      "full-bleed workday",
+      "workplace as a keepsake object",
+      "employee town expansion"
     ],
-    "selected": "handcrafted dollhouse office at golden hour",
-    "approval": "pending",
-    "before": ""
+    "selected": "workplace as a keepsake object with a concrete workday",
+    "approval": "not-required",
+    "before": "artifacts/design/organization-home-current.png"
   },
   "evidence": {
     "screenshots": [
       {
-        "width": 1420,
-        "path": "artifacts/design/organization-home-current.png"
+        "width": 390,
+        "path": "artifacts/design/landing-390.png"
+      },
+      {
+        "width": 768,
+        "path": "artifacts/design/landing-768.png"
+      },
+      {
+        "width": 1440,
+        "path": "artifacts/design/landing-1440.png"
       }
     ],
     "projectCheck": {
-      "command": "swift test && swift build",
-      "status": "passed"
+      "command": "swift test && swift build && openspec validate add-marketing-site --strict",
+      "status": "pass"
     },
     "critique": {
-      "score": 0,
+      "score": 36,
       "maximum": 40
     },
     "audit": {
-      "score": 0,
+      "score": 17,
       "maximum": 20
     },
     "unresolved": {
