@@ -29,4 +29,4 @@
 
 - [x] 4.1 Validate the OpenSpec change strictly and update README and durable
   project status with local site instructions and honest POC limits.
-- [ ] 4.2 Commit and push the reviewed landing-page slice without deploying it.
+- [x] 4.2 Commit and push the reviewed landing-page slice without deploying it.
