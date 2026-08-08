@@ -1,0 +1,10 @@
+.build/
+.swiftpm/
+.DS_Store
+.fleet/evidence/
+tmp/
+artifacts/design/organization-home-active.png
+artifacts/design/organization-home-atlas.png
+artifacts/design/organization-home-resting.png
+artifacts/design/organization-home-working.png
+*.xcuserstate
