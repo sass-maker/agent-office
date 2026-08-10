@@ -22,6 +22,18 @@
   "evidence": {
     "screenshots": [
       {
+        "width": 390,
+        "path": "artifacts/design/issue-6-final-390-integrated.png",
+        "sourceWindowWidth": 760,
+        "note": "Scaled evidence from the supported 760-point native minimum."
+      },
+      {
+        "width": 768,
+        "path": "artifacts/design/issue-6-final-768-integrated.png",
+        "sourceWindowWidth": 760,
+        "note": "Scaled evidence from the supported 760-point native minimum."
+      },
+      {
         "width": 1440,
         "path": "artifacts/design/issue-6-final-1440-integrated.png"
       },
