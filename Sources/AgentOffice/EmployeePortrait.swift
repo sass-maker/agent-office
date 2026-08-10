@@ -8,6 +8,8 @@ enum EmployeePortraitFraming {
 }
 
 struct EmployeePortrait: View {
+    private static let portraitCache = NSCache<NSString, NSImage>()
+
     let employee: Employee
     var size = CGSize(width: 52, height: 62)
     var framing: EmployeePortraitFraming = .face
@@ -51,14 +53,25 @@ struct EmployeePortrait: View {
         for employeeID: String,
         framing: EmployeePortraitFraming
     ) -> NSImage? {
+        let framingKey = framing == .face ? "face" : "full"
+        let cacheKey = "\(employeeID)-\(framingKey)" as NSString
+        if let cached = portraitCache.object(forKey: cacheKey) {
+            return cached
+        }
+
         guard let portrait = fullPortrait(for: employeeID) else { return nil }
         guard framing == .face,
               let source = portrait.cgImage(forProposedRect: nil, context: nil, hints: nil)
-        else { return portrait }
+        else {
+            portraitCache.setObject(portrait, forKey: cacheKey)
+            return portrait
+        }
 
         let crop = faceCrop(in: source, employeeID: employeeID)
         guard let face = source.cropping(to: crop) else { return portrait }
-        return NSImage(cgImage: face, size: NSSize(width: crop.width, height: crop.height))
+        let croppedPortrait = NSImage(cgImage: face, size: NSSize(width: crop.width, height: crop.height))
+        portraitCache.setObject(croppedPortrait, forKey: cacheKey)
+        return croppedPortrait
     }
 
     private static func fullPortrait(for employeeID: String) -> NSImage? {

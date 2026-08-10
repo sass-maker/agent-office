@@ -59,9 +59,10 @@ product, or a generic automation platform.
   and four named specialist AI employees.
 - One persistent full-height sidebar with Office, Mission, and Company;
   a live selectable SpriteKit workplace; floating employee folios; a grouped,
-  filterable Mission task list; editable organization memory; a unified member
-  relationship wall; and full employee details for work, skills, artifacts,
-  activity, and blockers.
+  persistent native team and work summary with keyboard-selectable employee
+  folios and Needs/Moving/Done queues; a grouped, filterable Mission task list;
+  editable organization memory; a unified member relationship wall; and full
+  employee details for work, skills, artifacts, activity, and blockers.
 - A bounded content-team workday: research, drafting, manager review, one
   revision, approval, and an end-of-day report.
 - A general employee outcome loop entered from each Office folio: structured

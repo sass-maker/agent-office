@@ -29,4 +29,4 @@
 - [x] 5.1 Run focused behavior checks, the full Swift test suite, Swift build, package/signature verification, strict OpenSpec validation, and `git diff --check`.
 - [x] 5.2 Capture and inspect fresh normal and minimum-width app evidence, run Impeccable critique/polish/native audit, and resolve every P0/P1 finding.
 - [x] 5.3 Capture the office-object pass at 390, 768, and 1440 widths; repeat Impeccable critique and native audit; reach at least 36/40 and 18/20 with zero unresolved P0/P1 findings.
-- [ ] 5.4 Complete the Fleet design receipt with passing scores and owner feedback, update durable project truth after acceptance, and reconcile GitHub issue #8 without deploying.
+- [x] 5.4 Complete the Fleet design receipt with passing scores and owner feedback, update durable project truth after acceptance, and reconcile GitHub issue #8 without deploying.

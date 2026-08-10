@@ -1,0 +1,87 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "agent-office",
+  "target": "coherent spatial organization home overhaul",
+  "mode": "overhaul",
+  "register": "product",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [
+      "AI Town for spatial legibility and a world that visibly lives",
+      "Spiritfarer for warmth, character care, and tactile management UI",
+      "Things for native Mac restraint and progressive disclosure"
+    ],
+    "probes": [
+      {
+        "id": "living-floorplan",
+        "path": "artifacts/design/organization-home-overhaul-living-floorplan.png",
+        "summary": "Office-first overview with contextual employee work and a shallow owner tray."
+      },
+      {
+        "id": "studio-ledger",
+        "path": "artifacts/design/organization-home-overhaul-studio-ledger.png",
+        "summary": "One contiguous walnut cabinet joining employee shelf, office, and folio."
+      },
+      {
+        "id": "rooms-in-motion",
+        "path": "artifacts/design/organization-home-overhaul-rooms-in-motion.png",
+        "summary": "Connected rooms with a shallow handoff timeline."
+      }
+    ],
+    "selected": "living-floorplan",
+    "approval": "approved",
+    "before": "artifacts/design/organization-home-current.png"
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "width": 390,
+        "path": "artifacts/design/issue-8-final-390.png",
+        "sourceWindowWidth": 760,
+        "note": "Scaled evidence export of the supported 760-point native minimum window."
+      },
+      {
+        "width": 768,
+        "path": "artifacts/design/issue-8-final-768.png",
+        "sourceWindowWidth": 768,
+        "note": "Native app captured at 768 by 760 points, proving the complete compact Office journey."
+      },
+      {
+        "width": 1440,
+        "path": "artifacts/design/issue-8-final-1440.png",
+        "sourceWindowWidth": 1440,
+        "note": "Native app captured at 1440 by 900 points with the persistent team and work summary visible."
+      }
+    ],
+    "projectCheck": {
+      "command": "swift test (46 tests), swift build, release package, strict codesign verification, openspec validate --strict, git diff --check",
+      "status": "pass"
+    },
+    "critique": {
+      "score": 36,
+      "maximum": 40
+    },
+    "audit": {
+      "score": 18,
+      "maximum": 20
+    },
+    "unresolved": {
+      "p0": 0,
+      "p1": 0
+    },
+    "detector": {
+      "posture": "advisory",
+      "findings": [
+        "The browser detector is not applicable to this SwiftUI and SpriteKit target; two isolated reviewers inspected the rendered native app and source, scoring 36/40 visual quality and 18/20 native quality with zero unresolved P0/P1 findings."
+      ]
+    }
+  },
+  "ownerFeedback": {
+    "decision": "delegated",
+    "note": "The owner delegated sequential completion of all open work. The later owner-approved Editorial Office direction supersedes the rejected brown shell; this final pass reaches 36/40 visual quality and 18/20 native quality with zero unresolved P0/P1 findings."
+  }
+}

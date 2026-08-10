@@ -56,6 +56,11 @@ struct OrganizationHomeView: View {
                     .padding(.leading, compact ? 14 : 22)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
+                officeDeskBar(compact: compact)
+                    .padding(.leading, compact ? 12 : 22)
+                    .padding(.bottom, compact ? 12 : 22)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+
                 contextualDrawer(compact: compact)
             }
             .background(EditorialOfficeTheme.bone)
@@ -101,7 +106,7 @@ struct OrganizationHomeView: View {
                 .tracking(1.4)
             Text(model.organization.outcome)
                 .font(.system(compact ? .callout : .title3, design: .serif, weight: .regular))
-                .lineLimit(compact ? 2 : 3)
+                .lineLimit(compact ? 4 : 5)
                 .fixedSize(horizontal: false, vertical: true)
             Rectangle()
                 .fill(EditorialOfficeTheme.rule.opacity(0.7))
@@ -114,13 +119,136 @@ struct OrganizationHomeView: View {
         .foregroundStyle(EditorialOfficeTheme.ink)
         .padding(.horizontal, 15)
         .padding(.vertical, 13)
-        .frame(width: compact ? 220 : 270, alignment: .leading)
+        .frame(width: compact ? 260 : 360, alignment: .leading)
         .background(EditorialOfficeTheme.paper.opacity(0.94))
         .overlay {
             Rectangle().stroke(EditorialOfficeTheme.ink.opacity(0.28), lineWidth: 1)
         }
         .shadow(color: EditorialOfficeTheme.sidebarInk.opacity(0.13), radius: 8, x: 3, y: 5)
         .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Current mission. \(model.organization.outcome). \(outcomeOfficePrompt)")
+    }
+
+    private func officeDeskBar(compact: Bool) -> some View {
+        HStack(spacing: compact ? 5 : 8) {
+            ForEach(Array(aiEmployees.enumerated()), id: \.element.id) { index, employee in
+                editorialEmployeeButton(employee, index: index, compact: compact)
+            }
+
+            Rectangle()
+                .fill(EditorialOfficeTheme.rule.opacity(0.78))
+                .frame(width: 1, height: 38)
+                .padding(.horizontal, compact ? 1 : 4)
+
+            ForEach(OwnerTraySelection.allCases) { selection in
+                editorialTrayButton(selection, compact: compact)
+            }
+        }
+        .padding(6)
+        .background(EditorialOfficeTheme.paper.opacity(0.96))
+        .overlay {
+            Rectangle()
+                .stroke(EditorialOfficeTheme.ink.opacity(0.28), lineWidth: 1)
+        }
+        .shadow(color: EditorialOfficeTheme.sidebarInk.opacity(0.18), radius: 12, x: 4, y: 7)
+        .frame(maxWidth: compact ? .infinity : 840, alignment: .leading)
+        .padding(.trailing, compact ? 12 : 0)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Team and work summary")
+    }
+
+    private func editorialEmployeeButton(_ employee: Employee, index: Int, compact: Bool) -> some View {
+        let selected = model.selectedEmployeeID == employee.id && isEmployeeDrawerPresented(compact: compact)
+
+        return Button {
+            selectEmployee(employee.id)
+        } label: {
+            HStack(spacing: compact ? 4 : 7) {
+                EmployeePortrait(
+                    employee: employee,
+                    size: CGSize(width: compact ? 24 : 28, height: compact ? 28 : 32)
+                )
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(employee.name)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    if !compact {
+                        Text(employeeStatusLabel(employee))
+                            .font(.caption2)
+                            .foregroundStyle(EditorialOfficeTheme.graphite)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .foregroundStyle(EditorialOfficeTheme.ink)
+            .padding(.horizontal, compact ? 5 : 8)
+            .frame(minWidth: compact ? 54 : 82, minHeight: 44, alignment: .leading)
+            .background(selected ? EditorialOfficeTheme.softGrey.opacity(0.76) : Color.clear)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(selected ? EditorialOfficeTheme.ink : Color.clear)
+                    .frame(height: 2)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(
+            KeyEquivalent(Character(String(index + 1))),
+            modifiers: [.command, .option]
+        )
+        .help("Open \(employee.name)'s folio · Command-Option-\(index + 1)")
+        .accessibilityLabel("\(employee.name), \(employee.role), \(employee.status.rawValue)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func editorialTrayButton(_ selection: OwnerTraySelection, compact: Bool) -> some View {
+        let count = ownerTrayCount(selection)
+        let selected = traySelection == selection
+
+        return Button {
+            let willOpen = !selected
+            animateSelection {
+                traySelection = willOpen ? selection : nil
+                if willOpen { showsEmployeeDrawer = false }
+            }
+            drawerAccessibilityFocus = willOpen ? .ownerTray : nil
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: selection.icon)
+                    .font(.caption.weight(.semibold))
+                Text(compact ? selection.compactTitle : ownerTrayTitle(selection))
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                Text("\(count)")
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(EditorialOfficeTheme.graphite)
+            }
+            .foregroundStyle(EditorialOfficeTheme.ink)
+            .padding(.horizontal, compact ? 5 : 8)
+            .frame(minHeight: 44)
+            .background(selected ? EditorialOfficeTheme.softGrey.opacity(0.76) : Color.clear)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(selected ? EditorialOfficeTheme.ink : Color.clear)
+                    .frame(height: 2)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(selection.shortcut, modifiers: [.command, .shift])
+        .help("Open \(ownerTrayTitle(selection)) · Command-Shift-\(selection.shortcutLabel)")
+        .accessibilityLabel("\(ownerTrayTitle(selection)), \(count) items")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func ownerTrayCount(_ selection: OwnerTraySelection) -> Int {
+        switch selection {
+        case .attention: attentionCount
+        case .motion: inMotionCount
+        case .delivered: deliveredCount
+        }
     }
 
     private func commandShelf(compact: Bool) -> some View {
@@ -480,9 +608,9 @@ struct OrganizationHomeView: View {
         Group {
             if compact {
                 content()
-                    .frame(maxWidth: 500, maxHeight: 520)
+                    .frame(maxWidth: 500, maxHeight: 420)
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 18)
+                    .padding(.bottom, 82)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             } else {
                 content()
@@ -1200,6 +1328,10 @@ struct OrganizationHomeView: View {
         model.organization.employee(model.selectedEmployeeID ?? "")
     }
 
+    private var aiEmployees: [Employee] {
+        model.organization.employees.filter { $0.kind == .ai }
+    }
+
     private var inMotionTasks: [WorkTask] {
         model.organization.tasks.filter { [.doing, .review, .revision].contains($0.status) }
     }
@@ -1376,6 +1508,22 @@ private enum OwnerTraySelection: String, CaseIterable, Identifiable {
         case .attention: "Needs you"
         case .motion: "In motion"
         case .delivered: "Delivered"
+        }
+    }
+
+    var compactTitle: String {
+        switch self {
+        case .attention: "Needs"
+        case .motion: "Moving"
+        case .delivered: "Done"
+        }
+    }
+
+    var shortcutLabel: String {
+        switch self {
+        case .attention: "1"
+        case .motion: "2"
+        case .delivered: "3"
         }
     }
 
