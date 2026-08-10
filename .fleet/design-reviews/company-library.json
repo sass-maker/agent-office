@@ -1,0 +1,70 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "agent-office",
+  "target": "Company Library catalogues and teach-skill flow",
+  "mode": "preserve",
+  "register": "product",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [
+      "artifacts/design/organization-home-current.png",
+      "DESIGN.md warm folio and team shelf language"
+    ],
+    "probes": [],
+    "selected": "warm native master-detail library",
+    "approval": "not-required",
+    "before": "artifacts/design/organization-home-current.png"
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "width": 390,
+        "path": "artifacts/design/issue-4-final-390.png",
+        "sourceWindowWidth": 768,
+        "note": "Scaled evidence export of the supported native compact window; the Mac app minimum is 760 points."
+      },
+      {
+        "width": 768,
+        "path": "artifacts/design/issue-4-final-768.png",
+        "sourceWindowWidth": 768,
+        "note": "Teach Skill captured at 768 by 700 points after the scrolling and Editorial Office repairs."
+      },
+      {
+        "width": 1440,
+        "path": "artifacts/design/issue-4-final-1440.png",
+        "sourceWindowWidth": 1440,
+        "note": "Current Company skill catalogue captured at 1440 by 900 points."
+      }
+    ],
+    "projectCheck": {
+      "command": "swift test --filter WorkdayEngineTests (21 tests), swift build, release package, strict codesign verification, openspec validate --strict, git diff --check",
+      "status": "pass"
+    },
+    "critique": {
+      "score": 35,
+      "maximum": 40
+    },
+    "audit": {
+      "score": 19,
+      "maximum": 20
+    },
+    "unresolved": {
+      "p0": 0,
+      "p1": 0
+    },
+    "detector": {
+      "posture": "advisory",
+      "findings": [
+        "The browser detector is not applicable to this native SwiftUI target; two isolated reviewers inspected source and the packaged app at wide and exact native-minimum sizes, with zero unresolved P0/P1 findings."
+      ]
+    }
+  },
+  "ownerFeedback": {
+    "decision": "delegated",
+    "note": "The owner delegated sequential completion of all open work. The catalogue and teach flow now follow the later owner-approved Editorial Office direction and pass the current design and native gates."
+  }
+}

@@ -20,59 +20,51 @@ struct CompanyLibraryView: View {
     private let apricot = EditorialOfficeTheme.graphite
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider().opacity(0.45)
-            Group {
-                switch section {
-                case .employees: employeeCatalogue
-                case .skills: skillCatalogue
-                case .connections: connectionCatalogue
+        GeometryReader { geometry in
+            let compact = geometry.size.width < 800
+
+            VStack(spacing: 0) {
+                header(compact: compact)
+                Divider().opacity(0.45)
+                Group {
+                    switch section {
+                    case .employees: employeeCatalogue
+                    case .skills: skillCatalogue
+                    case .connections: connectionCatalogue
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .foregroundStyle(ink)
+            .tint(spruce)
+            .background(plaster)
         }
-        .foregroundStyle(ink)
-        .tint(spruce)
-        .background(plaster)
-        .frame(minWidth: 820, minHeight: 620)
+        .frame(minWidth: 700, minHeight: 620)
         .sheet(isPresented: $showsTeachSkill) {
             TeachSkillView()
                 .environmentObject(model)
         }
     }
 
-    private var header: some View {
+    private func header(compact: Bool) -> some View {
         VStack(spacing: 14) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("The company library")
-                        .font(.system(.title2, design: .rounded, weight: .bold))
-                    Text("Who is here, what the company knows, and which keys make the work possible.")
-                        .font(.callout)
-                        .foregroundStyle(ink.opacity(0.62))
+            if compact {
+                HStack(alignment: .top, spacing: 12) {
+                    headerTitle
+                    Spacer(minLength: 8)
+                    VStack(alignment: .trailing, spacing: 8) {
+                        teachButton
+                        doneButton
+                    }
+                    .fixedSize()
                 }
-                Spacer()
-                Button {
-                    showsTeachSkill = true
-                } label: {
-                    Label("Teach a skill", systemImage: "book.pages.fill")
-                        .font(.callout.weight(.bold))
-                        .foregroundStyle(EditorialOfficeTheme.paper)
-                        .padding(.horizontal, 13)
-                        .frame(minHeight: 34)
-                        .background(spruce, in: RoundedRectangle(cornerRadius: 9))
+            } else {
+                HStack(alignment: .top, spacing: 16) {
+                    headerTitle
+                    Spacer()
+                    teachButton
+                    doneButton
                 }
-                .buttonStyle(.plain)
-                .disabled(!model.canEditOrganization)
-                Button("Done") { dismiss() }
-                    .buttonStyle(.plain)
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(spruce)
-                    .padding(.horizontal, 10)
-                    .frame(minHeight: 34)
-                    .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 9))
-                    .keyboardShortcut(.cancelAction)
             }
 
             HStack(spacing: 5) {
@@ -80,13 +72,20 @@ struct CompanyLibraryView: View {
                     Button {
                         section = item
                     } label: {
-                        Label(item.rawValue, systemImage: item.icon)
+                        Group {
+                            if compact {
+                                Text(item.rawValue)
+                            } else {
+                                Label(item.rawValue, systemImage: item.icon)
+                            }
+                        }
                             .font(.callout.weight(.semibold))
                             .foregroundStyle(section == item ? EditorialOfficeTheme.paper : ink.opacity(0.68))
                             .frame(maxWidth: .infinity, minHeight: 34)
                             .background(section == item ? spruce : Color.clear, in: RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(section == item ? .isSelected : [])
                 }
             }
             .padding(4)
@@ -95,6 +94,45 @@ struct CompanyLibraryView: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 20)
         .background(paper)
+    }
+
+    private var headerTitle: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("The company library")
+                .font(.system(.title2, design: .rounded, weight: .bold))
+            Text("Who is here, what the company knows, and which keys make the work possible.")
+                .font(.callout)
+                .foregroundStyle(ink.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(1)
+    }
+
+    private var teachButton: some View {
+        Button {
+            showsTeachSkill = true
+        } label: {
+            Label("Teach a skill", systemImage: "book.pages.fill")
+                .font(.callout.weight(.bold))
+                .foregroundStyle(EditorialOfficeTheme.paper)
+                .padding(.horizontal, 13)
+                .frame(minHeight: 34)
+                .background(spruce, in: RoundedRectangle(cornerRadius: 9))
+        }
+        .buttonStyle(.plain)
+        .disabled(!model.canEditOrganization)
+    }
+
+    private var doneButton: some View {
+        Button("Done") { dismiss() }
+            .buttonStyle(.plain)
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(spruce)
+            .padding(.horizontal, 10)
+            .frame(minHeight: 34)
+            .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 9))
+            .keyboardShortcut(.cancelAction)
     }
 
     private var employeeCatalogue: some View {
@@ -124,6 +162,7 @@ struct CompanyLibraryView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(selectedEmployeeID == employee.id ? .isSelected : [])
                 }
             }
 
@@ -137,6 +176,9 @@ struct CompanyLibraryView: View {
 
     private func employeeDetail(_ employee: Employee) -> some View {
         let skills = model.organization.assignedSkills(employeeID: employee.id)
+        let requiredConnections = Array(Set(skills.flatMap(\.requiredConnectionIDs)))
+            .sorted()
+            .map(connectionName)
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .top, spacing: 18) {
@@ -171,6 +213,16 @@ struct CompanyLibraryView: View {
                             .foregroundStyle(ink.opacity(0.56))
                     } else {
                         flowTags(employee.capabilityGrants)
+                    }
+                }
+
+                librarySection("Required connections", icon: "point.3.connected.trianglepath.dotted") {
+                    if requiredConnections.isEmpty {
+                        Text("No assigned skill requires a connection.")
+                            .font(.callout)
+                            .foregroundStyle(ink.opacity(0.56))
+                    } else {
+                        flowTags(requiredConnections)
                     }
                 }
 
@@ -224,6 +276,7 @@ struct CompanyLibraryView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(selectedSkillID == skill.id ? .isSelected : [])
                 }
             }
 
@@ -344,7 +397,7 @@ struct CompanyLibraryView: View {
                     .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
                     .background(paper, in: RoundedRectangle(cornerRadius: 15))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 15).stroke(DawnStageTheme.hairline)
+                        RoundedRectangle(cornerRadius: 15).stroke(EditorialOfficeTheme.rule)
                     }
                 }
             }
@@ -450,97 +503,100 @@ private struct TeachSkillView: View {
     @State private var employeeID = "maya"
     @State private var connectionID = "none"
 
-    private let ink = DawnStageTheme.ivory
-    private let spruce = DawnStageTheme.coral
-    private let paper = DawnStageTheme.backstage
+    private let ink = EditorialOfficeTheme.ink
+    private let spruce = EditorialOfficeTheme.sidebarInk
+    private let paper = EditorialOfficeTheme.paper
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Teach an organizational skill")
-                    .font(.system(.title2, design: .rounded, weight: .bold))
-                Text("This stores operating guidance for future work. It does not fine-tune or certify the employee's model.")
-                    .font(.callout)
-                    .foregroundStyle(ink.opacity(0.64))
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Teach an organizational skill")
+                        .font(.system(.title2, design: .serif, weight: .semibold))
+                    Text("This stores operating guidance for future work. It does not fine-tune or certify the employee's model.")
+                        .font(.callout)
+                        .foregroundStyle(ink.opacity(0.64))
+                }
 
-            HStack(spacing: 14) {
-                field("Skill name") { TextField("e.g. Interview synthesis", text: $name) }
-                field("Category") { TextField("e.g. Research", text: $category) }
-            }
+                HStack(spacing: 14) {
+                    field("Skill name") { TextField("e.g. Interview synthesis", text: $name) }
+                    field("Category") { TextField("e.g. Research", text: $category) }
+                }
 
-            field("Purpose") {
-                TextField("What should this skill help the employee accomplish?", text: $purpose, axis: .vertical)
-                    .lineLimit(2...4)
-            }
-            field("Operating instructions") {
-                TextField("Give concrete steps, constraints, and judgment rules.", text: $instructions, axis: .vertical)
-                    .lineLimit(4...7)
-            }
-            field("A good result") {
-                TextField("How will you recognize that the skill was used well?", text: $successCriteria, axis: .vertical)
-                    .lineLimit(2...4)
-            }
+                field("Purpose") {
+                    TextField("What should this skill help the employee accomplish?", text: $purpose, axis: .vertical)
+                        .lineLimit(2...4)
+                }
+                field("Operating instructions") {
+                    TextField("Give concrete steps, constraints, and judgment rules.", text: $instructions, axis: .vertical)
+                        .lineLimit(4...7)
+                }
+                field("A good result") {
+                    TextField("How will you recognize that the skill was used well?", text: $successCriteria, axis: .vertical)
+                        .lineLimit(2...4)
+                }
 
-            HStack(spacing: 14) {
-                field("Teach to") {
-                    Picker("Teach to", selection: $employeeID) {
-                        ForEach(model.organization.employees.filter { $0.kind == .ai }) { employee in
-                            Text("\(employee.name) · \(employee.role)").tag(employee.id)
+                HStack(spacing: 14) {
+                    field("Teach to") {
+                        Picker("Teach to", selection: $employeeID) {
+                            ForEach(model.organization.employees.filter { $0.kind == .ai }) { employee in
+                                Text("\(employee.name) · \(employee.role)").tag(employee.id)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                    field("Required connection") {
+                        Picker("Required connection", selection: $connectionID) {
+                            Text("None").tag("none")
+                            ForEach(model.organization.knowledge?.connectionDefinitions ?? []) { connection in
+                                Text(connection.name).tag(connection.id)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                }
+
+                Divider().opacity(0.4)
+
+                HStack {
+                    Text(formIsValid ? "The guidance will be available on the employee's next task." : "Complete every teaching field to continue.")
+                        .font(.caption)
+                        .foregroundStyle(formIsValid ? EditorialOfficeTheme.ink : EditorialOfficeTheme.graphite)
+                    Spacer()
+                    Button("Cancel") { dismiss() }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(spruce)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 32)
+                        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+                        .keyboardShortcut(.cancelAction)
+                    Button("Teach skill") {
+                        if model.teachSkill(
+                            name: name,
+                            category: category,
+                            purpose: purpose,
+                            instructions: instructions,
+                            successCriteria: successCriteria,
+                            requiredConnectionID: connectionID == "none" ? nil : connectionID,
+                            employeeID: employeeID
+                        ) {
+                            dismiss()
                         }
                     }
-                    .labelsHidden()
-                }
-                field("Required connection") {
-                    Picker("Required connection", selection: $connectionID) {
-                        Text("None").tag("none")
-                        ForEach(model.organization.knowledge?.connectionDefinitions ?? []) { connection in
-                            Text(connection.name).tag(connection.id)
-                        }
-                    }
-                    .labelsHidden()
+                    .buttonStyle(.borderedProminent)
+                    .tint(spruce)
+                    .disabled(!formIsValid)
+                    .keyboardShortcut(.defaultAction)
                 }
             }
-
-            Divider().opacity(0.4)
-
-            HStack {
-                Text(formIsValid ? "The guidance will be available on the employee's next task." : "Complete every teaching field to continue.")
-                    .font(.caption)
-                    .foregroundStyle(formIsValid ? EditorialOfficeTheme.ink : EditorialOfficeTheme.graphite)
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(spruce)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: 32)
-                    .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
-                    .keyboardShortcut(.cancelAction)
-                Button("Teach skill") {
-                    if model.teachSkill(
-                        name: name,
-                        category: category,
-                        purpose: purpose,
-                        instructions: instructions,
-                        successCriteria: successCriteria,
-                        requiredConnectionID: connectionID == "none" ? nil : connectionID,
-                        employeeID: employeeID
-                    ) {
-                        dismiss()
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(spruce)
-                .disabled(!formIsValid)
-                .keyboardShortcut(.defaultAction)
-            }
+            .padding(26)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(26)
-        .frame(minWidth: 680, minHeight: 650)
+        .frame(minWidth: 680, minHeight: 540)
         .background(paper)
         .foregroundStyle(ink)
         .tint(spruce)
-        .environment(\.colorScheme, .dark)
+        .environment(\.colorScheme, .light)
     }
 
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
@@ -549,6 +605,7 @@ private struct TeachSkillView: View {
             content()
                 .textFieldStyle(.roundedBorder)
                 .foregroundStyle(ink)
+                .accessibilityLabel(label)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
