@@ -6,23 +6,34 @@ struct AgentOfficeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            OrganizationHomeView()
+            Group {
+                if !model.isLoaded {
+                    LaunchView()
+                } else if model.showsOnboarding {
+                    OnboardingView()
+                } else {
+                    OrganizationShellView()
+                }
+            }
                 .environmentObject(model)
+                .preferredColorScheme(.light)
                 .task {
                     await model.load()
                 }
-                .frame(minWidth: 1_180, minHeight: 760)
+                .frame(minWidth: 760, minHeight: 620)
         }
         .defaultSize(width: 1_420, height: 900)
         .windowStyle(.hiddenTitleBar)
-        .commands {
-            CommandGroup(after: .newItem) {
-                Button(model.organization.workdayStatus == .active ? "End Day" : "Start Day") {
-                    model.toggleDay()
-                }
-                .keyboardShortcut(.return, modifiers: [.command])
-            }
-        }
     }
 }
 
+private struct LaunchView: View {
+    var body: some View {
+        ZStack {
+            EditorialOfficeTheme.workingField.ignoresSafeArea()
+            ProgressView("Opening the office…")
+                .controlSize(.large)
+                .foregroundStyle(EditorialOfficeTheme.ink)
+        }
+    }
+}

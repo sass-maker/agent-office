@@ -5,6 +5,21 @@ resuming a bounded workday performed by a small team of AI employees.
 
 ## ADDED Requirements
 
+### Requirement: First launch creates a usable organization
+On first launch, the application SHALL offer a concise, skippable setup journey
+that lets the owner name the organization, state its first outcome, meet the
+starter employees, and enter the same persistent workplace used thereafter.
+
+#### Scenario: Owner completes setup
+- **WHEN** the owner confirms the organization and first outcome
+- **THEN** the application persists setup completion, opens the organization
+  home, and offers to begin the first real workday
+
+#### Scenario: Returning owner opens the app
+- **WHEN** setup was completed previously
+- **THEN** the application restores the organization directly without replaying
+  onboarding
+
 ### Requirement: Owner can operate one persistent organization
 The application SHALL present one local organization with a name, outcome,
 employees, goals, blockers, tasks, and an activity history that survive closing
@@ -53,4 +68,3 @@ raw execution logs.
 - **WHEN** an employee cannot continue within the POC's tools or review limit
 - **THEN** the application creates an attributable blocker with a concise owner
   request and leaves unaffected tasks available
-

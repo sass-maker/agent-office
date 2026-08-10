@@ -21,7 +21,8 @@ platform.
 - Background hourly scheduling while the app is closed.
 - Publishing, cloud access, browsers, computer use, GCP, Composio, or secrets.
 - A generic workflow engine, permission system, agent marketplace, or HR suite.
-- Pixel-perfect sprite animation, map editing, or a production app bundle.
+- A general-purpose map editor, networked multiplayer simulation, or production
+  app bundle.
 
 ## Decisions
 
@@ -32,6 +33,24 @@ and file actions. SpriteKit provides a real-time 2D scene with characters,
 layering, and movement without adding a dependency. A Tauri/React/Pixi stack
 would make AI Town code reuse easier but adds a web runtime and production
 dependencies before the native product interaction has been proven.
+
+### Adapt AI Town's simulation primitives, not its stack or assets
+
+The SpriteKit scene gives each employee a persistent position, a meaningful
+destination, a waypoint route, facing, and a movement state. Authored walkable
+lanes connect workstations and meeting points. Employees replan around occupied
+destinations, walk to task-derived stations, and use bounded idle paths only
+when no consequential work is active. This keeps the room visibly alive while
+ensuring animation remains evidence of real work. AI Town is an architectural
+and quality reference; no web runtime or borrowed art is required.
+
+### Onboard through the first real workday
+
+First launch presents a short native setup journey: name the organization,
+state its first outcome, meet the starter team, and enter the office. Setup is
+skippable and writes the same local organization used by the product rather
+than creating a disposable tutorial. The completion moment begins the first
+workday so the employees walk into the room and take up real assignments.
 
 ### Separate the domain model from the scene
 
@@ -67,6 +86,11 @@ task, changes the employee's visible state, produces or reviews an artifact,
 persists, then yields briefly so the owner can understand progress. End Day
 cancels before the next step and persists a resting organization.
 
+The scene animates those state transitions independently from the work engine.
+Travel is interruptible: a new task, blocker, handoff, End Day, or Reduce Motion
+preference replaces the old route rather than waiting for a decorative
+animation to finish.
+
 ### Store one JSON snapshot plus ordinary artifacts
 
 The organization directory contains `organization.json` and employee-owned
@@ -100,4 +124,3 @@ without improving current safety.
 No deployment or data migration is required. Build and run locally. Deleting
 the app does not remove a user-selected organization folder. The working
 directory and display name can be renamed once the product name is chosen.
-

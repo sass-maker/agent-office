@@ -1,0 +1,436 @@
+{
+  "activity" : [
+    {
+      "actorID" : "owner",
+      "createdAt" : "2026-08-09T06:55:59Z",
+      "id" : "48EF2DB3-781E-4865-ACED-A139D15D3315",
+      "kind" : "joined",
+      "message" : "The content team is ready for its first day."
+    },
+    {
+      "actorID" : "owner",
+      "createdAt" : "2026-08-09T06:55:59Z",
+      "id" : "CA911B27-30EA-41AE-B81D-B845FD4BD21A",
+      "kind" : "started",
+      "message" : "You gave Mira a research outcome: Recommend the single best non-technical AI employee for a solo founder to use every week after the research employee, based on repeatability, measurable output, permission risk, and suitability for this local Mac-first product."
+    },
+    {
+      "actorID" : "mira",
+      "createdAt" : "2026-08-09T06:55:59Z",
+      "id" : "7A89617B-D127-4EF6-892A-4761ECC75467",
+      "kind" : "handoff",
+      "message" : "Mira delegated the research assignment to Nia."
+    },
+    {
+      "actorID" : "nia",
+      "createdAt" : "2026-08-09T06:55:59Z",
+      "id" : "9F2E8F17-30E5-4B36-BE23-FE514A111418",
+      "kind" : "started",
+      "message" : "Nia started the owner-directed research assignment."
+    },
+    {
+      "actorID" : "nia",
+      "createdAt" : "2026-08-09T06:59:32Z",
+      "id" : "E67EB89F-F3CA-4B62-A9D5-BDC1E4B852EA",
+      "kind" : "handoff",
+      "message" : "Nia delivered the research brief to Mira."
+    },
+    {
+      "actorID" : "mira",
+      "createdAt" : "2026-08-09T06:59:32Z",
+      "id" : "1D8589D8-F66D-4129-BD77-308F39D7BDC2",
+      "kind" : "completed",
+      "message" : "Mira left the verified research delivery on your desk."
+    }
+  ],
+  "artifacts" : [
+    {
+      "authorID" : "nia",
+      "createdAt" : "2026-08-09T06:59:32Z",
+      "evidenceBasis" : "permitted-web-research",
+      "id" : "E5204465-064A-4DDB-9AD3-0B073F8E8FF0",
+      "kind" : "research",
+      "relativePath" : "employees\/nia\/research-assignment-3855626c-research.md",
+      "sourceArtifactIDs" : [
+
+      ],
+      "taskID" : "research-assignment-3855626c",
+      "title" : "Research: Recommend the single best non-technical AI employee for a solo founder to use every week after the research employee, based on repeatability, measurable output, permission risk, and suitability for this local Mac-first product."
+    },
+    {
+      "authorID" : "mira",
+      "createdAt" : "2026-08-09T06:59:32Z",
+      "evidenceBasis" : "permitted-web-research",
+      "id" : "2F5B5A3D-E3CF-4C63-B0A5-C830D60269F6",
+      "kind" : "report",
+      "relativePath" : "employees\/mira\/research-assignment-3855626c-report.md",
+      "sourceArtifactIDs" : [
+        "E5204465-064A-4DDB-9AD3-0B073F8E8FF0"
+      ],
+      "taskID" : "research-assignment-3855626c",
+      "title" : "Mira's delivery — Recommend the single best non-technical AI employee for a solo founder to use every week after the research employee, based on repeatability, measurable output, permission risk, and suitability for this local Mac-first product."
+    }
+  ],
+  "blockers" : [
+
+  ],
+  "dayNumber" : 0,
+  "employees" : [
+    {
+      "avatarColor" : "D9B18E",
+      "capabilityGrants" : [
+
+      ],
+      "id" : "owner",
+      "kind" : "human",
+      "name" : "Founder",
+      "responsibility" : "Set the company's outcomes, make judgment calls, and approve new access.",
+      "role" : "Owner",
+      "status" : "resting"
+    },
+    {
+      "assistantForHumanID" : "owner",
+      "avatarColor" : "B7A5D8",
+      "capabilityGrants" : [
+
+      ],
+      "id" : "mira",
+      "kind" : "ai",
+      "managerID" : "owner",
+      "name" : "Mira",
+      "responsibility" : "Keep the owner oriented, surface decisions, and prepare clear daily handoffs.",
+      "role" : "Executive Assistant",
+      "status" : "resting"
+    },
+    {
+      "avatarColor" : "E78B5B",
+      "capabilityGrants" : [
+
+      ],
+      "id" : "maya",
+      "kind" : "ai",
+      "name" : "Maya",
+      "responsibility" : "Own the content outcome, review work, and keep the team moving.",
+      "role" : "Editorial Manager",
+      "status" : "resting"
+    },
+    {
+      "avatarColor" : "F2C96D",
+      "capabilityGrants" : [
+        "web-research"
+      ],
+      "id" : "nia",
+      "kind" : "ai",
+      "managerID" : "maya",
+      "name" : "Nia",
+      "responsibility" : "Understand the product and find useful questions worth answering.",
+      "role" : "Audience Researcher",
+      "status" : "resting"
+    },
+    {
+      "avatarColor" : "7395A8",
+      "capabilityGrants" : [
+
+      ],
+      "id" : "theo",
+      "kind" : "ai",
+      "managerID" : "maya",
+      "name" : "Theo",
+      "responsibility" : "Turn evidence and direction into clear, useful articles.",
+      "role" : "Content Writer",
+      "status" : "resting"
+    }
+  ],
+  "executionMode" : "localCodex",
+  "goals" : [
+    {
+      "detail" : "Research, write, review, and deliver one strong article.",
+      "id" : "content-outcome",
+      "ownerID" : "maya",
+      "progress" : 0,
+      "title" : "Earn useful organic discovery"
+    }
+  ],
+  "id" : "willow-studio",
+  "knowledge" : {
+    "assistantHandoffs" : [
+
+    ],
+    "capabilityEvents" : [
+      {
+        "actorID" : "nia",
+        "capability" : "web-research",
+        "createdAt" : "2026-08-09T06:55:59Z",
+        "detail" : "Nia started permitted web research for the owner-directed assignment.",
+        "employeeID" : "nia",
+        "id" : "9BBAAF13-E0EF-4F88-8FD3-E486FD2C0DE0",
+        "kind" : "started",
+        "taskID" : "research-assignment-3855626c"
+      },
+      {
+        "actorID" : "nia",
+        "capability" : "web-research",
+        "createdAt" : "2026-08-09T06:59:32Z",
+        "detail" : "Cited research was verified and saved to employees\/nia\/research-assignment-3855626c-research.md.",
+        "employeeID" : "nia",
+        "id" : "A7C358D8-21A4-4D21-B1AD-AA6505588B41",
+        "kind" : "succeeded",
+        "taskID" : "research-assignment-3855626c"
+      }
+    ],
+    "connectionDefinitions" : [
+      {
+        "id" : "demo-runner",
+        "kind" : "execution",
+        "name" : "Demo team",
+        "summary" : "Local deterministic rehearsal with no account or network."
+      },
+      {
+        "id" : "local-codex",
+        "kind" : "execution",
+        "name" : "Local Codex",
+        "summary" : "Uses the locally installed and authenticated Codex CLI in a read-only sandbox."
+      },
+      {
+        "capabilityID" : "web-research",
+        "id" : "web-research",
+        "kind" : "tool",
+        "name" : "Web research",
+        "summary" : "Read-only live research for explicitly permitted research work."
+      }
+    ],
+    "memoryEntries" : [
+      {
+        "authorID" : "nia",
+        "createdAt" : "2026-08-09T06:59:32Z",
+        "dayNumber" : 0,
+        "employeeID" : "nia",
+        "id" : "D7712C0B-AB34-4DC7-A939-DC5E058CC324",
+        "sourceArtifactID" : "E5204465-064A-4DDB-9AD3-0B073F8E8FF0",
+        "summary" : "Nia completed research work with local Codex."
+      }
+    ],
+    "productBrief" : "# Product brief\n\n## Product\nA native, cosy Mac workplace where an owner hires named AI employees,\ngives them outcomes, and receives inspectable local work.\n\n## Audience\nA solo founder or very small company that wants useful non-technical\nemployees without configuring prompts or workflow infrastructure.\n\n## Current proof\nAn executive assistant, a researcher, a content team, explicit skills,\nread-only research permission, local persistence, and bounded handoffs.\n\n## Constraints\nStart with non-technical work, no external writes, no cloud credentials,\nand no claim of autonomy that the current product cannot demonstrate.",
+    "researchAssignments" : [
+      {
+        "assigneeID" : "nia",
+        "attemptCount" : 1,
+        "briefArtifactID" : "E5204465-064A-4DDB-9AD3-0B073F8E8FF0",
+        "context" : "Compare at least three roles. Prefer current primary product documentation and credible first-party evidence. Exclude software engineering. End with one narrow employee definition and the first weekly duty it should own.",
+        "createdAt" : "2026-08-09T06:55:59Z",
+        "delegatedByActorID" : "mira",
+        "deliveryArtifactID" : "2F5B5A3D-E3CF-4C63-B0A5-C830D60269F6",
+        "evidenceBasis" : "permitted-web-research",
+        "id" : "research-assignment-3855626c",
+        "outcome" : "Recommend the single best non-technical AI employee for a solo founder to use every week after the research employee, based on repeatability, measurable output, permission risk, and suitability for this local Mac-first product.",
+        "requestedByActorID" : "owner",
+        "reviewerID" : "mira",
+        "status" : "delivered",
+        "updatedAt" : "2026-08-09T06:59:32Z"
+      }
+    ],
+    "skillAssignments" : [
+      {
+        "assignedAt" : "2026-08-09T06:55:59Z",
+        "assignedByActorID" : "agent-office",
+        "employeeID" : "mira",
+        "id" : "mira:executive-briefing",
+        "skillID" : "executive-briefing"
+      },
+      {
+        "assignedAt" : "2026-08-09T06:55:59Z",
+        "assignedByActorID" : "agent-office",
+        "employeeID" : "maya",
+        "id" : "maya:outcome-ownership",
+        "skillID" : "outcome-ownership"
+      },
+      {
+        "assignedAt" : "2026-08-09T06:55:59Z",
+        "assignedByActorID" : "agent-office",
+        "employeeID" : "nia",
+        "id" : "nia:audience-research",
+        "skillID" : "audience-research"
+      },
+      {
+        "assignedAt" : "2026-08-09T06:55:59Z",
+        "assignedByActorID" : "agent-office",
+        "employeeID" : "theo",
+        "id" : "theo:evidence-writing",
+        "skillID" : "evidence-writing"
+      },
+      {
+        "assignedAt" : "2026-08-09T06:55:59Z",
+        "assignedByActorID" : "agent-office",
+        "employeeID" : "maya",
+        "id" : "maya:editorial-review",
+        "skillID" : "editorial-review"
+      },
+      {
+        "assignedAt" : "2026-08-09T06:55:59Z",
+        "assignedByActorID" : "agent-office",
+        "employeeID" : "maya",
+        "id" : "maya:owner-reporting",
+        "skillID" : "owner-reporting"
+      }
+    ],
+    "skillDefinitions" : [
+      {
+        "authorID" : "agent-office",
+        "category" : "Coordination",
+        "createdAt" : "2026-08-09T06:55:59Z",
+        "id" : "executive-briefing",
+        "instructions" : "Summarize only persisted goals, tasks, blockers, permissions, and artifacts. Separate completed work from pending work and end with the next owner decision.",
+        "name" : "Executive briefing",
+        "purpose" : "Keep the owner oriented around current work and decisions.",
+        "requiredConnectionIDs" : [
+
+        ],
+        "source" : "builtIn",
+        "successCriteria" : "The brief is attributable, contains no invented progress, and names one clear next action.",
+        "updatedAt" : "2026-08-09T06:55:59Z",
+        "version" : 1
+      },
+      {
+        "authorID" : "agent-office",
+        "category" : "Management",
+        "createdAt" : "2026-08-09T06:55:59Z",
+        "id" : "outcome-ownership",
+        "instructions" : "Break the outcome into the existing bounded tasks, keep ownership explicit, review handoffs, and stop at the configured revision limit.",
+        "name" : "Outcome ownership",
+        "purpose" : "Own a bounded organizational outcome and coordinate specialists toward it.",
+        "requiredConnectionIDs" : [
+
+        ],
+        "source" : "builtIn",
+        "successCriteria" : "The outcome ends with approved work or a precise owner blocker, never an infinite review loop.",
+        "updatedAt" : "2026-08-09T06:55:59Z",
+        "version" : 1
+      },
+      {
+        "authorID" : "agent-office",
+        "category" : "Research",
+        "createdAt" : "2026-08-09T06:55:59Z",
+        "id" : "audience-research",
+        "instructions" : "Ground the question in the product brief. Use external sources only when web research is granted, cite URLs when used, and distinguish evidence from owner claims.",
+        "name" : "Audience research",
+        "purpose" : "Find the useful audience question that the content should answer.",
+        "requiredConnectionIDs" : [
+          "web-research"
+        ],
+        "source" : "builtIn",
+        "successCriteria" : "Research identifies a concrete reader question, evidence basis, and article direction without fabricated sources.",
+        "updatedAt" : "2026-08-09T06:55:59Z",
+        "version" : 1
+      },
+      {
+        "authorID" : "agent-office",
+        "category" : "Content",
+        "createdAt" : "2026-08-09T06:55:59Z",
+        "id" : "evidence-writing",
+        "instructions" : "Write from the product brief and research artifact, preserve claim boundaries, and make the result independently readable rather than summarizing the transcript.",
+        "name" : "Evidence-based writing",
+        "purpose" : "Turn approved evidence and direction into a useful article.",
+        "requiredConnectionIDs" : [
+
+        ],
+        "source" : "builtIn",
+        "successCriteria" : "The draft answers the audience question, traces its evidence, and is ready for editorial review.",
+        "updatedAt" : "2026-08-09T06:55:59Z",
+        "version" : 1
+      },
+      {
+        "authorID" : "agent-office",
+        "category" : "Quality",
+        "createdAt" : "2026-08-09T06:55:59Z",
+        "id" : "editorial-review",
+        "instructions" : "Return a clear approve or revise verdict with focused evidence. Do not request more than the bounded revision limit permits.",
+        "name" : "Editorial review",
+        "purpose" : "Evaluate content against its outcome, evidence, and safe claims.",
+        "requiredConnectionIDs" : [
+
+        ],
+        "source" : "builtIn",
+        "successCriteria" : "The verdict is actionable, grounded in the artifact, and either approves the work or identifies one bounded correction.",
+        "updatedAt" : "2026-08-09T06:55:59Z",
+        "version" : 1
+      },
+      {
+        "authorID" : "agent-office",
+        "category" : "Coordination",
+        "createdAt" : "2026-08-09T06:55:59Z",
+        "id" : "owner-reporting",
+        "instructions" : "Summarize completed tasks, created artifacts, unresolved blockers, capability use, and the recommended next action.",
+        "name" : "Owner reporting",
+        "purpose" : "Leave the owner a concise account of completed work and next decisions.",
+        "requiredConnectionIDs" : [
+
+        ],
+        "source" : "builtIn",
+        "successCriteria" : "The report matches persisted state and lets the owner resume without reading the full activity timeline.",
+        "updatedAt" : "2026-08-09T06:55:59Z",
+        "version" : 1
+      }
+    ]
+  },
+  "lastSavedAt" : "2026-08-09T06:59:32Z",
+  "name" : "Agent Office",
+  "outcome" : "Create one genuinely useful article that helps the right people discover and understand the product.",
+  "schemaVersion" : 5,
+  "setupCompleted" : false,
+  "tasks" : [
+    {
+      "artifactIDs" : [
+
+      ],
+      "assigneeID" : "nia",
+      "dependencyIDs" : [
+
+      ],
+      "detail" : "Read the product brief and identify the most useful question to answer.",
+      "id" : "research-audience",
+      "kind" : "research",
+      "maxRevisions" : 0,
+      "reviewerID" : "maya",
+      "revisionCount" : 0,
+      "status" : "ready",
+      "title" : "Find the audience question",
+      "updatedAt" : "2026-08-09T06:55:59Z"
+    },
+    {
+      "artifactIDs" : [
+
+      ],
+      "assigneeID" : "theo",
+      "dependencyIDs" : [
+        "research-audience"
+      ],
+      "detail" : "Create a practical article from Nia's research and send it to Maya.",
+      "id" : "draft-first-article",
+      "kind" : "draft",
+      "maxRevisions" : 2,
+      "reviewerID" : "maya",
+      "revisionCount" : 0,
+      "status" : "waiting",
+      "title" : "Write the first article",
+      "updatedAt" : "2026-08-09T06:55:59Z"
+    },
+    {
+      "artifactIDs" : [
+
+      ],
+      "assigneeID" : "maya",
+      "dependencyIDs" : [
+        "draft-first-article"
+      ],
+      "detail" : "Summarize what shipped, what changed, and what needs attention next.",
+      "id" : "prepare-daily-report",
+      "kind" : "report",
+      "maxRevisions" : 0,
+      "revisionCount" : 0,
+      "status" : "waiting",
+      "title" : "Prepare the owner's report",
+      "updatedAt" : "2026-08-09T06:55:59Z"
+    }
+  ],
+  "workdayStatus" : "resting"
+}

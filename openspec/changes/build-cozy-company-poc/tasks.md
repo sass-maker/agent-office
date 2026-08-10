@@ -27,6 +27,13 @@
 - [ ] 3.4 Add authored visual texture, employee silhouettes, furniture, lighting,
   handoff cues, empty states, and narrow-window behavior consistent with
   `DESIGN.md`.
+- [ ] 3.5 Add a skippable first-run organization journey that persists completion
+  and carries the owner into the real workplace.
+- [x] 3.6 Replace fixed station jumps with persistent position, authored routes,
+  task-driven walking, facing, occupancy-aware destinations, and restrained
+  idle life in SpriteKit.
+- [ ] 3.7 Recompose the employee and work rails as a warm team shelf and studio
+  ledger with richer ownership, hierarchy, progress, and responsive behavior.
 
 ## 4. Verification and handoff
 
@@ -35,3 +42,5 @@
   representative app screenshots for the design receipt.
 - [x] 4.3 Update durable project status and provide local run instructions,
   known POC limits, and the owner design-feedback checkpoint.
+- [x] 4.4 Add focused coverage for setup persistence and deterministic movement
+  planning, then repeat the strict specification, test, and build checks.

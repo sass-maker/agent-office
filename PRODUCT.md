@@ -54,9 +54,17 @@ State and artifacts remain in a local organization folder.
 
 ## Capabilities and Constraints
 
-- Initial employees: an editorial manager, a researcher, and a content writer.
-- Initial work: one content/SEO outcome, research notes, a draft, bounded
-  review cycles, and a daily report.
+- Initial specialists: an editorial manager, a researcher, a content writer,
+  and a Customer Voice Analyst, coordinated through the owner's executive
+  assistant.
+- Initial work: a reusable outcome loop for any AI employee plus one seeded
+  content/SEO workday, research notes, a draft, bounded review cycles, and a
+  daily report.
+- Every AI employee has Communication as a built-in skill: they must leave
+  attributable progress updates, delivery notes, and precise requests for help.
+- An employee may decompose an assigned outcome into one to four Mission
+  tickets and choose among their existing skills, but may not grant itself a
+  skill, permission, integration, publishing right, or spending authority.
 - Initial execution stays local. No publishing or external system writes.
 - Codex may power employee work through the user's existing local
   authentication; the POC must not embed API keys.

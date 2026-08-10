@@ -10,6 +10,8 @@ complete a bounded workday and resume later.
 
 - Add a standalone native macOS application with a two-dimensional workplace,
   employee roster, goals, blockers, task board, and Start Day/End Day controls.
+- Add a short first-run journey that creates the local organization, introduces
+  the starter team, and carries the owner into the first real workday.
 - Model named employees as durable organizational identities with roles,
   managers, state, workspaces, and attributed activity.
 - Add a bounded content-team work cycle: research, draft, manager review,
@@ -30,7 +32,8 @@ complete a bounded workday and resume later.
 - `local-employee-work`: Durable employee identity, attributed tasks, local
   workspaces, artifacts, review handoffs, and inspectable execution state.
 - `living-workplace`: A native, accessible, cosy 2D representation whose
-  characters and spaces reflect the actual organization and task state.
+  characters continuously inhabit the room, travel between meaningful work
+  destinations, and reflect the actual organization and task state.
 
 ### Modified Capabilities
 
