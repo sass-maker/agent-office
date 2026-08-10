@@ -34,7 +34,7 @@
 - [x] 6.1 Run focused tests, full `swift test`, `swift build`, strict OpenSpec validation, and `git diff --check`.
 - [x] 6.2 Package and verify the local Mac app, then capture and inspect Office, Mission, Company, and onboarding at compact and full sizes.
 - [x] 6.3 Run dual-agent Impeccable critique/native audit, resolve all P0/P1 findings, and complete the Fleet design-review receipt.
-- [ ] 6.4 Obtain owner feedback, then update durable project truth and reconcile GitHub issue #9 without deploying.
+- [x] 6.4 Obtain owner feedback, then update durable project truth and reconcile GitHub issue #9 without deploying.
 
 ## 7. Dawn Stage direction reset
 

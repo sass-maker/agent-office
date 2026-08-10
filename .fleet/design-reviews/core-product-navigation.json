@@ -1,0 +1,87 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "agent-office",
+  "target": "Editorial Office onboarding, Office, Mission, Company, employee folio, and employee details",
+  "mode": "overhaul",
+  "register": "product",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [
+      "Onboarding and Office: artifacts/design/approved/editorial-office/onboarding.png plus office-employee-card.png",
+      "Mission: artifacts/design/approved/editorial-office/mission-list.png",
+      "Company and employee details: artifacts/design/approved/editorial-office/company-members.png plus employee-details.png"
+    ],
+    "probes": [
+      {
+        "id": "office-folio",
+        "path": "artifacts/design/approved/editorial-office/office-employee-card.png",
+        "summary": "The living monochrome office stays primary while a selected employee opens in a dismissible editorial folio."
+      },
+      {
+        "id": "mission-list",
+        "path": "artifacts/design/approved/editorial-office/mission-list.png",
+        "summary": "A Linear-like grouped task list uses the same paper, type, rules, and black action language as the rest of the product."
+      },
+      {
+        "id": "company-members",
+        "path": "artifacts/design/approved/editorial-office/company-members.png",
+        "summary": "The company relationship wall presents humans and AI employees as one organization without reading as HR software."
+      }
+    ],
+    "selected": "office-folio",
+    "approval": "approved",
+    "before": "artifacts/design/product-shell-office-1440-final.png"
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "width": 390,
+        "path": "artifacts/design/issue-9-final-390.png",
+        "sourceWindowWidth": 760,
+        "note": "Scaled evidence from the supported 760-point compact Office window."
+      },
+      {
+        "width": 768,
+        "path": "artifacts/design/issue-9-final-768.png",
+        "sourceWindowWidth": 760,
+        "note": "Compact Mission retains assignee, status, date, filters, and a dismissible task inspector."
+      },
+      {
+        "width": 1440,
+        "path": "artifacts/design/issue-9-final-1440.png",
+        "sourceWindowWidth": 1420,
+        "note": "Final signed build running with larger floor-grounded employees in motion and visible company settings."
+      }
+    ],
+    "projectCheck": {
+      "command": "swift test (46 tests), swift build, strict OpenSpec validation, git diff --check, release package, and strict codesign verification",
+      "status": "pass"
+    },
+    "critique": {
+      "score": 33,
+      "maximum": 40
+    },
+    "audit": {
+      "score": 18,
+      "maximum": 20
+    },
+    "unresolved": {
+      "p0": 0,
+      "p1": 0
+    },
+    "detector": {
+      "posture": "advisory",
+      "findings": [
+        "Native SwiftUI and SpriteKit review used rebuilt-window evidence and focused source audits; browser-only static detectors were not applicable."
+      ]
+    }
+  },
+  "ownerFeedback": {
+    "decision": "keep",
+    "note": "The owner approved the five Editorial Office designs and delegated final implementation judgment. The new shell is the sole visible product direction; the old playground remains only as movement/runtime substrate."
+  }
+}
