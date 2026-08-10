@@ -1,0 +1,67 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "agent-office",
+  "target": "golden-hour product landing page",
+  "mode": "preserve",
+  "register": "brand",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [
+      "artifacts/design/organization-home-current.png",
+      "DESIGN.md golden-hour dollhouse world",
+      "artifacts/design/landing-compositions.png"
+    ],
+    "probes": [
+      "full-bleed workday",
+      "workplace as a keepsake object",
+      "employee town expansion"
+    ],
+    "selected": "workplace as a keepsake object with a concrete workday",
+    "approval": "not-required",
+    "before": "artifacts/design/organization-home-current.png"
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "width": 390,
+        "path": "artifacts/design/landing-390.png"
+      },
+      {
+        "width": 768,
+        "path": "artifacts/design/landing-768.png"
+      },
+      {
+        "width": 1440,
+        "path": "artifacts/design/landing-1440.png"
+      }
+    ],
+    "projectCheck": {
+      "command": "node --check site/script.js && local asset/anchor validation && Impeccable detector && openspec validate add-marketing-site --strict && design-workflow check && git diff --check",
+      "status": "pass"
+    },
+    "critique": {
+      "score": 36,
+      "maximum": 40
+    },
+    "audit": {
+      "score": 17,
+      "maximum": 20
+    },
+    "unresolved": {
+      "p0": 0,
+      "p1": 0
+    },
+    "detector": {
+      "posture": "advisory",
+      "findings": []
+    }
+  },
+  "ownerFeedback": {
+    "decision": "delegated",
+    "note": "Owner delegated sequential completion of every open issue; the unchanged reviewed landing-page direction is accepted for closure."
+  }
+}

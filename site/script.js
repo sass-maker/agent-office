@@ -2,7 +2,7 @@ const records = {
   research: {
     person: "Nia · Audience Researcher",
     title: "Finding the audience question",
-    progress: "25%",
+    progress: 0.25,
     input: "Product brief",
     output: "Research notes",
     next: "Theo",
@@ -10,7 +10,7 @@ const records = {
   write: {
     person: "Theo · Content Writer",
     title: "Writing from shared evidence",
-    progress: "50%",
+    progress: 0.5,
     input: "Nia's research",
     output: "Article draft",
     next: "Maya",
@@ -18,7 +18,7 @@ const records = {
   review: {
     person: "Maya · Editorial Manager",
     title: "Reviewing the actual work",
-    progress: "78%",
+    progress: 0.78,
     input: "Theo's draft",
     output: "Approval or revision",
     next: "Theo or owner",
@@ -26,7 +26,7 @@ const records = {
   report: {
     person: "Maya · Editorial Manager",
     title: "Closing the day clearly",
-    progress: "100%",
+    progress: 1,
     input: "Approved artifacts",
     output: "Owner's report",
     next: "Tomorrow",
@@ -56,7 +56,7 @@ function selectStep(step) {
 
   fields.person.textContent = record.person;
   fields.title.textContent = record.title;
-  fields.progress.style.width = record.progress;
+  fields.progress.style.transform = `scaleX(${record.progress})`;
   fields.input.textContent = record.input;
   fields.output.textContent = record.output;
   fields.next.textContent = record.next;
