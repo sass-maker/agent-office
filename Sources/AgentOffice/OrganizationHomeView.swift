@@ -687,7 +687,11 @@ struct OrganizationHomeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 folioRule
                 if employee.kind == .ai {
-                    employeeOutcomeFolio(employee)
+                    if employee.id == "nia" {
+                        niaResearchFolio(employee)
+                    } else {
+                        employeeOutcomeFolio(employee)
+                    }
                     folioRule
                 }
                 folioSection("Current duty", value: currentDuty(for: employee))
@@ -700,15 +704,7 @@ struct OrganizationHomeView: View {
                 folioRule
                 folioSection("Blocker", value: blocker(for: employee))
 
-                if employee.id == "nia" {
-                    Button {
-                        showsResearchAssignment = true
-                    } label: {
-                        Label("Give research outcome", systemImage: "magnifyingglass")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(EditorialSecondaryButtonStyle())
-                } else if employee.id == "iris" {
+                if employee.id == "iris" {
                     Button {
                         model.revealFeedbackInbox()
                     } label: {
@@ -730,6 +726,45 @@ struct OrganizationHomeView: View {
             .padding(.bottom, 22)
         }
         .foregroundStyle(EditorialOfficeTheme.ink)
+    }
+
+    @ViewBuilder
+    private func niaResearchFolio(_ employee: Employee) -> some View {
+        Text("RESEARCH DESK")
+            .font(.caption2.weight(.semibold))
+            .tracking(0.8)
+            .foregroundStyle(EditorialOfficeTheme.graphite)
+
+        if let assignment = model.latestResearchAssignment {
+            ResearchDeskCard(
+                assignment: assignment,
+                onNewAssignment: { showsResearchAssignment = true }
+            )
+            .environmentObject(model)
+        } else {
+            ResearchDeskEmptyCard {
+                showsResearchAssignment = true
+            }
+        }
+
+        if model.latestEmployeeOutcome(for: employee.id) != nil {
+            Text("OTHER OUTCOME")
+                .font(.caption2.weight(.semibold))
+                .tracking(0.8)
+                .foregroundStyle(EditorialOfficeTheme.graphite)
+                .padding(.top, 2)
+            employeeOutcomeFolio(employee)
+        } else {
+            Button {
+                outcomeEmployee = employee
+            } label: {
+                Label("Give Nia a general outcome", systemImage: "arrow.up.right")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(EditorialSecondaryButtonStyle())
+            .disabled(!model.canCreateEmployeeOutcome)
+            .accessibilityLabel("Give Nia a general outcome")
+        }
     }
 
     @ViewBuilder

@@ -1,0 +1,65 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "agent-office",
+  "target": "owner-directed research assignment and delivery",
+  "mode": "preserve",
+  "register": "product",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [
+      "artifacts/design/organization-home-current.png",
+      "DESIGN.md warm folio, pinned notes, and native control language"
+    ],
+    "probes": [],
+    "selected": "one paper research desk inside the existing daily folio",
+    "approval": "not-required",
+    "before": "artifacts/design/organization-home-current.png"
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "width": 1440,
+        "path": "artifacts/design/issue-6-final-1440-integrated.png"
+      },
+      {
+        "width": 760,
+        "path": "artifacts/design/issue-6-final-native-min-integrated.png"
+      },
+      {
+        "width": 760,
+        "path": "artifacts/design/issue-6-assignment-native-min.png"
+      }
+    ],
+    "projectCheck": {
+      "command": "swift test (46/46) && swift build && ./scripts/package-app.sh && codesign --verify --deep --strict --verbose=2 dist/AgentOffice.app && openspec validate add-owner-directed-research --strict && git diff --check",
+      "status": "pass"
+    },
+    "critique": {
+      "score": 37,
+      "maximum": 40
+    },
+    "audit": {
+      "score": 19,
+      "maximum": 20
+    },
+    "unresolved": {
+      "p0": 0,
+      "p1": 0
+    },
+    "detector": {
+      "posture": "advisory",
+      "findings": [
+        "The fixed assignment sheet fits at the native 760 by 620 minimum, but an accessibility-text or localization pass should make its form vertically scrollable.",
+        "Fresh integrated wide and native-minimum folio evidence shows Nia's research desk as the primary live surface with the general outcome clearly secondary."
+      ]
+    }
+  },
+  "ownerFeedback": {
+    "decision": "delegated",
+    "note": "Owner delegated sequential completion of all open issues; issue #6 passed isolated design and native reviews with zero unresolved P0/P1."
+  }
+}

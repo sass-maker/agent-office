@@ -180,10 +180,10 @@ struct ResearchDeskCard: View {
     let assignment: ResearchAssignment
     let onNewAssignment: () -> Void
 
-    private let ink = DawnStageTheme.ivory
-    private let spruce = DawnStageTheme.coral
-    private let paper = DawnStageTheme.backstage
-    private let apricot = DawnStageTheme.amber
+    private let ink = EditorialOfficeTheme.ink
+    private let spruce = EditorialOfficeTheme.sidebarInk
+    private let paper = EditorialOfficeTheme.paper
+    private let apricot = EditorialOfficeTheme.graphite
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -235,7 +235,7 @@ struct ResearchDeskCard: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(statusColor.opacity(0.2), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.24), radius: 9, y: 5)
+        .shadow(color: .black.opacity(0.12), radius: 9, y: 5)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Research assignment. \(statusTitle). \(assignment.outcome)")
         .accessibilityFocused($statusFocused)
@@ -399,13 +399,13 @@ struct ResearchDeskEmptyCard: View {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(DawnStageTheme.coral)
+                    .foregroundStyle(EditorialOfficeTheme.graphite)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Nia's desk is clear")
                         .font(.system(.headline, design: .rounded, weight: .bold))
                     Text("Give her one question worth answering.")
                         .font(.caption)
-                        .foregroundStyle(DawnStageTheme.ivory.opacity(0.62))
+                        .foregroundStyle(EditorialOfficeTheme.ink.opacity(0.62))
                 }
             }
             Button(action: action) {
@@ -414,13 +414,18 @@ struct ResearchDeskEmptyCard: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 11)
                     .frame(minHeight: 31)
-                    .background(DawnStageTheme.coral, in: RoundedRectangle(cornerRadius: 8))
+                    .background(EditorialOfficeTheme.sidebarInk, in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
         }
         .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DawnStageTheme.backstage, in: RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.24), radius: 9, y: 5)
+        .foregroundStyle(EditorialOfficeTheme.ink)
+        .background(EditorialOfficeTheme.paper, in: RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(EditorialOfficeTheme.rule.opacity(0.7), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.12), radius: 9, y: 5)
     }
 }

@@ -25,11 +25,11 @@
 - [x] 4.1 Create the preserve-lane design receipt and capture the existing organization home before adding the research surface.
 - [x] 4.2 Add a focused owner assignment sheet with required outcome, optional context, execution/permission truth, validation, keyboard behavior, and no workflow-builder language.
 - [x] 4.3 Add one current/latest research card showing `You → Mira → Nia`, live status, blocker or retry action, evidence basis, and artifact reveal actions.
-- [ ] 4.4 Verify normal and minimum-width states without changing the SpriteKit character system or established navigation.
+- [x] 4.4 Verify normal and minimum-width states without changing the SpriteKit character system or established navigation.
 - [x] 4.5 Refine the assignment handoff with Mira and Nia portraits, owner-facing practice-run language, initial keyboard focus, and consistent recovery actions.
 
 ## 5. Verification and handoff
 
 - [x] 5.1 Add tests for validation, single-active enforcement, delegation, permission and runtime waiting, demo honesty, evidence verification, successful delivery, failure, cancellation, persistence, and reopen idempotency.
-- [ ] 5.2 Run Swift tests, Swift build, release app packaging, strict OpenSpec validation, design review checks, and `git diff --check`.
+- [x] 5.2 Run Swift tests, Swift build, release app packaging, strict OpenSpec validation, design review checks, and `git diff --check`.
 - [x] 5.3 Update durable project truth, record completed Fleet skill runs, and leave GitHub issue #6 ready for owner review without committing or deploying.
