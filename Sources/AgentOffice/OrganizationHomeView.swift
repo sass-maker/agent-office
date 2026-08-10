@@ -689,6 +689,8 @@ struct OrganizationHomeView: View {
                 if employee.kind == .ai {
                     if employee.id == "nia" {
                         niaResearchFolio(employee)
+                    } else if employee.id == "iris" {
+                        irisDutyFolio(employee, compact: compact)
                     } else {
                         employeeOutcomeFolio(employee)
                     }
@@ -703,16 +705,6 @@ struct OrganizationHomeView: View {
                 folioSection("Skills", value: skills(for: employee))
                 folioRule
                 folioSection("Blocker", value: blocker(for: employee))
-
-                if employee.id == "iris" {
-                    Button {
-                        model.revealFeedbackInbox()
-                    } label: {
-                        Label("Open feedback inbox", systemImage: "tray.full")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(EditorialSecondaryButtonStyle())
-                }
 
                 Button {
                     onOpenEmployeeProfile(employee.id)
@@ -764,6 +756,38 @@ struct OrganizationHomeView: View {
             .buttonStyle(EditorialSecondaryButtonStyle())
             .disabled(!model.canCreateEmployeeOutcome)
             .accessibilityLabel("Give Nia a general outcome")
+        }
+    }
+
+    @ViewBuilder
+    private func irisDutyFolio(_ employee: Employee, compact: Bool) -> some View {
+        Text("CUSTOMER VOICE DUTY")
+            .font(.caption2.weight(.semibold))
+            .tracking(0.8)
+            .foregroundStyle(EditorialOfficeTheme.graphite)
+
+        if let duty = model.customerVoiceDuty {
+            CustomerVoiceDutyCard(duty: duty, compact: compact)
+                .environmentObject(model)
+        }
+
+        if model.latestEmployeeOutcome(for: employee.id) != nil {
+            Text("OTHER OUTCOME")
+                .font(.caption2.weight(.semibold))
+                .tracking(0.8)
+                .foregroundStyle(EditorialOfficeTheme.graphite)
+                .padding(.top, 2)
+            employeeOutcomeFolio(employee)
+        } else {
+            Button {
+                outcomeEmployee = employee
+            } label: {
+                Label("Give Iris a general outcome", systemImage: "arrow.up.right")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(EditorialSecondaryButtonStyle())
+            .disabled(!model.canCreateEmployeeOutcome)
+            .accessibilityLabel("Give Iris a general outcome")
         }
     }
 

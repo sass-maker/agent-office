@@ -3,6 +3,7 @@ import SwiftUI
 
 struct CustomerVoiceDutyCard: View {
     @EnvironmentObject private var model: AppModel
+    @AccessibilityFocusState private var statusFocused: Bool
 
     let duty: EmployeeDuty
     var compact = false
@@ -68,10 +69,13 @@ struct CustomerVoiceDutyCard: View {
         .background(paper, in: RoundedRectangle(cornerRadius: 15))
         .overlay {
             RoundedRectangle(cornerRadius: 15)
-                .stroke(spruce.opacity(0.48), lineWidth: 1.5)
+                .stroke(EditorialOfficeTheme.rule.opacity(0.7), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.24), radius: 9, y: 5)
+        .shadow(color: .black.opacity(0.12), radius: 9, y: 5)
         .accessibilityElement(children: .contain)
+        .onChange(of: occurrence?.status) { _, _ in
+            statusFocused = true
+        }
     }
 
     private func header(at date: Date) -> some View {
@@ -97,6 +101,7 @@ struct CustomerVoiceDutyCard: View {
                 .padding(.vertical, 5)
                 .background(statusColor(at: date).opacity(0.13), in: Capsule())
                 .accessibilityLabel("Duty status: \(statusTitle(at: date))")
+                .accessibilityFocused($statusFocused)
 
             if let onClose {
                 Button(action: onClose) {

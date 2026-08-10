@@ -115,12 +115,20 @@ public enum LocalFeedbackInboxScanner {
                 exclusions.append(DutyInputExclusion(fileName: name, reason: "The 25-file run limit was reached."))
                 continue
             }
-
-            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
-            guard !data.isEmpty else {
+            guard let fileSize = values.fileSize else {
+                exclusions.append(DutyInputExclusion(fileName: name, reason: "The file size could not be verified."))
+                continue
+            }
+            guard fileSize > 0 else {
                 exclusions.append(DutyInputExclusion(fileName: name, reason: "The file is empty."))
                 continue
             }
+            guard capturedBytes + fileSize <= maximumByteCount else {
+                exclusions.append(DutyInputExclusion(fileName: name, reason: "The 250-KB run limit was reached."))
+                continue
+            }
+
+            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
             guard capturedBytes + data.count <= maximumByteCount else {
                 exclusions.append(DutyInputExclusion(fileName: name, reason: "The 250-KB run limit was reached."))
                 continue

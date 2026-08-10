@@ -28,10 +28,10 @@
 - [x] 5.1 Create a preserve-lane design receipt for the compact weekly duty surface.
 - [x] 5.2 Add an Iris duty card with responsibility, due state, input coverage, Add feedback, Run now/Stop/Retry, and latest brief actions.
 - [x] 5.3 Keep due and running state accessible and responsive without changing the established SpriteKit character system or navigation.
-- [ ] 5.4 Run Impeccable critique, polish, native audit, and fresh normal/minimum-width visual checks when the display session is available.
+- [x] 5.4 Run Impeccable critique, polish, native audit, and fresh normal/minimum-width visual checks when the display session is available.
 
 ## 6. Verification and handoff
 
 - [x] 6.1 Add tests for migration, safe scanning, bounds, empty input, runner permissions, evidence verification, delivery, due advancement, interruption, persistence, and idempotency.
-- [ ] 6.2 Run Swift tests, Swift build, app packaging/signature verification, strict OpenSpec validation, design review checks, and `git diff --check`.
-- [ ] 6.3 Update durable project truth, record completed Fleet skill runs, and leave GitHub issue #7 ready for owner review without committing or deploying.
+- [x] 6.2 Run Swift tests, Swift build, app packaging/signature verification, strict OpenSpec validation, design review checks, and `git diff --check`.
+- [x] 6.3 Update durable project truth, record completed Fleet skill runs, and leave GitHub issue #7 ready for owner review without committing or deploying.

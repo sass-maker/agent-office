@@ -1,0 +1,75 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "agent-office",
+  "target": "Customer Voice Weekly duty folio",
+  "mode": "preserve",
+  "register": "product",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [
+      "artifacts/design/organization-home-current.png",
+      "artifacts/design/research-desk-normal.png",
+      "DESIGN.md golden-hour dollhouse and pinned-paper folio language"
+    ],
+    "probes": [],
+    "selected": "one recurring responsibility pinned into the existing daily folio",
+    "approval": "not-required",
+    "before": "artifacts/design/research-desk-normal.png"
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "width": 390,
+        "path": "artifacts/design/issue-7-customer-voice-390.png",
+        "sourceWindowWidth": 760,
+        "note": "Scaled evidence from the supported 760-point native minimum."
+      },
+      {
+        "width": 768,
+        "path": "artifacts/design/issue-7-customer-voice-768.png",
+        "sourceWindowWidth": 760,
+        "note": "Scaled evidence from the supported 760-point native minimum."
+      },
+      {
+        "width": 1440,
+        "path": "artifacts/design/issue-7-customer-voice-1440.png"
+      },
+      {
+        "width": 760,
+        "path": "artifacts/design/issue-7-customer-voice-native-min.png",
+        "note": "Exact native minimum window evidence."
+      }
+    ],
+    "projectCheck": {
+      "command": "swift test (47/47) && swift build && ./scripts/package-app.sh && codesign --verify --deep --strict --verbose=2 dist/AgentOffice.app && openspec validate add-customer-voice-duty --strict && design-workflow check && git diff --check",
+      "status": "pass"
+    },
+    "critique": {
+      "score": 38,
+      "maximum": 40
+    },
+    "audit": {
+      "score": 20,
+      "maximum": 20
+    },
+    "unresolved": {
+      "p0": 0,
+      "p1": 0
+    },
+    "detector": {
+      "posture": "advisory",
+      "findings": [
+        "The Swift detector returned zero findings, but it uses generic text rules rather than SwiftUI-aware rendering; isolated native source review and signed-window evidence remain authoritative.",
+        "The folio repeats Iris's portrait and some duty facts below the primary card; reviewers classified the density as optional P3 polish."
+      ]
+    }
+  },
+  "ownerFeedback": {
+    "decision": "delegated",
+    "note": "Owner delegated sequential completion of all open issues; issue #7 passed isolated design and native reviews with zero unresolved P0/P1."
+  }
+}

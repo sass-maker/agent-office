@@ -60,6 +60,22 @@ final class CustomerVoiceDutyEngineTests: XCTestCase {
         XCTAssertTrue(snapshot.exclusions.contains { $0.fileName == "zz-large.md" })
     }
 
+    func testInboxScannerRejectsOversizedFileBeforeCapture() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try write(
+            String(repeating: "x", count: LocalFeedbackInboxScanner.maximumByteCount + 1),
+            to: root.appendingPathComponent("oversized.md")
+        )
+
+        let snapshot = try LocalFeedbackInboxScanner.capture(at: root)
+
+        XCTAssertTrue(snapshot.files.isEmpty)
+        XCTAssertEqual(snapshot.exclusions.map(\.fileName), ["oversized.md"])
+        XCTAssertTrue(snapshot.exclusions[0].reason.contains("250-KB"))
+    }
+
     func testEmptyInboxBlocksBeforeRunner() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
