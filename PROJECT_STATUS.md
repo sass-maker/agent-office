@@ -59,6 +59,9 @@ durable people-like collaborators whose execution remains bounded software.
 - 2026-08-11 — The repository-owned Office OS informational site shipped to
   `office-os.pages.dev` from verified `main`, with privacy and system details,
   release-state metadata, and a fail-closed direct-download gate.
+- 2026-08-11 — The informational site adopted
+  `office-os.sassmaker.com` as its product-owned canonical hostname while
+  retaining `office-os.pages.dev` as the Cloudflare provider origin.
 
 ## Products
 
@@ -68,7 +71,8 @@ durable people-like collaborators whose execution remains bounded software.
   signing, notarization, Gatekeeper verification, checksum publication, and a
   support contact.
 - Dependency-free static product landing page live at
-  `https://office-os.pages.dev` and maintained from `site/`.
+  `https://office-os.sassmaker.com` and maintained from `site/`; the
+  `office-os.pages.dev` provider origin remains available as a fallback.
 
 ## Features (shipped)
 
