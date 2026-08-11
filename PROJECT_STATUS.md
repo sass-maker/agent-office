@@ -56,13 +56,19 @@ durable people-like collaborators whose execution remains bounded software.
   directory, progressively disclosed candidate contracts, clearer hiring
   commitment, adaptive sheet geometry, and consistent removal of retired
   employees from the live office scene.
+- 2026-08-11 — The repository-owned Office OS informational site shipped to
+  `office-os.pages.dev` from verified `main`, with privacy and system details,
+  release-state metadata, and a fail-closed direct-download gate.
 
 ## Products
 
 - Native macOS POC runnable locally through Swift Package Manager.
 - Locally packaged `dist/AgentOffice.app` produced by
-  `scripts/package-app.sh`; production distribution remains out of scope.
-- Dependency-free static product landing page runnable from `site/`.
+  `scripts/package-app.sh`; direct distribution remains gated on Developer ID
+  signing, notarization, Gatekeeper verification, checksum publication, and a
+  support contact.
+- Dependency-free static product landing page live at
+  `https://office-os.pages.dev` and maintained from `site/`.
 
 ## Features (shipped)
 
@@ -152,6 +158,10 @@ durable people-like collaborators whose execution remains bounded software.
 - A responsive landing page led by the real Mac application, one concrete
   workday, the first three employees, and the intended commercial model:
   one-time workplace ownership with optional employee subscriptions.
+- A verified public informational surface with local-data disclosure, macOS
+  requirements, version/build identity, support readiness, repository-owned
+  manual Pages deployment, and release metadata that cannot expose an
+  untrusted Mac binary.
 
 ## Work queue
 
