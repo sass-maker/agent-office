@@ -58,11 +58,12 @@ Every consequential workplace action and state MUST remain available through nat
 - **THEN** they can still select employees, inspect attention, run or stop eligible work, and reveal artifacts through native controls
 
 ### Requirement: Structural narrow-window adaptation
-The organization home MUST adapt its topology at the supported minimum window width without shrinking functional text below native semantic sizes or clipping primary actions.
+The organization home MUST adapt its topology at the supported minimum window width without shrinking functional text below native semantic sizes, clipping primary actions, or turning the global destinations into icon-only controls.
 
 #### Scenario: Window reaches minimum supported width
 - **WHEN** the owner narrows the application window
 - **THEN** secondary information collapses into contextual inspectors, drawers, or native navigation while the workplace and primary owner action remain usable
+- **AND** every primary destination remains visibly named
 
 ### Requirement: Existing employee behavior is preserved
 The overhaul MUST preserve the established employee, workday, research, recurring-duty, permission, skill, task, blocker, artifact, and local-persistence behavior.
@@ -70,3 +71,30 @@ The overhaul MUST preserve the established employee, workday, research, recurrin
 #### Scenario: Owner uses an existing workflow after the overhaul
 - **WHEN** the owner starts or stops a workday, assigns research, runs Customer Voice Weekly, grants or revokes research permission, teaches a skill, or reveals an artifact
 - **THEN** the operation follows the same existing state and safety contract while appearing in the new shell
+
+### Requirement: Office makes the employment action legible
+The organization home SHALL expose the next relevant employment action—hire, assign, review, answer, resume, pause, or inspect delivery—without requiring the owner to understand internal work engines.
+
+#### Scenario: Organization has no hired AI employees
+- **WHEN** the owner enters the Office with available employee packages but no hired AI employees
+- **THEN** the workplace presents a clear Hire an employee action and an honest empty office
+
+#### Scenario: Hired employee is ready
+- **WHEN** a hired employee has no active or queued commitment
+- **THEN** selecting that employee offers Give an outcome as the primary action
+
+### Requirement: Office represents independent employee commitments
+The workplace SHALL derive each hired employee's position, label, status, and contextual action from that employee's own active commitment and run state rather than one organization-wide execution state.
+
+#### Scenario: Several employees work concurrently
+- **WHEN** two or more employees have active tickets
+- **THEN** the Office truthfully represents each employee at the appropriate persisted station
+- **AND** exposes individual stop or inspect actions without implying that all work must stop together
+
+### Requirement: Owner attention is employee-centered
+The Office SHALL summarize pending hire decisions, plans, help requests, permissions, and delivered outcomes by employee and consequence.
+
+#### Scenario: Employee awaits an owner reply
+- **WHEN** an outcome is blocked on contextual help
+- **THEN** the employee moves to the attention state and the folio opens the contextual reply action
+- **AND** does not redirect the owner into a separate special-purpose workflow

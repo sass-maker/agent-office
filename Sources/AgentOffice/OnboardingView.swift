@@ -19,6 +19,8 @@ struct OnboardingView: View {
     @State private var useLocalCodex = false
     @State private var allowWebResearch = false
     @State private var isCompleting = false
+    @State private var selectedStarterPackageIDs = Set(["starter.mira", "starter.maya", "starter.nia", "starter.theo", "starter.iris"])
+    @State private var expandedStarterPackageID: String?
 
     private let steps = ["Welcome", "Company", "Product", "Mission", "Team"]
 
@@ -39,7 +41,6 @@ struct OnboardingView: View {
         }
         .background(EditorialOfficeTheme.bone)
         .foregroundStyle(EditorialOfficeTheme.ink)
-        .preferredColorScheme(.light)
         .onAppear(perform: loadDrafts)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: step)
         .alert("The office could not open", isPresented: Binding(
@@ -84,7 +85,7 @@ struct OnboardingView: View {
                     .frame(maxWidth: 520)
                     .padding(.bottom, 18)
 
-                Label("Your organisation stays on this Mac.", systemImage: "lock")
+                Label("Your organization stays on this Mac.", systemImage: "lock")
                     .font(.caption)
                     .foregroundStyle(EditorialOfficeTheme.graphite)
                     .padding(.bottom, 32)
@@ -98,36 +99,45 @@ struct OnboardingView: View {
     private func setupRail(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(steps.enumerated()), id: \.offset) { index, title in
-                HStack(alignment: .top, spacing: 10) {
-                    VStack(spacing: 0) {
-                        ZStack {
-                            Circle()
-                                .fill(index == step ? EditorialOfficeTheme.sidebarInk : EditorialOfficeTheme.bone)
-                                .overlay {
-                                    Circle().stroke(EditorialOfficeTheme.ink.opacity(0.8), lineWidth: 1)
-                                }
-                            Text("\(index + 1)")
-                                .font(.caption)
-                                .foregroundStyle(index == step ? EditorialOfficeTheme.paper : EditorialOfficeTheme.ink)
-                        }
-                        .frame(width: 28, height: 28)
+                Button {
+                    step = index
+                } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        VStack(spacing: 0) {
+                            ZStack {
+                                Circle()
+                                    .fill(index == step ? EditorialOfficeTheme.sidebarInk : EditorialOfficeTheme.bone)
+                                    .overlay {
+                                        Circle().stroke(EditorialOfficeTheme.ink.opacity(0.8), lineWidth: 1)
+                                    }
+                                Text("\(index + 1)")
+                                    .font(.caption)
+                                    .foregroundStyle(index == step ? EditorialOfficeTheme.onInk : EditorialOfficeTheme.ink)
+                            }
+                            .frame(width: 28, height: 28)
 
-                        if index < steps.count - 1 {
-                            Rectangle()
-                                .fill(EditorialOfficeTheme.ink.opacity(0.6))
-                                .frame(width: 1, height: compact ? 58 : 82)
+                            if index < steps.count - 1 {
+                                Rectangle()
+                                    .fill(EditorialOfficeTheme.ink.opacity(0.6))
+                                    .frame(width: 1, height: compact ? 58 : 82)
+                            }
                         }
-                    }
 
-                    if !compact {
-                        Text(title)
-                            .font(.system(.callout, design: .default, weight: index == step ? .medium : .regular))
-                            .foregroundStyle(index <= step ? EditorialOfficeTheme.ink : EditorialOfficeTheme.graphite)
-                            .padding(.top, 5)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
+                        if !compact {
+                            Text(title)
+                                .font(.system(.callout, design: .default, weight: index == step ? .medium : .regular))
+                                .foregroundStyle(index <= step ? EditorialOfficeTheme.ink : EditorialOfficeTheme.graphite)
+                                .padding(.top, 5)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
                     }
                 }
+                .buttonStyle(.plain)
+                .disabled(index > step)
+                .help(index <= step ? "Return to \(title)" : "Complete the earlier steps first")
+                .accessibilityLabel("Step \(index + 1), \(title)")
+                .accessibilityAddTraits(index == step ? .isSelected : [])
             }
         }
         .padding(.top, 164)
@@ -289,13 +299,24 @@ struct OnboardingView: View {
 
     private var readyToOpen: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Mira keeps you oriented. Maya owns the outcome. Nia finds the evidence, Theo shapes the draft, and Iris listens to customers.")
-                .font(.system(.title3, design: .serif))
-                .lineSpacing(4)
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Review the people you want to hire. Each candidate arrives with declared skills and boundaries; connections are never granted by hiring.")
+                    .font(.system(.title3, design: .serif))
+                    .lineSpacing(4)
+                Text("Open Contract to inspect execution, review, connections, package source, and reduced-mode behavior.")
+                    .font(.caption)
+                    .foregroundStyle(EditorialOfficeTheme.graphite)
+            }
+
+            VStack(spacing: 0) {
+                ForEach(model.organization.employeePackages.filter(\.builtIn)) { package in
+                    candidateFolio(package)
+                }
+            }
 
             editorialToggle(
-                title: "Begin their first day when the doors open",
-                detail: "You can end the day at any time; everyone resumes from the same place.",
+                title: "Prepare their first outcomes when the doors open",
+                detail: "Hired employees receive independent, resumable commitments within local capacity.",
                 isOn: $startImmediately
             )
 
@@ -322,73 +343,214 @@ struct OnboardingView: View {
                 )
             }
 
-            HStack(spacing: 12) {
-                ForEach(model.organization.employees.filter { $0.kind == .ai }.prefix(5)) { employee in
-                    VStack(spacing: 6) {
-                        EmployeePortrait(employee: employee, size: CGSize(width: 54, height: 66))
-                            .saturation(0)
-                        Text(employee.name)
-                            .font(.caption.weight(.medium))
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(employee.name), \(employee.role)")
-                }
+            Text("\(selectedStarterPackageIDs.count) candidates selected for hire")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(EditorialOfficeTheme.graphite)
+                .padding(.top, 4)
+
+            if selectedStarterPackageIDs.isEmpty {
+                Label("Select at least one employee to open the office.", systemImage: "exclamationmark.circle")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(EditorialOfficeTheme.attention)
             }
-            .padding(.top, 4)
         }
     }
 
-    private var onboardingActions: some View {
-        HStack(spacing: 18) {
-            if step > 0 {
-                Button("Back") { step -= 1 }
-                    .buttonStyle(.plain)
-                    .underline()
-            } else if model.organization.setupCompleted == true {
-                Button("Return to the office", action: model.cancelOnboarding)
-                    .buttonStyle(.plain)
-                    .underline()
-            } else {
-                Button("Use the prepared office") {
-                    Task {
-                        isCompleting = true
-                        _ = await model.completeOnboarding(
-                            name: model.organization.name,
-                            ownerName: model.organization.employee("owner")?.name ?? "Founder",
-                            outcome: model.organization.outcome,
-                            productBrief: model.organization.productBrief,
-                            profile: model.organization.knowledge?.profile ?? .empty,
-                            startImmediately: false
-                        )
-                        isCompleting = false
+    private func candidateFolio(_ package: EmployeePackage) -> some View {
+        let selected = selectedStarterPackageIDs.contains(package.id)
+        let expanded = expandedStarterPackageID == package.id
+        let essentialSkills = package.skills.prefix(3).map(\.name).joined(separator: ", ")
+
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                Toggle("Hire \(package.name)", isOn: Binding(
+                    get: { selectedStarterPackageIDs.contains(package.id) },
+                    set: { isSelected in
+                        if isSelected { selectedStarterPackageIDs.insert(package.id) }
+                        else { selectedStarterPackageIDs.remove(package.id) }
                     }
+                ))
+                .labelsHidden()
+                .toggleStyle(.checkbox)
+                .accessibilityHint("Hiring creates an employee and local working contract, but grants no external authority")
+
+                if let employee = model.organization.employees.first(where: { $0.packageID == package.id }) {
+                    EmployeePortrait(employee: employee, size: CGSize(width: 42, height: 50))
+                        .saturation(0)
+                } else {
+                    Image(systemName: "person.crop.rectangle")
+                        .font(.title2)
+                        .frame(width: 42, height: 50)
+                        .foregroundStyle(EditorialOfficeTheme.graphite)
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("\(package.name) · \(package.role)")
+                        .font(.callout.weight(.semibold))
+                    Text(package.responsibility)
+                        .font(.caption)
+                        .foregroundStyle(EditorialOfficeTheme.ink.opacity(0.76))
+                        .lineLimit(2)
+                    Text(essentialSkills.isEmpty ? "No included skills" : essentialSkills)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(EditorialOfficeTheme.graphite)
+                        .lineLimit(1)
+                    Label("Local sandbox · reviewed plans · no publishing", systemImage: "lock")
+                        .font(.caption2)
+                        .foregroundStyle(EditorialOfficeTheme.graphite)
+                        .lineLimit(1)
+                        .help("They work only in the selected company folder. You review plans before execution, and hiring grants no publishing authority.")
+                }
+
+                Spacer(minLength: 8)
+
+                Button {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
+                        expandedStarterPackageID = expanded ? nil : package.id
+                    }
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        Text(expanded ? "Hide" : "Contract")
+                            .font(.caption2.weight(.medium))
+                    }
+                    .frame(minWidth: 50, minHeight: 40)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .underline()
-                .disabled(isCompleting)
+                .help(expanded ? "Hide contract details" : "Review contract details")
+                .accessibilityLabel(expanded ? "Hide \(package.name) contract details" : "Show \(package.name) contract details")
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
             }
+            .padding(.vertical, 13)
 
-            Spacer()
+            if expanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    Rectangle()
+                        .fill(EditorialOfficeTheme.rule.opacity(0.7))
+                        .frame(height: 1)
 
-            Button {
-                if step < 4 {
-                    step += 1
-                } else {
-                    completeOnboarding()
+                    candidateContractFact("Included skills", package.skills.map(\.name).joined(separator: ", "))
+                    candidateContractFact("Connections", candidateConnectionNames(package))
+                    candidateContractFact("Execution", package.preferredProvider == .localCodex ? "Local sandbox · Local Codex preferred" : "Local sandbox · practice mode ready")
+                    candidateContractFact("Review", "Plans are reviewed before execution; authority changes always return to you.")
+                    candidateContractFact("Package", "Version \(package.version) by \(package.creator)")
+                    candidateContractFact("Reduced mode", package.reducedModeDescription ?? "No reduced mode is declared.")
+
+                    Label("Hiring grants no connection, publishing right, spending authority, or access outside this company folder.", systemImage: "hand.raised")
+                        .font(.caption)
+                        .foregroundStyle(EditorialOfficeTheme.ink.opacity(0.78))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    if isCompleting {
-                        ProgressView().controlSize(.small)
-                    }
-                    Text(isCompleting ? "Opening…" : (step == 4 ? "Open the office" : "Continue"))
-                }
+                .padding(.leading, 34)
+                .padding(.bottom, 15)
+                .transition(reduceMotion ? .identity : .opacity.combined(with: .move(edge: .top)))
             }
-            .buttonStyle(EditorialPrimaryButtonStyle())
-            .frame(minWidth: 260)
-            .disabled(!currentStepIsValid || isCompleting)
-            .keyboardShortcut(.return, modifiers: [])
         }
+        .padding(.horizontal, 8)
+        .background(selected ? EditorialOfficeTheme.softGrey.opacity(0.28) : Color.clear)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(EditorialOfficeTheme.rule.opacity(0.64)).frame(height: 1)
+        }
+    }
+
+    private func candidateContractFact(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(EditorialOfficeTheme.graphite)
+                .frame(width: 84, alignment: .leading)
+            Text(value.isEmpty ? "None declared" : value)
+                .font(.caption)
+                .foregroundStyle(EditorialOfficeTheme.ink.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func candidateConnectionNames(_ package: EmployeePackage) -> String {
+        guard !package.requiredConnectionIDs.isEmpty else { return "None required" }
+        let definitions = model.organization.knowledge?.connectionDefinitions ?? []
+        return package.requiredConnectionIDs.map { id in
+            definitions.first(where: { $0.id == id })?.name ?? id
+        }.joined(separator: ", ")
+    }
+
+    private var onboardingActions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if step == 4 {
+                Label(finalHireSummary, systemImage: "person.2.fill")
+                    .font(.caption)
+                    .foregroundStyle(EditorialOfficeTheme.graphite)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("Hiring summary. \(finalHireSummary)")
+            }
+
+            HStack(spacing: 18) {
+                if step > 0 {
+                    Button("Back") { step -= 1 }
+                        .buttonStyle(.plain)
+                        .underline()
+                } else if model.organization.setupCompleted == true {
+                    Button("Return to the office", action: model.cancelOnboarding)
+                        .buttonStyle(.plain)
+                        .underline()
+                } else {
+                    Button("Use the prepared office") {
+                        Task {
+                            isCompleting = true
+                            _ = await model.completeOnboarding(
+                                name: model.organization.name,
+                                ownerName: model.organization.employee("owner")?.name ?? "Founder",
+                                outcome: model.organization.outcome,
+                                productBrief: model.organization.productBrief,
+                                profile: model.organization.knowledge?.profile ?? .empty,
+                                startImmediately: false
+                            )
+                            isCompleting = false
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .underline()
+                    .disabled(isCompleting)
+                }
+
+                Spacer()
+
+                Button {
+                    if step < 4 {
+                        step += 1
+                    } else {
+                        completeOnboarding()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isCompleting {
+                            ProgressView().controlSize(.small)
+                        }
+                        Text(primaryActionTitle)
+                    }
+                }
+                .buttonStyle(EditorialPrimaryButtonStyle())
+                .frame(minWidth: 260)
+                .disabled(!currentStepIsValid || isCompleting)
+                .keyboardShortcut(.return, modifiers: [])
+            }
+        }
+    }
+
+    private var primaryActionTitle: String {
+        if isCompleting { return step == 4 ? "Hiring…" : "Opening…" }
+        guard step == 4 else { return "Continue" }
+        let noun = selectedStarterPackageIDs.count == 1 ? "employee" : "employees"
+        return "Hire \(selectedStarterPackageIDs.count) \(noun) and open office"
+    }
+
+    private var finalHireSummary: String {
+        let noun = selectedStarterPackageIDs.count == 1 ? "employee" : "employees"
+        let execution = useLocalCodex ? "Local Codex" : "practice mode"
+        let connections = allowWebResearch && useLocalCodex ? "Nia gets read-only research" : "no connections granted"
+        let openingWork = startImmediately ? "first outcomes prepared" : "no work starts yet"
+        return "\(selectedStarterPackageIDs.count) \(noun) · \(execution) · \(connections) · no publishing · \(openingWork)"
     }
 
     private func promise(_ title: String, detail: String) -> some View {
@@ -459,7 +621,7 @@ struct OnboardingView: View {
             }
         }
         .toggleStyle(.switch)
-        .tint(EditorialOfficeTheme.sidebarInk)
+        .tint(EditorialOfficeTheme.controlInk)
         .padding(.vertical, 14)
         .overlay(alignment: .bottom) {
             Rectangle().fill(EditorialOfficeTheme.rule.opacity(0.7)).frame(height: 1)
@@ -472,7 +634,7 @@ struct OnboardingView: View {
         case 1: "Name the company"
         case 2: "Describe the work"
         case 3: "Set the first mission"
-        default: "Meet your first team"
+        default: "Hire your first team"
         }
     }
 
@@ -482,7 +644,7 @@ struct OnboardingView: View {
         case 1: "Give your team a home and a reason to gather."
         case 2: "Tell your team what you are building and what matters."
         case 3: "Give them one outcome they can break down, discuss, and execute."
-        default: "Choose how they begin. Permissions can stay narrow and local."
+        default: "Choose who joins, how they begin, and which narrow local permissions they receive."
         }
     }
 
@@ -491,6 +653,7 @@ struct OnboardingView: View {
         case 1: !organizationName.trimmed.isEmpty && !ownerName.trimmed.isEmpty && !purpose.trimmed.isEmpty
         case 2: !product.trimmed.isEmpty && !audience.trimmed.isEmpty
         case 3: !outcome.trimmed.isEmpty
+        case 4: !selectedStarterPackageIDs.isEmpty
         default: true
         }
     }
@@ -522,6 +685,7 @@ struct OnboardingView: View {
                 profile: currentProfile,
                 executionMode: useLocalCodex ? .localCodex : .demo,
                 webResearchGranted: allowWebResearch,
+                hiredPackageIDs: selectedStarterPackageIDs,
                 startImmediately: startImmediately
             )
             isCompleting = false

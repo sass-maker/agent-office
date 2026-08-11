@@ -102,10 +102,9 @@ struct EmployeeOutcomeAssignmentSheet: View {
             }
             .padding(28)
         }
-        .frame(minWidth: 760, minHeight: 580)
+        .frame(minWidth: 640, idealWidth: 760, minHeight: 540, idealHeight: 580)
         .background(EditorialOfficeTheme.paper)
         .foregroundStyle(EditorialOfficeTheme.ink)
-        .preferredColorScheme(.light)
         .onAppear { focusedField = .outcome }
     }
 
@@ -154,7 +153,7 @@ struct EmployeeOutcomeAssignmentSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(24)
-        .foregroundStyle(EditorialOfficeTheme.paper)
+        .foregroundStyle(EditorialOfficeTheme.onInk)
         .background(EditorialOfficeTheme.sidebarInk)
     }
 

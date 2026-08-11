@@ -7,6 +7,7 @@ struct OrganizationHomeView: View {
     var onOpenMission: () -> Void = {}
     @EnvironmentObject private var model: AppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var outcomeDraft = ""
     @State private var productBriefDraft = ""
@@ -17,6 +18,7 @@ struct OrganizationHomeView: View {
     @State private var showsEmployeeDrawer = false
     @State private var hasExplicitlyOpenedEmployeeDrawer = false
     @State private var traySelection: OwnerTraySelection?
+    @State private var pendingStopOutcomeID: String?
     @FocusState private var outcomeFieldFocused: Bool
     @AccessibilityFocusState private var drawerAccessibilityFocus: DrawerAccessibilityFocus?
 
@@ -43,13 +45,19 @@ struct OrganizationHomeView: View {
                 .accessibilityRepresentation {
                     VStack {
                         Text("Living office. \(sceneAccessibilitySummary)")
-                        ForEach(model.organization.employees.filter { $0.kind == .ai }) { employee in
+                        ForEach(aiEmployees) { employee in
                             Button("Open \(employee.name), \(employee.role). \(employee.status.rawValue)") {
                                 selectEmployee(employee.id)
                             }
                         }
                     }
                 }
+
+                Rectangle()
+                    .fill(Color.black.opacity(colorScheme == .dark ? 0.20 : 0))
+                    .blendMode(.multiply)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
 
                 missionNote(compact: compact)
                     .padding(.top, compact ? 16 : 24)
@@ -96,6 +104,22 @@ struct OrganizationHomeView: View {
         .sheet(item: $outcomeEmployee) { employee in
             EmployeeOutcomeAssignmentSheet(employee: employee)
                 .environmentObject(model)
+        }
+        .confirmationDialog(
+            "Stop this employee outcome?",
+            isPresented: Binding(
+                get: { pendingStopOutcomeID != nil },
+                set: { if !$0 { pendingStopOutcomeID = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Stop outcome", role: .destructive) {
+                if let outcomeID = pendingStopOutcomeID { model.stopEmployeeOutcome(outcomeID) }
+                pendingStopOutcomeID = nil
+            }
+            Button("Keep working", role: .cancel) { pendingStopOutcomeID = nil }
+        } message: {
+            Text("The employee's plan, completed tickets, deliveries, and activity will remain in the organization history.")
         }
     }
 
@@ -793,7 +817,13 @@ struct OrganizationHomeView: View {
 
     @ViewBuilder
     private func employeeOutcomeFolio(_ employee: Employee) -> some View {
-        if let outcome = model.latestEmployeeOutcome(for: employee.id) {
+        if employee.effectiveEmploymentState == .paused {
+            VStack(alignment: .leading, spacing: 9) {
+                Label("Employment paused", systemImage: "pause.circle").font(.callout.weight(.semibold))
+                Text("Queued commitments are preserved, but no new ticket will begin until you resume this employee.").font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
+                Button("Resume \(employee.name)") { model.resumeEmployee(employee.id) }.buttonStyle(EditorialPrimaryButtonStyle())
+            }
+        } else if let outcome = model.latestEmployeeOutcome(for: employee.id) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: employeeOutcomeIcon(outcome.status))
@@ -901,26 +931,38 @@ struct OrganizationHomeView: View {
     @ViewBuilder
     private func employeeOutcomeActions(_ outcome: EmployeeOutcome, employee: Employee) -> some View {
         switch outcome.status {
-        case .planning, .working, .queued:
+        case .planning, .working, .revision:
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
                 Text(outcome.status == .planning ? "Planning the work" : "Working through the plan")
                     .font(.caption)
                     .foregroundStyle(EditorialOfficeTheme.graphite)
                 Spacer()
-                Button("Stop") { model.stopEmployeeOutcome(outcome.id) }
+                Button("Stop") { pendingStopOutcomeID = outcome.id }
                     .buttonStyle(.plain)
                     .font(.caption.weight(.medium))
             }
+        case .queued, .approved:
+            HStack(spacing: 8) {
+                Text(model.runningEmployeeIDs.count >= model.organization.effectiveConcurrencyLimit ? "Waiting for capacity" : "Queued for this employee")
+                    .font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
+                Spacer()
+                Button("Stop") { pendingStopOutcomeID = outcome.id }.buttonStyle(.plain).font(.caption.weight(.medium))
+            }
+        case .proposed:
+            Button("Review plan in Mission", action: onOpenMission).buttonStyle(EditorialPrimaryButtonStyle())
         case .waiting, .failed:
             HStack(spacing: 8) {
-                Button("Try again") { model.retryEmployeeOutcome(outcome.id) }
-                    .buttonStyle(EditorialPrimaryButtonStyle())
-                    .disabled(model.isEmployeeRunActive)
-                Button("Stop") { model.stopEmployeeOutcome(outcome.id) }
+                Button("Respond in Mission", action: onOpenMission).buttonStyle(EditorialPrimaryButtonStyle())
+                Button("Stop") { pendingStopOutcomeID = outcome.id }
                     .buttonStyle(EditorialSecondaryButtonStyle())
             }
-        case .delivered, .cancelled:
+        case .delivered:
+            HStack(spacing: 8) {
+                if let artifactID = outcome.artifactIDs.last, let artifact = model.artifact(artifactID) { Button("Open delivery") { model.reveal(artifact) }.buttonStyle(EditorialSecondaryButtonStyle()) }
+                Button("Review delivery", action: onOpenMission).buttonStyle(EditorialPrimaryButtonStyle())
+            }
+        case .accepted, .closed, .cancelled:
             HStack(spacing: 8) {
                 if let artifactID = outcome.artifactIDs.last,
                    let artifact = model.artifact(artifactID) {
@@ -940,6 +982,13 @@ struct OrganizationHomeView: View {
     }
 
     private var outcomeOfficePrompt: String {
+        if let decision = model.organization.managementInbox.first,
+           let employee = model.organization.employee(decision.employeeID) {
+            return "\(employee.name) needs you: \(decision.title)."
+        }
+        if model.organization.activeAIEmployees.isEmpty {
+            return "Hire an employee from the Company Library to open the office."
+        }
         if let outcome = model.activeEmployeeOutcome,
            let employee = model.organization.employee(outcome.assigneeID) {
             return outcome.status == .waiting
@@ -956,9 +1005,14 @@ struct OrganizationHomeView: View {
         switch status {
         case .queued: "Queued outcome"
         case .planning: "Planning outcome"
+        case .proposed: "Plan awaiting review"
+        case .approved: "Plan approved"
         case .working: "Outcome in motion"
         case .waiting: "Waiting for help"
         case .delivered: "Outcome delivered"
+        case .revision: "Revision in motion"
+        case .accepted: "Outcome accepted"
+        case .closed: "Outcome closed"
         case .failed: "Outcome needs a retry"
         case .cancelled: "Outcome stopped"
         }
@@ -968,9 +1022,14 @@ struct OrganizationHomeView: View {
         switch status {
         case .queued: "clock"
         case .planning: "list.bullet.clipboard"
+        case .proposed: "checklist"
+        case .approved: "checkmark.seal"
         case .working: "arrow.forward"
         case .waiting: "questionmark.bubble"
         case .delivered: "checkmark"
+        case .revision: "arrow.counterclockwise"
+        case .accepted: "checkmark.seal.fill"
+        case .closed: "archivebox"
         case .failed: "exclamationmark"
         case .cancelled: "stop"
         }
@@ -1237,6 +1296,16 @@ struct OrganizationHomeView: View {
     @ViewBuilder
     private var attentionContent: some View {
         VStack(alignment: .leading, spacing: 8) {
+            ForEach(model.organization.managementInbox.prefix(8)) { item in
+                AttentionRow(
+                    title: item.title,
+                    detail: item.consequence,
+                    buttonTitle: item.kind == .candidate ? "Review candidate" : "Manage in Mission"
+                ) {
+                    if item.kind == .candidate { showsCompanyLibrary = true }
+                    else { onOpenMission() }
+                }
+            }
             if !model.organization.hasMeaningfulProductBrief {
                 AttentionRow(
                     title: "Maya needs the real product story",
@@ -1271,7 +1340,7 @@ struct OrganizationHomeView: View {
                 }
             }
 
-            ForEach(model.organization.blockers.filter { !$0.resolved }) { blocker in
+            ForEach(additionalUnresolvedBlockers) { blocker in
                 AttentionRow(
                     title: blocker.title,
                     detail: "\(blocker.detail) Asked by \(model.employeeName(blocker.employeeID)).",
@@ -1293,38 +1362,20 @@ struct OrganizationHomeView: View {
     @ViewBuilder
     private var motionContent: some View {
         VStack(alignment: .leading, spacing: 5) {
-            if let outcome = model.activeEmployeeOutcome,
-               outcome.status == .planning || outcome.status == .working,
-               let employee = model.organization.employee(outcome.assigneeID) {
-                StatusLine(
-                    icon: outcome.status == .planning ? "list.bullet.clipboard" : "arrow.forward",
-                    title: "\(employee.name) is \(outcome.status == .planning ? "planning" : "working")",
-                    detail: outcome.outcome
-                )
-            }
-            if model.latestResearchAssignment?.status == .researching {
-                StatusLine(icon: "magnifyingglass", title: "Nia is researching", detail: model.latestResearchAssignment?.outcome ?? "Owner-directed research")
-            }
-            if model.isCustomerVoiceRunning {
-                StatusLine(icon: "quote.bubble.fill", title: "Iris is reading feedback", detail: "Customer Voice Weekly")
-            }
-            ForEach(inMotionTasks) { task in
-                WorkLine(task: task, employeeName: model.employeeName(task.assigneeID))
-            }
-            if !queuedTasks.isEmpty {
-                Text("Ready next")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(ink.opacity(0.76))
-                    .padding(.top, inMotionTasks.isEmpty ? 0 : 7)
-                ForEach(queuedTasks) { task in
-                    WorkLine(task: task, employeeName: model.employeeName(task.assigneeID))
+            ForEach(inMotionOutcomes) { outcome in
+                if let employee = model.organization.employee(outcome.assigneeID) {
+                    StatusLine(
+                        icon: outcome.status == .planning ? "list.bullet.clipboard" : "arrow.forward",
+                        title: "\(employee.name) · \(outcome.status.rawValue.capitalized)",
+                        detail: outcome.outcome
+                    )
                 }
             }
             if inMotionCount == 0 {
                 EmptyDrawerState(
                     icon: "cup.and.saucer.fill",
                     title: "The office is resting",
-                    detail: "Start work or give Nia a focused research question."
+                    detail: "Give a hired employee an outcome to create the next commitment."
                 )
             }
         }
@@ -1333,51 +1384,19 @@ struct OrganizationHomeView: View {
     @ViewBuilder
     private var deliveredContent: some View {
         VStack(alignment: .leading, spacing: 3) {
-            if model.organization.artifacts.isEmpty && completedTasks.isEmpty {
+            if deliveredOutcomes.isEmpty {
                 EmptyDrawerState(
                     icon: "doc.text.fill",
                     title: "Nothing delivered yet",
-                    detail: "Finished briefs, drafts, and reports will collect here."
+                    detail: "Accepted employee outcomes will collect here."
                 )
-            } else if !model.organization.artifacts.isEmpty {
-                Text("Files delivered")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(ink.opacity(0.76))
-                ForEach(model.organization.artifacts.suffix(8).reversed()) { artifact in
-                    Button {
-                        model.reveal(artifact)
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "doc.richtext")
-                                .foregroundStyle(apricot)
-                                .frame(width: 20)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(artifact.title)
-                                    .font(.caption.weight(.semibold))
-                                    .lineLimit(1)
-                                Text("\(model.employeeName(artifact.authorID)) · \(artifact.kind.rawValue.capitalized)")
-                                    .font(.caption2)
-                                    .foregroundStyle(ink.opacity(0.76))
-                            }
-                            Spacer()
-                            Image(systemName: "arrow.up.forward.square")
-                                .font(.caption)
-                                .foregroundStyle(spruce.opacity(0.7))
-                        }
-                        .padding(.vertical, 7)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Reveal \(artifact.relativePath) in Finder")
-                }
-            }
-
-            if !completedTasks.isEmpty {
-                Text("Completed work")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(ink.opacity(0.76))
-                    .padding(.top, model.organization.artifacts.isEmpty ? 0 : 8)
-                ForEach(completedTasks.suffix(6).reversed()) { task in
-                    WorkLine(task: task, employeeName: model.employeeName(task.assigneeID))
+            } else {
+                ForEach(deliveredOutcomes.suffix(8).reversed()) { outcome in
+                    StatusLine(
+                        icon: "checkmark.seal.fill",
+                        title: "\(model.employeeName(outcome.assigneeID)) · \(outcome.status.rawValue.capitalized)",
+                        detail: outcome.effectiveDeliveries.last?.summary ?? outcome.outcome
+                    )
                 }
             }
         }
@@ -1388,19 +1407,7 @@ struct OrganizationHomeView: View {
     }
 
     private var aiEmployees: [Employee] {
-        model.organization.employees.filter { $0.kind == .ai }
-    }
-
-    private var inMotionTasks: [WorkTask] {
-        model.organization.tasks.filter { [.doing, .review, .revision].contains($0.status) }
-    }
-
-    private var queuedTasks: [WorkTask] {
-        model.organization.tasks.filter { [.ready, .waiting].contains($0.status) }
-    }
-
-    private var completedTasks: [WorkTask] {
-        model.organization.tasks.filter { $0.status == .done }
+        model.organization.activeAIEmployees
     }
 
     private var customerVoiceNeedsAttention: Bool {
@@ -1410,23 +1417,40 @@ struct OrganizationHomeView: View {
     }
 
     private var attentionCount: Int {
-        var count = model.organization.blockers.filter { !$0.resolved }.count
+        var count = model.organization.managementInbox.count
         if !model.organization.hasMeaningfulProductBrief { count += 1 }
         if model.webResearchRequestPending || (model.organization.executionMode == .localCodex && !model.webResearchGranted) { count += 1 }
         if customerVoiceNeedsAttention { count += 1 }
+        count += additionalUnresolvedBlockers.count
         return count
     }
 
+    private var additionalUnresolvedBlockers: [Blocker] {
+        let inbox = model.organization.managementInbox
+        let representedTaskIDs = Set(inbox.compactMap(\.taskID) + inbox.compactMap(\.outcomeID).flatMap { outcomeID in
+            model.organization.employeeOutcome(outcomeID)?.taskIDs ?? []
+        })
+        return model.organization.blockers.filter { !$0.resolved && !representedTaskIDs.contains($0.taskID) }
+    }
+
     private var inMotionCount: Int {
-        inMotionTasks.count
-            + queuedTasks.count
-            + ((model.activeEmployeeOutcome?.status == .planning || model.activeEmployeeOutcome?.status == .working) ? 1 : 0)
-            + (model.latestResearchAssignment?.status == .researching ? 1 : 0)
-            + (model.isCustomerVoiceRunning ? 1 : 0)
+        inMotionOutcomes.count
     }
 
     private var deliveredCount: Int {
-        model.organization.artifacts.count + completedTasks.count
+        deliveredOutcomes.count
+    }
+
+    private var inMotionOutcomes: [EmployeeOutcome] {
+        model.organization.employeeOutcomes.filter {
+            [.queued, .planning, .approved, .working, .revision].contains($0.status)
+        }
+    }
+
+    private var deliveredOutcomes: [EmployeeOutcome] {
+        model.organization.employeeOutcomes.filter {
+            [.accepted, .closed].contains($0.status)
+        }
     }
 
     private var officeStatusText: String {
@@ -1877,7 +1901,7 @@ private struct ProductBriefSheet: View {
             }
         }
         .padding(26)
-        .frame(minWidth: 640, minHeight: 560)
+        .frame(minWidth: 520, idealWidth: 640, minHeight: 500, idealHeight: 560)
         .foregroundStyle(DawnStageTheme.ivory)
         .background(DawnStageTheme.pageField)
     }

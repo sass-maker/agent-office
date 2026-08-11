@@ -105,6 +105,7 @@ public struct DutyOccurrence: Identifiable, Codable, Sendable, Equatable {
     public var attemptCount: Int
     public var createdAt: Date
     public var updatedAt: Date
+    public var canonicalOutcomeID: String?
 
     public init(
         id: String,
@@ -123,7 +124,8 @@ public struct DutyOccurrence: Identifiable, Codable, Sendable, Equatable {
         deliveryArtifactID: String? = nil,
         attemptCount: Int = 0,
         createdAt: Date,
-        updatedAt: Date
+        updatedAt: Date,
+        canonicalOutcomeID: String? = nil
     ) {
         self.id = id
         self.dutyID = dutyID
@@ -142,6 +144,7 @@ public struct DutyOccurrence: Identifiable, Codable, Sendable, Equatable {
         self.attemptCount = attemptCount
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.canonicalOutcomeID = canonicalOutcomeID
     }
 }
 
@@ -229,6 +232,16 @@ extension OrganizationState {
         }
 
         let occurrenceID = "customer-voice-\(UUID().uuidString.lowercased().prefix(8))"
+        let canonicalOutcomeID = try createEmployeeOutcome(
+            employeeID: duty.assigneeID,
+            outcome: duty.title,
+            context: duty.responsibility,
+            acceptanceCriteria: ["Account for supplied inputs, cite every decision basis, and recommend exactly one owner decision."],
+            priority: duty.nextDueAt <= now ? .high : .normal,
+            source: .recurringResponsibility,
+            sourceID: occurrenceID,
+            now: now
+        )
         knowledge?.dutyOccurrences.append(DutyOccurrence(
             id: occurrenceID,
             dutyID: duty.id,
@@ -236,7 +249,8 @@ extension OrganizationState {
             status: .running,
             attemptCount: 1,
             createdAt: now,
-            updatedAt: now
+            updatedAt: now,
+            canonicalOutcomeID: canonicalOutcomeID
         ))
         markDutyEmployeesWorking(duty: duty, occurrenceID: occurrenceID)
         activity.append(Activity(

@@ -17,6 +17,9 @@ struct MissionView: View {
     @State private var collapsedGroupIDs: Set<String> = []
     @State private var isSavingMission = false
     @State private var showsCompactInspector = false
+    @State private var selectedOutcomeID: String?
+    @State private var managementNote = ""
+    @State private var pendingStopOutcomeID: String?
 
     var body: some View {
         GeometryReader { proxy in
@@ -26,6 +29,7 @@ struct MissionView: View {
                 VStack(spacing: 0) {
                     missionHeader(compact: compact)
                     missionControls(compact: compact)
+                    outcomeLedger(compact: compact)
                     taskList(compact: compact)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -50,6 +54,7 @@ struct MissionView: View {
         .onAppear {
             missionDraft = model.organization.outcome
             selectedTaskID = preferredTask?.id
+            selectedOutcomeID = model.organization.managementInbox.first?.outcomeID ?? model.organization.employeeOutcomes.first?.id
         }
         .onChange(of: model.organization.outcome) { _, value in
             if missionDraft != value { missionDraft = value }
@@ -109,6 +114,124 @@ struct MissionView: View {
                 .frame(minWidth: 360, idealWidth: 500, minHeight: 520, idealHeight: 620)
             }
         }
+        .confirmationDialog(
+            "Stop this employee outcome?",
+            isPresented: Binding(
+                get: { pendingStopOutcomeID != nil },
+                set: { if !$0 { pendingStopOutcomeID = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Stop outcome", role: .destructive) {
+                if let outcomeID = pendingStopOutcomeID { model.stopEmployeeOutcome(outcomeID) }
+                pendingStopOutcomeID = nil
+            }
+            Button("Keep working", role: .cancel) { pendingStopOutcomeID = nil }
+        } message: {
+            Text("The employee's plan, completed tickets, deliveries, and activity will remain in the organization history.")
+        }
+    }
+
+    private func outcomeLedger(compact: Bool) -> some View {
+        let outcomes = model.organization.employeeOutcomes.sorted { $0.updatedAt > $1.updatedAt }
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Employee commitments").font(.headline)
+                Text("\(outcomes.filter { !$0.status.isTerminal }.count) open").font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
+                Spacer()
+                Text("\(model.runningEmployeeIDs.count)/\(model.organization.effectiveConcurrencyLimit) running")
+                    .font(.caption.monospacedDigit()).foregroundStyle(EditorialOfficeTheme.graphite)
+            }
+            .padding(.horizontal, compact ? 24 : 38).padding(.vertical, 11)
+
+            if outcomes.isEmpty {
+                HStack { Text("Give a hired employee an outcome to create the first commitment.").font(.callout).foregroundStyle(EditorialOfficeTheme.graphite); Spacer(); Button("Open office", action: onOpenOffice).buttonStyle(.plain).underline() }
+                    .padding(.horizontal, compact ? 24 : 38).padding(.bottom, 12)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(outcomes) { outcome in outcomeRow(outcome, compact: compact) }
+                    }
+                }
+                .frame(maxHeight: compact ? (selectedOutcomeID == nil ? 210 : 300) : 240)
+            }
+        }
+        .background(EditorialOfficeTheme.paper.opacity(0.72))
+        .overlay(alignment: .bottom) { Rectangle().fill(EditorialOfficeTheme.rule.opacity(0.75)).frame(height: 1) }
+    }
+
+    private func outcomeRow(_ outcome: EmployeeOutcome, compact: Bool) -> some View {
+        let selected = selectedOutcomeID == outcome.id
+        let employee = model.organization.employee(outcome.assigneeID)
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                selectedOutcomeID = selected ? nil : outcome.id
+                selectedTaskID = outcome.taskIDs.first
+                managementNote = ""
+            } label: {
+                HStack(spacing: 12) {
+                    if let employee { EmployeePortrait(employee: employee, size: CGSize(width: 30, height: 36)).saturation(0) }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(outcome.outcome).font(.callout.weight(.semibold)).lineLimit(compact ? 2 : 1)
+                        Text("\(employee?.name ?? outcome.assigneeID) · \(outcomeStatusLabel(outcome)) · \(outcome.effectivePriority.rawValue) priority")
+                            .font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
+                    }
+                    Spacer()
+                    if model.runningEmployeeIDs.contains(outcome.assigneeID) { ProgressView().controlSize(.small).accessibilityLabel("Running") }
+                    Text("\(outcome.taskIDs.filter { model.organization.task($0)?.status == .done }.count)/\(outcome.taskIDs.count)")
+                        .font(.caption.monospacedDigit()).foregroundStyle(EditorialOfficeTheme.graphite)
+                    Image(systemName: selected ? "chevron.up" : "chevron.down").font(.caption)
+                }
+                .padding(.horizontal, compact ? 24 : 38).frame(minHeight: 50).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(outcome.outcome), owned by \(employee?.name ?? outcome.assigneeID), \(outcomeStatusLabel(outcome))")
+
+            if selected { outcomeManagement(outcome).padding(.horizontal, compact ? 24 : 38).padding(.bottom, 12) }
+        }
+        .overlay(alignment: .bottom) { Rectangle().fill(EditorialOfficeTheme.rule.opacity(0.45)).frame(height: 1) }
+    }
+
+    @ViewBuilder
+    private func outcomeManagement(_ outcome: EmployeeOutcome) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            if !outcome.effectiveAcceptanceCriteria.isEmpty {
+                Text("Acceptance · \(outcome.effectiveAcceptanceCriteria.joined(separator: " · "))").font(.caption).foregroundStyle(EditorialOfficeTheme.ink.opacity(0.72))
+            }
+            if let help = outcome.helpRequest { Text(help).font(.caption).foregroundStyle(EditorialOfficeTheme.attention) }
+            if let delivery = outcome.effectiveDeliveries.last {
+                Text("Delivery · \(delivery.summary)").font(.caption).foregroundStyle(EditorialOfficeTheme.ink.opacity(0.72))
+            }
+            if [.proposed, .waiting, .delivered].contains(outcome.status) {
+                TextField(outcome.status == .delivered ? "Revision feedback" : "Instruction or reply", text: $managementNote)
+                    .textFieldStyle(.roundedBorder).accessibilityLabel("Management note for \(outcome.outcome)")
+            }
+            HStack(spacing: 8) {
+                switch outcome.status {
+                case .proposed:
+                    Button("Approve plan") { model.approveEmployeeOutcomePlan(outcome.id) }.buttonStyle(EditorialPrimaryButtonStyle())
+                    Button("Return plan") { model.returnEmployeeOutcomePlan(outcome.id, instruction: managementNote) }.buttonStyle(EditorialSecondaryButtonStyle()).disabled(managementNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                case .waiting, .failed:
+                    Button("Send reply") { model.replyToEmployeeOutcome(outcome.id, message: managementNote) }.buttonStyle(EditorialPrimaryButtonStyle()).disabled(managementNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Stop") { pendingStopOutcomeID = outcome.id }.buttonStyle(EditorialSecondaryButtonStyle())
+                case .delivered:
+                    Button("Accept") { model.acceptEmployeeOutcome(outcome.id, note: managementNote) }.buttonStyle(EditorialPrimaryButtonStyle())
+                    Button("Request changes") { model.requestEmployeeOutcomeRevision(outcome.id, feedback: managementNote) }.buttonStyle(EditorialSecondaryButtonStyle()).disabled(managementNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                case .queued, .approved:
+                    Button("Move up") { model.reorderEmployeeOutcome(outcome.id, offset: -1) }.buttonStyle(EditorialSecondaryButtonStyle())
+                    Button("Move down") { model.reorderEmployeeOutcome(outcome.id, offset: 1) }.buttonStyle(EditorialSecondaryButtonStyle())
+                    Button("Stop") { pendingStopOutcomeID = outcome.id }.buttonStyle(.plain)
+                case .planning, .working, .revision:
+                    Button("Stop outcome") { pendingStopOutcomeID = outcome.id }.buttonStyle(EditorialSecondaryButtonStyle())
+                case .accepted, .closed, .cancelled: EmptyView()
+                }
+            }
+        }
+    }
+
+    private func outcomeStatusLabel(_ outcome: EmployeeOutcome) -> String {
+        if outcome.status == .queued && model.runningEmployeeIDs.count >= model.organization.effectiveConcurrencyLimit { return "Waiting for capacity" }
+        return outcome.status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized
     }
 
     private func missionHeader(compact: Bool) -> some View {
@@ -118,7 +241,7 @@ struct MissionView: View {
                     Text("Grand Mission")
                         .font(.system(.title3, design: .serif))
 
-                    Text("\(deliveredTaskCount) of \(model.organization.tasks.count) delivered")
+                    Text("\(deliveredTaskCount) of \(missionTasks.count) delivered")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(EditorialOfficeTheme.graphite)
                 }
@@ -154,9 +277,9 @@ struct MissionView: View {
 
             if !compact {
                 VStack(alignment: .trailing, spacing: 8) {
-                    Text(attentionTaskCount == 0 ? "Nothing needs you" : "\(attentionTaskCount) need attention")
+                    Text(managementDecisionCount == 0 ? "Nothing needs you" : "\(managementDecisionCount) owner decisions")
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(attentionTaskCount == 0 ? EditorialOfficeTheme.graphite : EditorialOfficeTheme.attention)
+                        .foregroundStyle(managementDecisionCount == 0 ? EditorialOfficeTheme.graphite : EditorialOfficeTheme.attention)
 
                     Button("Open office", action: onOpenOffice)
                         .buttonStyle(EditorialSecondaryButtonStyle())
@@ -354,6 +477,7 @@ struct MissionView: View {
             .padding(.horizontal, 12)
             .frame(height: 44)
             .accessibilityLabel("\(group.rawValue), \(tasks.count) tasks")
+            .accessibilityValue(isCollapsed ? "Collapsed" : "Expanded")
             .accessibilityHint(isCollapsed ? "Expand group" : "Collapse group")
 
             if !isCollapsed {
@@ -449,6 +573,7 @@ struct MissionView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(task.title). \(task.detail). \(statusLabel(task.status)), assigned to \(model.employeeName(task.assigneeID))")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func taskInspector(_ task: WorkTask) -> some View {
@@ -475,6 +600,14 @@ struct MissionView: View {
                             onOpenEmployeeProfile(task.assigneeID)
                         }
                             .disabled(missionIsDirty || isSavingMission)
+                        if task.status != .done {
+                            Divider()
+                            ForEach(model.organization.activeAIEmployees.filter { $0.id != task.assigneeID }) { employee in
+                                Button("Reassign to \(employee.name)", systemImage: "person.2") {
+                                    model.reassignEmployeeTicket(task.id, employeeID: employee.id, reason: "Owner reassigned from Mission.")
+                                }
+                            }
+                        }
                     } label: {
                         Image(systemName: "ellipsis")
                             .frame(width: 34, height: 30)
@@ -519,6 +652,11 @@ struct MissionView: View {
                         .disabled(missionIsDirty || isSavingMission)
                     }
                     .padding(.top, 18)
+                }
+
+                if task.effectiveAccountableEmployeeID != task.assigneeID {
+                    Text("Delegated by \(model.employeeName(task.effectiveAccountableEmployeeID)) · \(task.delegationReason ?? "bounded collaboration")")
+                        .font(.caption).foregroundStyle(EditorialOfficeTheme.graphite).padding(.top, 8)
                 }
 
                 if let artifact = artifact(for: task) {
@@ -655,7 +793,7 @@ struct MissionView: View {
     }
 
     private var filteredTasks: [WorkTask] {
-        model.organization.tasks.filter { task in
+        missionTasks.filter { task in
             let filterMatch = taskMatches(task, filter: filter)
             let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             let searchMatch = query.isEmpty
@@ -675,21 +813,25 @@ struct MissionView: View {
     }
 
     private func taskCount(for filter: MissionFilter) -> Int {
-        model.organization.tasks.filter { taskMatches($0, filter: filter) }.count
+        missionTasks.filter { taskMatches($0, filter: filter) }.count
     }
 
     private var deliveredTaskCount: Int {
-        model.organization.tasks.filter { $0.status == .done }.count
+        missionTasks.filter { $0.status == .done }.count
     }
 
     private var openTaskCount: Int {
-        model.organization.tasks.count - deliveredTaskCount
+        missionTasks.count - deliveredTaskCount
     }
 
     private var attentionTaskCount: Int {
-        model.organization.tasks.filter {
+        missionTasks.filter {
             $0.status == .blocked || blocker(for: $0) != nil
         }.count
+    }
+
+    private var managementDecisionCount: Int {
+        model.organization.managementInbox.count
     }
 
     private func tasks(in group: MissionGroup) -> [WorkTask] {
@@ -714,8 +856,13 @@ struct MissionView: View {
     }
 
     private var preferredTask: WorkTask? {
-        model.organization.tasks.first(where: { [.doing, .revision, .review].contains($0.status) })
-            ?? model.organization.tasks.first
+        missionTasks.first(where: { [.doing, .revision, .review].contains($0.status) })
+            ?? missionTasks.first
+    }
+
+    private var missionTasks: [WorkTask] {
+        let outcomeTaskIDs = Set(model.organization.employeeOutcomes.flatMap(\.taskIDs))
+        return outcomeTaskIDs.isEmpty ? model.organization.tasks : model.organization.tasks.filter { outcomeTaskIDs.contains($0.id) }
     }
 
     private var missionOwnerName: String {
@@ -740,7 +887,7 @@ struct MissionView: View {
 
     private func taskKey(_ task: WorkTask) -> String {
         let prefix = String(model.organization.name.filter(\.isLetter).prefix(3)).uppercased()
-        let index = (model.organization.tasks.firstIndex(where: { $0.id == task.id }) ?? 0) + 1
+        let index = (missionTasks.firstIndex(where: { $0.id == task.id }) ?? 0) + 1
         return "\(prefix.isEmpty ? "ORG" : prefix)-\(String(format: "%02d", index))"
     }
 

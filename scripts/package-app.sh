@@ -14,10 +14,12 @@ esac
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 project_dir="$(cd "$script_dir/.." && pwd)"
 product_name="AgentOffice"
+display_name="${AGENT_OFFICE_DISPLAY_NAME:-Office OS}"
 resource_name="AgentOffice_AgentOffice.bundle"
-bundle_id="${AGENT_OFFICE_BUNDLE_ID:-com.fleet.agentoffice.local}"
+bundle_id="${AGENT_OFFICE_BUNDLE_ID:-com.sassmaker.officeos}"
 short_version="${AGENT_OFFICE_VERSION:-0.1.0}"
 build_version="${AGENT_OFFICE_BUILD_NUMBER:-1}"
+signing_identity="${AGENT_OFFICE_SIGNING_IDENTITY:--}"
 
 cd "$project_dir"
 swift build -c "$configuration"
@@ -73,10 +75,10 @@ fi
 info_plist="$contents_dir/Info.plist"
 plutil -create xml1 "$info_plist"
 plutil -insert CFBundleDevelopmentRegion -string en "$info_plist"
-plutil -insert CFBundleDisplayName -string "$product_name" "$info_plist"
+plutil -insert CFBundleDisplayName -string "$display_name" "$info_plist"
 plutil -insert CFBundleExecutable -string "$product_name" "$info_plist"
 plutil -insert CFBundleIdentifier -string "$bundle_id" "$info_plist"
-plutil -insert CFBundleName -string "$product_name" "$info_plist"
+plutil -insert CFBundleName -string "$display_name" "$info_plist"
 if [[ -f "$contents_dir/Resources/AppIcon.icns" ]]; then
     plutil -insert CFBundleIconFile -string AppIcon "$info_plist"
 fi
@@ -87,7 +89,11 @@ plutil -insert LSMinimumSystemVersion -string 14.0 "$info_plist"
 plutil -insert NSHighResolutionCapable -bool true "$info_plist"
 plutil -insert NSPrincipalClass -string NSApplication "$info_plist"
 
-codesign --force --deep --sign - "$stage_app"
+if [[ "$signing_identity" == "-" ]]; then
+    codesign --force --deep --options runtime --sign - "$stage_app"
+else
+    codesign --force --deep --options runtime --timestamp --sign "$signing_identity" "$stage_app"
+fi
 codesign --verify --deep --strict --verbose=2 "$stage_app"
 
 output_dir="$project_dir/dist"

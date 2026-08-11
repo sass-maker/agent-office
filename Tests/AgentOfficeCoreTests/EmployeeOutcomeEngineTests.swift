@@ -2,7 +2,7 @@ import XCTest
 @testable import AgentOfficeCore
 
 final class EmployeeOutcomeEngineTests: XCTestCase {
-    func testOutcomeValidationAndSingleActiveBoundary() throws {
+    func testOutcomeValidationAndIndependentEmployeeQueues() throws {
         var organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
 
         XCTAssertThrowsError(try organization.createEmployeeOutcome(
@@ -22,12 +22,14 @@ final class EmployeeOutcomeEngineTests: XCTestCase {
             context: "Use the company profile.",
             now: Date(timeIntervalSince1970: 200)
         )
-        XCTAssertThrowsError(try organization.createEmployeeOutcome(
+        let secondID = try organization.createEmployeeOutcome(
             employeeID: "theo",
             outcome: "Write the follow-up",
             context: ""
-        )) { XCTAssertEqual($0 as? EmployeeOutcomeError, .activeOutcomeExists) }
-        XCTAssertEqual(organization.activity.suffix(2).map(\.actorID), ["owner", "maya"])
+        )
+        XCTAssertEqual(organization.employeeOutcome(secondID)?.assigneeID, "theo")
+        XCTAssertEqual(organization.employeeOutcomes.filter { !$0.status.isTerminal }.count, 2)
+        XCTAssertEqual(organization.activity.suffix(2).map(\.actorID), ["owner", "theo"])
     }
 
     func testCommunicationMigratesOnceToEveryAIEmployee() {
@@ -42,7 +44,7 @@ final class EmployeeOutcomeEngineTests: XCTestCase {
         let communicationAssignees = Set(migrated.knowledge?.skillAssignments
             .filter { $0.skillID == "communication" }.map(\.employeeID) ?? [])
 
-        XCTAssertEqual(migrated.schemaVersion, 8)
+        XCTAssertEqual(migrated.schemaVersion, 9)
         XCTAssertEqual(communicationAssignees, aiIDs)
         XCTAssertTrue(migrated.assignedSkills(employeeID: "owner").isEmpty)
         XCTAssertEqual(migratedAgain.knowledge?.skillDefinitions.filter { $0.id == "communication" }.count, 1)

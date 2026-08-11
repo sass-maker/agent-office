@@ -6,15 +6,18 @@ struct CompanyLibraryView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var section: LibrarySection = .employees
     @State private var selectedEmployeeID = "maya"
+    @State private var selectedPackageVersionedID: String?
     @State private var selectedSkillID = "outcome-ownership"
     @State private var showsTeachSkill = false
+    @State private var editingContractEmployee: Employee?
+    @State private var pendingRetirementEmployee: Employee?
 
     init(initialSection: LibrarySection = .employees) {
         _section = State(initialValue: initialSection)
     }
 
     private let ink = EditorialOfficeTheme.ink
-    private let spruce = EditorialOfficeTheme.sidebarInk
+    private let spruce = EditorialOfficeTheme.controlInk
     private let paper = EditorialOfficeTheme.paper
     private let plaster = EditorialOfficeTheme.bone
     private let apricot = EditorialOfficeTheme.graphite
@@ -28,7 +31,7 @@ struct CompanyLibraryView: View {
                 Divider().opacity(0.45)
                 Group {
                     switch section {
-                    case .employees: employeeCatalogue
+                    case .employees: employeeCatalogue(compact: compact)
                     case .skills: skillCatalogue
                     case .connections: connectionCatalogue
                     }
@@ -39,10 +42,32 @@ struct CompanyLibraryView: View {
             .tint(spruce)
             .background(plaster)
         }
-        .frame(minWidth: 700, minHeight: 620)
+        .frame(minWidth: 600, idealWidth: 900, minHeight: 540, idealHeight: 700)
         .sheet(isPresented: $showsTeachSkill) {
             TeachSkillView()
                 .environmentObject(model)
+        }
+        .sheet(item: $editingContractEmployee) { employee in
+            if let contract = model.organization.workingContract(for: employee.id) {
+                WorkingContractEditor(employee: employee, contract: contract)
+                    .environmentObject(model)
+            }
+        }
+        .confirmationDialog(
+            "Retire this employee?",
+            isPresented: Binding(
+                get: { pendingRetirementEmployee != nil },
+                set: { if !$0 { pendingRetirementEmployee = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Retire employee", role: .destructive) {
+                if let employee = pendingRetirementEmployee { model.retireEmployee(employee.id) }
+                pendingRetirementEmployee = nil
+            }
+            Button("Keep employed", role: .cancel) { pendingRetirementEmployee = nil }
+        } message: {
+            Text("Retirement removes the employee from active work but preserves their identity, contracts, outcomes, artifacts, and history.")
         }
     }
 
@@ -53,7 +78,7 @@ struct CompanyLibraryView: View {
                     headerTitle
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 8) {
-                        teachButton
+                        if section == .skills { teachButton }
                         doneButton
                     }
                     .fixedSize()
@@ -62,7 +87,7 @@ struct CompanyLibraryView: View {
                 HStack(alignment: .top, spacing: 16) {
                     headerTitle
                     Spacer()
-                    teachButton
+                    if section == .skills { teachButton }
                     doneButton
                 }
             }
@@ -80,16 +105,16 @@ struct CompanyLibraryView: View {
                             }
                         }
                             .font(.callout.weight(.semibold))
-                            .foregroundStyle(section == item ? EditorialOfficeTheme.paper : ink.opacity(0.68))
+                            .foregroundStyle(section == item ? EditorialOfficeTheme.onInk : ink.opacity(0.68))
                             .frame(maxWidth: .infinity, minHeight: 34)
-                            .background(section == item ? spruce : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+                            .background(section == item ? EditorialOfficeTheme.sidebarInk : Color.clear, in: RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(section == item ? .isSelected : [])
                 }
             }
             .padding(4)
-            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 11))
+            .background(EditorialOfficeTheme.softGrey.opacity(0.28), in: RoundedRectangle(cornerRadius: 11))
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 20)
@@ -115,10 +140,10 @@ struct CompanyLibraryView: View {
         } label: {
             Label("Teach a skill", systemImage: "book.pages.fill")
                 .font(.callout.weight(.bold))
-                .foregroundStyle(EditorialOfficeTheme.paper)
+                .foregroundStyle(EditorialOfficeTheme.onInk)
                 .padding(.horizontal, 13)
                 .frame(minHeight: 34)
-                .background(spruce, in: RoundedRectangle(cornerRadius: 9))
+                .background(EditorialOfficeTheme.sidebarInk, in: RoundedRectangle(cornerRadius: 9))
         }
         .buttonStyle(.plain)
         .disabled(!model.canEditOrganization)
@@ -131,16 +156,39 @@ struct CompanyLibraryView: View {
             .foregroundStyle(spruce)
             .padding(.horizontal, 10)
             .frame(minHeight: 34)
-            .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 9))
+            .background(EditorialOfficeTheme.softGrey.opacity(0.44), in: RoundedRectangle(cornerRadius: 9))
             .keyboardShortcut(.cancelAction)
     }
 
-    private var employeeCatalogue: some View {
-        HStack(spacing: 0) {
-            catalogueList {
-                ForEach(model.organization.employees) { employee in
+    @ViewBuilder
+    private func employeeCatalogue(compact: Bool) -> some View {
+        let layout = compact ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
+        layout {
+            catalogueList(width: compact ? nil : 280) {
+                catalogueHeading("Employee packages")
+                ForEach(model.organization.employeePackages) { package in
+                    Button {
+                        selectedPackageVersionedID = package.versionedID
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack { Text(package.name).font(.callout.weight(.bold)); Spacer(); Text(package.version).font(.caption2.monospacedDigit()) }
+                            Text(package.role).font(.caption2).foregroundStyle(ink.opacity(0.56))
+                            Text("\(package.skills.count) skills · \(package.requiredConnectionIDs.count) connections")
+                                .font(.caption2.weight(.semibold)).foregroundStyle(spruce.opacity(0.72))
+                        }
+                        .padding(10)
+                        .background(selectedPackageVersionedID == package.versionedID ? paper.opacity(0.82) : .clear, in: RoundedRectangle(cornerRadius: 11))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Installed employee package \(package.name), \(package.role), version \(package.version)")
+                    .accessibilityAddTraits(selectedPackageVersionedID == package.versionedID ? .isSelected : [])
+                }
+
+                catalogueHeading("Employed")
+                ForEach(model.organization.employees.filter { $0.kind == .human || [.hired, .paused].contains($0.effectiveEmploymentState) }) { employee in
                     Button {
                         selectedEmployeeID = employee.id
+                        selectedPackageVersionedID = nil
                     } label: {
                         HStack(spacing: 11) {
                             EmployeePortrait(employee: employee, size: CGSize(width: 38, height: 46))
@@ -149,7 +197,7 @@ struct CompanyLibraryView: View {
                                 Text(employee.role)
                                     .font(.caption2)
                                     .foregroundStyle(ink.opacity(0.56))
-                                Text("\(model.organization.assignedSkills(employeeID: employee.id).count) skills")
+                                Text(employee.kind == .human ? "Organization member" : "\(employee.effectiveEmploymentState.rawValue.capitalized) · \(model.organization.assignedSkills(employeeID: employee.id).count) skills")
                                     .font(.caption2.weight(.semibold))
                                     .foregroundStyle(spruce.opacity(0.72))
                             }
@@ -157,20 +205,87 @@ struct CompanyLibraryView: View {
                         }
                         .padding(10)
                         .background(
-                            selectedEmployeeID == employee.id ? Color.white.opacity(0.68) : .clear,
+                            selectedEmployeeID == employee.id ? paper.opacity(0.82) : .clear,
                             in: RoundedRectangle(cornerRadius: 11)
                         )
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(selectedEmployeeID == employee.id ? .isSelected : [])
                 }
+
+                if model.organization.employees.contains(where: { $0.effectiveEmploymentState == .retired }) {
+                    catalogueHeading("History")
+                    ForEach(model.organization.employees.filter { $0.effectiveEmploymentState == .retired }) { employee in
+                        Button { selectedEmployeeID = employee.id; selectedPackageVersionedID = nil } label: {
+                            HStack { EmployeePortrait(employee: employee, size: CGSize(width: 34, height: 40)).saturation(0); VStack(alignment: .leading) { Text(employee.name).font(.callout.weight(.bold)); Text("Retired · history preserved").font(.caption2).foregroundStyle(ink.opacity(0.56)) }; Spacer() }.padding(10)
+                        }.buttonStyle(.plain)
+                    }
+                }
+
+                Button(action: model.importEmployeePackage) {
+                    Label("Import package", systemImage: "square.and.arrow.down")
+                        .font(.callout.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 34)
+                }
+                .buttonStyle(EditorialSecondaryButtonStyle())
+                .padding(.top, 8)
             }
+            .frame(height: compact ? 245 : nil)
 
             Divider().opacity(0.4)
 
-            if let employee = model.organization.employee(selectedEmployeeID) ?? model.organization.employees.first {
+            if let versionedID = selectedPackageVersionedID,
+               let package = model.organization.employeePackages.first(where: { $0.versionedID == versionedID }) {
+                candidateDetail(package)
+            } else if let employee = model.organization.employee(selectedEmployeeID) ?? model.organization.employees.first {
                 employeeDetail(employee)
             }
+        }
+    }
+
+    private func catalogueHeading(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(ink.opacity(0.5))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+            .padding(.top, 8)
+    }
+
+    private func candidateDetail(_ package: EmployeePackage) -> some View {
+        let isEmployed = model.organization.employees.contains {
+            $0.packageID == package.id
+                && $0.packageVersion == package.version
+                && [.hired, .paused].contains($0.effectiveEmploymentState)
+        }
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(package.name).font(.system(.title, design: .rounded, weight: .bold))
+                        Text(package.role).font(.headline).foregroundStyle(spruce.opacity(0.78))
+                        Text("Package \(package.version) · by \(package.creator)").font(.caption).foregroundStyle(ink.opacity(0.56))
+                    }
+                    Spacer()
+                    Text("INSTALLED PACKAGE").font(.caption2.weight(.bold)).padding(.horizontal, 9).padding(.vertical, 5).background(paper.opacity(0.78), in: Capsule())
+                }
+                Text(package.responsibility).font(.callout).foregroundStyle(ink.opacity(0.72))
+                librarySection("What they bring", icon: "shippingbox.fill") { flowTags(package.skills.map { "\($0.name) · v\($0.version)" }) }
+                librarySection("What the organization provides", icon: "point.3.connected.trianglepath.dotted") {
+                    Text(package.requiredConnectionIDs.isEmpty ? "No connection required." : package.requiredConnectionIDs.joined(separator: ", ")).font(.callout)
+                }
+                librarySection("Execution and boundaries", icon: "cpu") {
+                    Text("\(package.preferredProvider.rawValue) · local organization sandbox · publishing \(package.boundaries.mayPublish ? "allowed" : "unavailable") · up to \(package.boundaries.maximumRevisions) revisions")
+                        .font(.callout).foregroundStyle(ink.opacity(0.72))
+                }
+                if let reduced = package.reducedModeDescription { coverageGap(reduced) }
+                Button(isEmployed ? "Already employed" : "Hire \(package.name)") {
+                    if model.hireEmployee(packageID: package.id, version: package.version) { selectedEmployeeID = model.selectedEmployeeID ?? selectedEmployeeID; selectedPackageVersionedID = nil }
+                }
+                .buttonStyle(EditorialPrimaryButtonStyle())
+                .disabled(isEmployed)
+                .accessibilityHint("Creates a durable employee identity and working contract without granting connections")
+            }
+            .padding(26).frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -226,6 +341,30 @@ struct CompanyLibraryView: View {
                     }
                 }
 
+                if let contract = model.organization.workingContract(for: employee.id) {
+                    librarySection("Working contract · revision \(contract.revision)", icon: "doc.text.magnifyingglass") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            contractLine("Employment", employee.effectiveEmploymentState.rawValue.capitalized)
+                            contractLine("Identity", "\(employee.name) · \(contract.role)")
+                            contractLine("Skills", contract.assignedSkillIDs.map(skillName).joined(separator: ", "))
+                            contractLine("Declared tools", contract.declaredConnectionIDs.isEmpty ? "None" : contract.declaredConnectionIDs.map(connectionName).joined(separator: ", "))
+                            contractLine("Granted authority", contract.capabilityGrants.isEmpty ? "None" : contract.capabilityGrants.map(capabilityName).joined(separator: ", "))
+                            contractLine("Execution", "\(executionProviderName(contract.executionProvider)) · \(contract.modelName ?? "provider default")")
+                            contractLine("Environment", "Local organization sandbox · \(contract.workspacePath)")
+                            contractLine("Review", reviewPolicyName(contract.reviewPolicy))
+                            Button("Edit working contract") { editingContractEmployee = employee }
+                                .buttonStyle(EditorialSecondaryButtonStyle())
+                                .disabled(model.runningEmployeeIDs.contains(employee.id))
+                                .padding(.top, 6)
+                        }
+                    }
+                    if employee.effectiveEmploymentState == .hired {
+                        HStack { Button("Pause") { model.pauseEmployee(employee.id) }.buttonStyle(EditorialSecondaryButtonStyle()); Button("Retire") { pendingRetirementEmployee = employee }.buttonStyle(EditorialSecondaryButtonStyle()).disabled(model.runningEmployeeIDs.contains(employee.id)) }
+                    } else if employee.effectiveEmploymentState == .paused {
+                        HStack { Button("Resume") { model.resumeEmployee(employee.id) }.buttonStyle(EditorialPrimaryButtonStyle()); Button("Retire") { pendingRetirementEmployee = employee }.buttonStyle(EditorialSecondaryButtonStyle()) }
+                    }
+                }
+
                 if employee.kind == .ai {
                     Button {
                         model.revealEmployeeHome(employee.id)
@@ -237,11 +376,18 @@ struct CompanyLibraryView: View {
                     .foregroundStyle(spruce)
                     .padding(.horizontal, 12)
                     .frame(minHeight: 32)
-                    .background(Color.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 9))
+                    .background(paper.opacity(0.82), in: RoundedRectangle(cornerRadius: 9))
                 }
             }
             .padding(26)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func contractLine(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label).font(.caption.weight(.semibold)).foregroundStyle(ink.opacity(0.55)).frame(width: 112, alignment: .leading)
+            Text(value.isEmpty ? "None" : value).font(.callout).textSelection(.enabled)
         }
     }
 
@@ -271,7 +417,7 @@ struct CompanyLibraryView: View {
                         }
                         .padding(11)
                         .background(
-                            selectedSkillID == skill.id ? Color.white.opacity(0.68) : .clear,
+                            selectedSkillID == skill.id ? paper.opacity(0.82) : .clear,
                             in: RoundedRectangle(cornerRadius: 11)
                         )
                     }
@@ -311,7 +457,7 @@ struct CompanyLibraryView: View {
                         .foregroundStyle(skill.source == .builtIn ? spruce : EditorialOfficeTheme.graphite)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.62), in: Capsule())
+                        .background(paper.opacity(0.76), in: Capsule())
                 }
 
                 librarySection("Purpose", icon: "scope") {
@@ -405,12 +551,13 @@ struct CompanyLibraryView: View {
         }
     }
 
-    private func catalogueList<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    private func catalogueList<Content: View>(width: CGFloat? = 260, @ViewBuilder content: () -> Content) -> some View {
         ScrollView {
-            VStack(spacing: 7, content: content)
+            LazyVStack(spacing: 7, content: content)
                 .padding(14)
         }
-        .frame(width: 260)
+        .frame(width: width)
+        .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         .background(EditorialOfficeTheme.softGrey.opacity(0.48))
     }
 
@@ -441,13 +588,33 @@ struct CompanyLibraryView: View {
                     .foregroundStyle(spruce)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.7), in: Capsule())
+                    .background(paper.opacity(0.82), in: Capsule())
             }
         }
     }
 
     private func connectionName(_ id: String) -> String {
         model.organization.knowledge?.connectionDefinitions.first { $0.id == id }?.name ?? id
+    }
+
+    private func skillName(_ id: String) -> String {
+        model.organization.skill(id)?.name ?? id
+    }
+
+    private func capabilityName(_ id: String) -> String {
+        model.organization.knowledge?.connectionDefinitions.first { $0.capabilityID == id }?.name ?? id
+    }
+
+    private func executionProviderName(_ provider: EmployeeExecutionProvider) -> String {
+        provider == .localCodex ? "Local Codex" : "Practice mode"
+    }
+
+    private func reviewPolicyName(_ policy: PlanReviewPolicy) -> String {
+        switch policy {
+        case .always: "Review every plan"
+        case .whenAuthorityChanges: "Review authority changes"
+        case .automaticForLocalWork: "Approve bounded local plans"
+        }
     }
 
     private func permittedEmployees(for connection: ConnectionDefinition) -> [Employee] {
@@ -474,6 +641,198 @@ struct CompanyLibraryView: View {
             else { "Available" }
         default: "Not configured"
         }
+    }
+}
+
+private struct WorkingContractEditor: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    let employee: Employee
+    let contract: WorkingContract
+    @State private var role: String
+    @State private var responsibility: String
+    @State private var managerID: String
+    @State private var selectedSkillIDs: Set<String>
+    @State private var selectedConnectionIDs: Set<String>
+    @State private var selectedGrantIDs: Set<String>
+    @State private var provider: EmployeeExecutionProvider
+    @State private var modelName: String
+    @State private var reviewPolicy: PlanReviewPolicy
+    @State private var mayDelegate: Bool
+    @State private var mayUseExternalTools: Bool
+    @State private var maximumRevisions: Int
+    @State private var reason = ""
+
+    init(employee: Employee, contract: WorkingContract) {
+        self.employee = employee
+        self.contract = contract
+        _role = State(initialValue: contract.role)
+        _responsibility = State(initialValue: contract.responsibility)
+        _managerID = State(initialValue: contract.managerID ?? "")
+        _selectedSkillIDs = State(initialValue: Set(contract.assignedSkillIDs))
+        _selectedConnectionIDs = State(initialValue: Set(contract.declaredConnectionIDs))
+        _selectedGrantIDs = State(initialValue: Set(contract.capabilityGrants))
+        _provider = State(initialValue: contract.executionProvider)
+        _modelName = State(initialValue: contract.modelName ?? "")
+        _reviewPolicy = State(initialValue: contract.reviewPolicy)
+        _mayDelegate = State(initialValue: contract.boundaries.mayDelegate)
+        _mayUseExternalTools = State(initialValue: contract.boundaries.mayUseExternalTools)
+        _maximumRevisions = State(initialValue: contract.boundaries.maximumRevisions)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack { Text("Edit \(employee.name)'s working contract").font(.system(.title2, design: .serif)); Spacer(); Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction) }
+                .padding(22).background(EditorialOfficeTheme.paper)
+            Divider()
+            Form {
+                Section("Identity and responsibility") {
+                    TextField("Role", text: $role)
+                    TextField("Responsibility", text: $responsibility, axis: .vertical).lineLimit(2...4)
+                    Picker("Reports to", selection: $managerID) {
+                        Text("No manager").tag("")
+                        ForEach(model.organization.employees.filter { $0.id != employee.id && $0.effectiveEmploymentState != .retired }) { manager in
+                            Text("\(manager.name) · \(manager.role)").tag(manager.id)
+                        }
+                    }
+                }
+                Section("Assigned skills") {
+                    ForEach(model.organization.knowledge?.skillDefinitions ?? []) { skill in
+                        Toggle(isOn: membershipBinding(skill.id, in: $selectedSkillIDs)) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(skill.name)
+                                Text(skill.purpose).font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
+                            }
+                        }
+                    }
+                }
+                Section("Declared tools") {
+                    ForEach(model.organization.knowledge?.connectionDefinitions ?? []) { connection in
+                        Toggle(isOn: connectionBinding(connection)) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(connection.name)
+                                Text(connection.summary).font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
+                            }
+                        }
+                    }
+                    Text("Declaring a tool says the employee may be configured to use it. It grants no authority by itself.")
+                        .font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
+                }
+                Section("Granted authority") {
+                    ForEach((model.organization.knowledge?.connectionDefinitions ?? []).filter { $0.capabilityID != nil }) { connection in
+                        if let capabilityID = connection.capabilityID {
+                            Toggle("Allow \(connection.name)", isOn: grantBinding(capabilityID, connectionID: connection.id))
+                        }
+                    }
+                    Text("Only explicit grants may be used. Credentials remain outside this contract.")
+                        .font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
+                }
+                Section("Execution") {
+                    Picker("Provider", selection: $provider) { ForEach(EmployeeExecutionProvider.allCases, id: \.self) { Text(providerLabel($0)).tag($0) } }
+                    TextField("Model name (optional)", text: $modelName)
+                    Picker("Plan review", selection: $reviewPolicy) { ForEach(PlanReviewPolicy.allCases, id: \.self) { Text(reviewPolicyLabel($0)).tag($0) } }
+                }
+                Section("Autonomy boundaries") {
+                    Toggle("May delegate covered tickets", isOn: $mayDelegate)
+                    Toggle("May use explicitly granted external tools", isOn: $mayUseExternalTools)
+                    Stepper("Maximum revisions: \(maximumRevisions)", value: $maximumRevisions, in: 0...4)
+                    Text("Publishing remains unavailable in this local POC.").font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
+                }
+                Section("Review and attribution") {
+                    Text("Saving creates contract revision \(contract.revision + 1). Previous revisions and employee work remain attributable.")
+                        .font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
+                    if !removedProtectedSkillNames.isEmpty {
+                        Text("Keep \(removedProtectedSkillNames.joined(separator: ", ")) until the employee's open commitments are accepted or stopped.")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(EditorialOfficeTheme.attention)
+                    }
+                    TextField("Reason for this contract change", text: $reason)
+                }
+            }
+            .formStyle(.grouped)
+            Divider()
+            HStack { Spacer(); Button("Save revision") { save() }.buttonStyle(EditorialPrimaryButtonStyle()).keyboardShortcut(.defaultAction).disabled(role.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || responsibility.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !removedProtectedSkillNames.isEmpty) }
+                .padding(18).background(EditorialOfficeTheme.paper)
+        }
+        .frame(minWidth: 540, idealWidth: 680, minHeight: 520, idealHeight: 650)
+    }
+
+    private func membershipBinding(_ id: String, in selection: Binding<Set<String>>) -> Binding<Bool> {
+        Binding(
+            get: { selection.wrappedValue.contains(id) },
+            set: { isSelected in
+                if isSelected { selection.wrappedValue.insert(id) }
+                else { selection.wrappedValue.remove(id) }
+            }
+        )
+    }
+
+    private func connectionBinding(_ connection: ConnectionDefinition) -> Binding<Bool> {
+        Binding(
+            get: { selectedConnectionIDs.contains(connection.id) },
+            set: { isSelected in
+                if isSelected { selectedConnectionIDs.insert(connection.id) }
+                else {
+                    selectedConnectionIDs.remove(connection.id)
+                    if let capabilityID = connection.capabilityID { selectedGrantIDs.remove(capabilityID) }
+                }
+            }
+        )
+    }
+
+    private func grantBinding(_ capabilityID: String, connectionID: String) -> Binding<Bool> {
+        Binding(
+            get: { selectedGrantIDs.contains(capabilityID) },
+            set: { isSelected in
+                if isSelected {
+                    selectedConnectionIDs.insert(connectionID)
+                    selectedGrantIDs.insert(capabilityID)
+                } else {
+                    selectedGrantIDs.remove(capabilityID)
+                }
+            }
+        )
+    }
+
+    private func providerLabel(_ value: EmployeeExecutionProvider) -> String {
+        switch value {
+        case .demo: "Practice mode"
+        case .localCodex: "Local Codex"
+        }
+    }
+
+    private func reviewPolicyLabel(_ value: PlanReviewPolicy) -> String {
+        switch value {
+        case .always: "Review every plan"
+        case .whenAuthorityChanges: "Review authority changes"
+        case .automaticForLocalWork: "Approve bounded local plans"
+        }
+    }
+
+    private var removedProtectedSkillNames: [String] {
+        let protectedSkillIDs = Set(model.organization.employeeOutcomes
+            .filter { $0.assigneeID == employee.id && !$0.status.isTerminal }
+            .flatMap(\.taskIDs)
+            .compactMap { model.organization.task($0) }
+            .flatMap { $0.requiredSkillIDs ?? [] })
+        return protectedSkillIDs
+            .subtracting(selectedSkillIDs)
+            .map { model.organization.skill($0)?.name ?? $0 }
+            .sorted()
+    }
+
+    private func save() {
+        guard removedProtectedSkillNames.isEmpty else { return }
+        var boundaries = contract.boundaries
+        boundaries.mayDelegate = mayDelegate
+        boundaries.mayUseExternalTools = mayUseExternalTools
+        boundaries.mayPublish = false
+        boundaries.maximumRevisions = maximumRevisions
+        let connections = model.organization.knowledge?.connectionDefinitions ?? []
+        let knownCapabilities = Set(connections.compactMap(\.capabilityID))
+        let declaredCapabilities = Set(connections.filter { selectedConnectionIDs.contains($0.id) }.compactMap(\.capabilityID))
+        let validGrants = selectedGrantIDs.filter { !knownCapabilities.contains($0) || declaredCapabilities.contains($0) }
+        if model.updateWorkingContract(employeeID: employee.id, role: role, responsibility: responsibility, managerID: managerID.isEmpty ? nil : managerID, skillIDs: selectedSkillIDs.sorted(), connectionIDs: selectedConnectionIDs.sorted(), grants: validGrants.sorted(), provider: provider, modelName: modelName, boundaries: boundaries, reviewPolicy: reviewPolicy, reason: reason) { dismiss() }
     }
 }
 
@@ -504,7 +863,7 @@ private struct TeachSkillView: View {
     @State private var connectionID = "none"
 
     private let ink = EditorialOfficeTheme.ink
-    private let spruce = EditorialOfficeTheme.sidebarInk
+    private let spruce = EditorialOfficeTheme.controlInk
     private let paper = EditorialOfficeTheme.paper
 
     var body: some View {
@@ -568,7 +927,7 @@ private struct TeachSkillView: View {
                         .foregroundStyle(spruce)
                         .padding(.horizontal, 12)
                         .frame(minHeight: 32)
-                        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+                    .background(EditorialOfficeTheme.softGrey.opacity(0.44), in: RoundedRectangle(cornerRadius: 8))
                         .keyboardShortcut(.cancelAction)
                     Button("Teach skill") {
                         if model.teachSkill(
@@ -592,11 +951,10 @@ private struct TeachSkillView: View {
             .padding(26)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(minWidth: 680, minHeight: 540)
+        .frame(minWidth: 540, idealWidth: 680, minHeight: 500, idealHeight: 540)
         .background(paper)
         .foregroundStyle(ink)
         .tint(spruce)
-        .environment(\.colorScheme, .light)
     }
 
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {

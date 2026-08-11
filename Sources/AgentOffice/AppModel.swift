@@ -10,12 +10,14 @@ final class AppModel: ObservableObject {
     @Published var isLoaded = false
     @Published var showsOnboarding = false
     @Published var lastError: String?
+    @Published private(set) var runningEmployeeIDs: Set<String> = []
 
     private var store: LocalOrganizationStore
     private let engine = WorkdayEngine()
     private let researchEngine = ResearchAssignmentEngine()
     private let customerVoiceEngine = CustomerVoiceDutyEngine()
     private let employeeOutcomeEngine = EmployeeOutcomeEngine()
+    private let employeeWorkCoordinator = EmployeeWorkCoordinator(concurrencyLimit: 2)
     private var workTask: Task<Void, Never>?
     private var workdaySessionID: UUID?
 
@@ -25,6 +27,8 @@ final class AppModel: ObservableObject {
 
     deinit {
         workTask?.cancel()
+        let coordinator = employeeWorkCoordinator
+        Task { await coordinator.cancelAll() }
     }
 
     static var defaultOrganizationURL: URL {
@@ -81,10 +85,11 @@ final class AppModel: ObservableObject {
         organization.activeOccurrence(for: CustomerVoiceDutyEngine.dutyID)?.status == .running
     }
 
-    var isEmployeeRunActive: Bool { workTask != nil }
+    var isEmployeeRunActive: Bool { workTask != nil || !runningEmployeeIDs.isEmpty }
 
     var canRunCustomerVoiceDuty: Bool {
         workTask == nil
+            && runningEmployeeIDs.isEmpty
             && organization.workdayStatus != .active
             && organization.activeResearchAssignment?.status != .researching
             && organization.activeEmployeeOutcome == nil
@@ -92,26 +97,26 @@ final class AppModel: ObservableObject {
 
     var canCreateResearchAssignment: Bool {
         organization.activeResearchAssignment == nil
-            && organization.activeEmployeeOutcome == nil
+            && runningEmployeeIDs.isEmpty
             && workTask == nil
     }
 
     var canCreateEmployeeOutcome: Bool {
-        organization.activeEmployeeOutcome == nil
-            && organization.activeResearchAssignment == nil
+        organization.activeResearchAssignment == nil
             && !isCustomerVoiceRunning
             && organization.workdayStatus != .active
             && workTask == nil
     }
 
     var canEditOrganization: Bool {
-        workTask == nil && organization.workdayStatus != .active
+        workTask == nil && runningEmployeeIDs.isEmpty && organization.workdayStatus != .active
     }
 
     func load() async {
         guard !isLoaded else { return }
         do {
             organization = try await store.loadOrCreate()
+            await employeeWorkCoordinator.setConcurrencyLimit(organization.effectiveConcurrencyLimit)
             if organization.workdayStatus == .active || organization.workdayStatus == .ending {
                 organization.workdayStatus = .resting
                 for index in organization.employees.indices {
@@ -139,6 +144,7 @@ final class AppModel: ObservableObject {
         profile: OrganizationProfile = .empty,
         executionMode: ExecutionMode? = nil,
         webResearchGranted: Bool? = nil,
+        hiredPackageIDs: Set<String>? = nil,
         startImmediately: Bool
     ) async -> Bool {
         let requestedMode = executionMode ?? organization.executionMode
@@ -152,6 +158,27 @@ final class AppModel: ObservableObject {
             executionMode: requestedMode,
             webResearchGranted: webResearchGranted ?? self.webResearchGranted
         )
+        let acceptedPackages = hiredPackageIDs ?? Set(next.employeePackages.map(\.id))
+        for packageID in acceptedPackages {
+            _ = try? next.hireEmployee(packageID: packageID, actorID: "owner")
+        }
+        for contract in next.workingContracts where next.employee(contract.employeeID)?.effectiveEmploymentState == .hired {
+            try? next.updateWorkingContract(
+                employeeID: contract.employeeID,
+                role: contract.role,
+                responsibility: contract.responsibility,
+                managerID: contract.managerID,
+                assignedSkillIDs: contract.assignedSkillIDs,
+                declaredConnectionIDs: contract.declaredConnectionIDs,
+                capabilityGrants: contract.capabilityGrants,
+                executionProvider: EmployeeExecutionProvider(requestedMode),
+                modelName: contract.modelName,
+                boundaries: contract.boundaries,
+                reviewPolicy: contract.reviewPolicy,
+                actorID: "owner",
+                reason: "Selected during organization setup."
+            )
+        }
         do {
             try await store.save(next)
             organization = next
@@ -180,25 +207,14 @@ final class AppModel: ObservableObject {
 
     func startDay() {
         guard workTask == nil, organization.workdayStatus != .active else { return }
-        guard organization.activeEmployeeOutcome == nil else {
-            lastError = "An employee already owns an active outcome. Finish or stop it before starting the fixed content workday."
-            return
-        }
         guard organization.activeResearchAssignment == nil else {
-            lastError = "Nia already has an active research assignment. Resolve it from the research desk before starting the fixed content workday."
+            lastError = "Nia already has a research commitment. Resolve it before preparing the content mission."
             return
         }
         guard !isCustomerVoiceRunning else {
             lastError = "Iris is already running Customer Voice Weekly. Stop or finish it before starting the content workday."
             return
         }
-        guard organization.tasks.contains(where: {
-            !$0.id.hasPrefix("employee-outcome-") && $0.status != .done && $0.status != .blocked
-        }) else {
-            lastError = "This POC workday is already complete. Its artifacts are ready to inspect."
-            return
-        }
-
         if organization.executionMode == .localCodex && !organization.hasMeaningfulProductBrief {
             lastError = "Mira needs a real product brief before the team can produce honest work. Add the product, audience, problem, and claims first."
             return
@@ -219,32 +235,33 @@ final class AppModel: ObservableObject {
             return
         }
 
-        organization.workdayStatus = .active
-        organization.dayNumber += 1
-        if let firstTask = organization.tasks.first(where: { $0.status == .ready }),
-           let employeeIndex = organization.employees.firstIndex(where: { $0.id == firstTask.assigneeID }) {
-            organization.employees[employeeIndex].status = .planning
-            organization.employees[employeeIndex].currentTaskID = firstTask.id
-        }
-        organization.activity.append(Activity(
-            id: UUID().uuidString,
-            actorID: "owner",
-            kind: .started,
-            message: "Day \(organization.dayNumber) started in \(organization.executionMode == .demo ? "Demo" : "Local Codex") mode.",
-            createdAt: Date()
-        ))
-        lastError = nil
-
-        let sessionID = UUID()
-        workdaySessionID = sessionID
-        workTask = Task { [weak self] in
-            guard let self else { return }
-            try? await Task.sleep(for: .milliseconds(650))
-            await self.runWorkday(sessionID: sessionID)
-        }
+        do {
+            let outcomeIDs = try organization.prepareFirstContentMission()
+            organization.activity.append(Activity(id: UUID().uuidString, actorID: "owner", kind: .started, message: "You prepared the first content mission as three employee-owned outcomes.", createdAt: Date()))
+            lastError = nil
+            persistSoon()
+            for outcomeID in outcomeIDs { beginEmployeeOutcome(outcomeID) }
+        } catch { lastError = error.localizedDescription }
     }
 
     func endDay() {
+        if !runningEmployeeIDs.isEmpty {
+            let employeeIDs = runningEmployeeIDs
+            runningEmployeeIDs.removeAll()
+            Task { [coordinator = employeeWorkCoordinator] in
+                for employeeID in employeeIDs { await coordinator.cancel(employeeID: employeeID) }
+            }
+            for outcome in organization.employeeOutcomes where employeeIDs.contains(outcome.assigneeID) && outcome.status.isActivelyRunning {
+                _ = organization.updateEmployeeOutcome(outcome.id) { value in
+                    value.status = .queued
+                    value.helpRequest = "The owner paused this employee run. It is ready to resume."
+                    value.outcomeRevision = value.effectiveRevision + 1
+                }
+            }
+            restEmployees()
+            persistSoon()
+            return
+        }
         let previous = organization
         workTask?.cancel()
         workTask = nil
@@ -297,6 +314,23 @@ final class AppModel: ObservableObject {
             return
         }
         organization.executionMode = mode
+        for contract in organization.workingContracts where organization.employee(contract.employeeID)?.effectiveEmploymentState == .hired {
+            try? organization.updateWorkingContract(
+                employeeID: contract.employeeID,
+                role: contract.role,
+                responsibility: contract.responsibility,
+                managerID: contract.managerID,
+                assignedSkillIDs: contract.assignedSkillIDs,
+                declaredConnectionIDs: contract.declaredConnectionIDs,
+                capabilityGrants: contract.capabilityGrants,
+                executionProvider: EmployeeExecutionProvider(mode),
+                modelName: contract.modelName,
+                boundaries: contract.boundaries,
+                reviewPolicy: contract.reviewPolicy,
+                actorID: "owner",
+                reason: "Changed the default local execution route."
+            )
+        }
         persistSoon()
         if mode == .demo, let assignment = organization.activeResearchAssignment, assignment.status == .waiting {
             retryResearchAssignment(assignment.id)
@@ -412,6 +446,23 @@ final class AppModel: ObservableObject {
         } else {
             next.employees[employeeIndex].capabilityGrants.removeAll { $0 == "web-research" }
         }
+        if let contract = next.workingContract(for: "nia") {
+            try? next.updateWorkingContract(
+                employeeID: "nia",
+                role: contract.role,
+                responsibility: contract.responsibility,
+                managerID: contract.managerID,
+                assignedSkillIDs: contract.assignedSkillIDs,
+                declaredConnectionIDs: contract.declaredConnectionIDs,
+                capabilityGrants: next.employees[employeeIndex].capabilityGrants,
+                executionProvider: contract.executionProvider,
+                modelName: contract.modelName,
+                boundaries: contract.boundaries,
+                reviewPolicy: contract.reviewPolicy,
+                actorID: "owner",
+                reason: granted ? "Granted read-only web research." : "Revoked web research."
+            )
+        }
         appendCapabilityEvent(
             kind: granted ? .granted : .revoked,
             actorID: "owner",
@@ -471,15 +522,11 @@ final class AppModel: ObservableObject {
             lastError = "End the current work before giving Nia another assignment."
             return false
         }
-        guard organization.activeEmployeeOutcome == nil else {
-            lastError = "An employee already owns an active outcome. Finish or stop it before assigning research."
-            return false
-        }
         do {
             let assignmentID = try organization.createResearchAssignment(outcome: outcome, context: context)
             lastError = nil
             persistSoon()
-            prepareResearchAssignment(assignmentID)
+            if let outcomeID = organization.researchAssignment(assignmentID)?.canonicalOutcomeID { beginEmployeeOutcome(outcomeID) }
             return true
         } catch {
             lastError = error.localizedDescription
@@ -490,15 +537,9 @@ final class AppModel: ObservableObject {
     func retryResearchAssignment(_ assignmentID: String) {
         guard workTask == nil, organization.workdayStatus != .active,
               let assignment = organization.researchAssignment(assignmentID),
-              assignment.status == .failed || assignment.status == .waiting || assignment.status == .queued
+              let outcomeID = assignment.canonicalOutcomeID
         else { return }
-        _ = organization.updateResearchAssignment(assignmentID) { value in
-            value.status = .queued
-            value.blockingReason = nil
-        }
-        lastError = nil
-        persistSoon()
-        prepareResearchAssignment(assignmentID)
+        retryEmployeeOutcome(outcomeID)
     }
 
     func runCustomerVoiceDuty() {
@@ -508,10 +549,6 @@ final class AppModel: ObservableObject {
         }
         guard organization.activeResearchAssignment?.status != .researching else {
             lastError = "Nia is still researching. Let that assignment finish or stop it before Iris begins."
-            return
-        }
-        guard organization.activeEmployeeOutcome == nil else {
-            lastError = "An employee already owns an active outcome. Finish or stop it before Iris begins."
             return
         }
         if organization.executionMode == .localCodex && !codexAvailable {
@@ -524,7 +561,8 @@ final class AppModel: ObservableObject {
                 dutyID: CustomerVoiceDutyEngine.dutyID
             )
             lastError = nil
-            beginCustomerVoiceDuty(occurrenceID)
+            persistSoon()
+            if let outcomeID = organization.dutyOccurrence(occurrenceID)?.canonicalOutcomeID { beginEmployeeOutcome(outcomeID) }
         } catch {
             lastError = error.localizedDescription
         }
@@ -532,6 +570,12 @@ final class AppModel: ObservableObject {
 
     func stopCustomerVoiceDuty() {
         guard let occurrence = organization.activeOccurrence(for: CustomerVoiceDutyEngine.dutyID) else { return }
+        if let outcomeID = occurrence.canonicalOutcomeID {
+            stopEmployeeOutcome(outcomeID)
+            _ = organization.stopDutyOccurrence(occurrence.id)
+            persistSoon()
+            return
+        }
         workTask?.cancel()
         workTask = nil
         workdaySessionID = nil
@@ -559,6 +603,12 @@ final class AppModel: ObservableObject {
         guard let assignment = organization.researchAssignment(assignmentID),
               !assignment.status.isTerminal
         else { return }
+        if let outcomeID = assignment.canonicalOutcomeID {
+            stopEmployeeOutcome(outcomeID)
+            _ = organization.cancelResearchAssignment(assignmentID)
+            persistSoon()
+            return
+        }
         let wasResearching = assignment.status == .researching
         if wasResearching {
             workTask?.cancel()
@@ -595,7 +645,7 @@ final class AppModel: ObservableObject {
     @discardableResult
     func submitEmployeeOutcome(employeeID: String, outcome: String, context: String) -> Bool {
         guard canCreateEmployeeOutcome else {
-            lastError = "Finish or stop the current employee work before assigning another outcome."
+            lastError = "Finish the fixed local workflow before assigning an employee outcome."
             return false
         }
         if organization.executionMode == .localCodex && !codexAvailable {
@@ -628,9 +678,8 @@ final class AppModel: ObservableObject {
 
     func stopEmployeeOutcome(_ outcomeID: String) {
         guard let outcome = organization.employeeOutcome(outcomeID), !outcome.status.isTerminal else { return }
-        workTask?.cancel()
-        workTask = nil
-        workdaySessionID = nil
+        runningEmployeeIDs.remove(outcome.assigneeID)
+        Task { await employeeWorkCoordinator.cancel(employeeID: outcome.assigneeID) }
         let previous = organization
         var next = organization
         guard next.cancelEmployeeOutcome(outcomeID) else { return }
@@ -648,6 +697,127 @@ final class AppModel: ObservableObject {
                 self.lastError = "The outcome stopped, but the resumable state could not be saved: \(error.localizedDescription)"
             }
         }
+    }
+
+    func approveEmployeeOutcomePlan(_ outcomeID: String) {
+        do {
+            try organization.approveOutcomePlan(outcomeID)
+            lastError = nil
+            persistSoon()
+            beginEmployeeOutcome(outcomeID)
+        } catch { lastError = error.localizedDescription }
+    }
+
+    func replyToEmployeeOutcome(_ outcomeID: String, message: String) {
+        do {
+            try organization.replyToOutcome(outcomeID, message: message)
+            lastError = nil
+            persistSoon()
+            beginEmployeeOutcome(outcomeID)
+        } catch { lastError = error.localizedDescription }
+    }
+
+    func acceptEmployeeOutcome(_ outcomeID: String, note: String = "") {
+        do { try organization.acceptOutcome(outcomeID, note: note); lastError = nil; persistSoon(); dispatchEmployeeWork() }
+        catch { lastError = error.localizedDescription }
+    }
+
+    func requestEmployeeOutcomeRevision(_ outcomeID: String, feedback: String) {
+        do { try organization.requestOutcomeRevision(outcomeID, feedback: feedback); lastError = nil; persistSoon(); beginEmployeeOutcome(outcomeID) }
+        catch { lastError = error.localizedDescription }
+    }
+
+    func returnEmployeeOutcomePlan(_ outcomeID: String, instruction: String) {
+        do { try organization.returnOutcomePlan(outcomeID, instruction: instruction); lastError = nil; persistSoon(); beginEmployeeOutcome(outcomeID) }
+        catch { lastError = error.localizedDescription }
+    }
+
+    func reorderEmployeeOutcome(_ outcomeID: String, offset: Int) {
+        guard let outcome = organization.employeeOutcome(outcomeID) else { return }
+        let queue = organization.queuedEmployeeOutcomes(for: outcome.assigneeID)
+        guard let index = queue.firstIndex(where: { $0.id == outcomeID }) else { return }
+        do { try organization.reorderOutcome(outcomeID, to: index + offset); lastError = nil; persistSoon() }
+        catch { lastError = error.localizedDescription }
+    }
+
+    func redirectEmployeeOutcome(_ outcomeID: String, instruction: String) {
+        do { try organization.redirectOutcome(outcomeID, context: instruction, actorID: "owner", reason: instruction); lastError = nil; persistSoon() }
+        catch { lastError = error.localizedDescription }
+    }
+
+    func reassignEmployeeTicket(_ taskID: String, employeeID: String, reason: String) {
+        do { try organization.reassignTicket(taskID, to: employeeID, reason: reason); lastError = nil; persistSoon() }
+        catch { lastError = error.localizedDescription }
+    }
+
+    @discardableResult
+    func hireEmployee(packageID: String, version: String? = nil) -> Bool {
+        do {
+            let employeeID = try organization.hireEmployee(packageID: packageID, version: version)
+            selectedEmployeeID = employeeID
+            lastError = nil
+            persistSoon()
+            return true
+        } catch { lastError = error.localizedDescription; return false }
+    }
+
+    func pauseEmployee(_ employeeID: String) {
+        runningEmployeeIDs.remove(employeeID)
+        Task { await employeeWorkCoordinator.cancel(employeeID: employeeID) }
+        do { try organization.pauseEmployee(employeeID); lastError = nil; persistSoon() }
+        catch { lastError = error.localizedDescription }
+    }
+
+    func resumeEmployee(_ employeeID: String) {
+        do { try organization.resumeEmployee(employeeID); lastError = nil; persistSoon(); dispatchEmployeeWork() }
+        catch { lastError = error.localizedDescription }
+    }
+
+    func retireEmployee(_ employeeID: String) {
+        do { try organization.retireEmployee(employeeID); lastError = nil; persistSoon() }
+        catch { lastError = error.localizedDescription }
+    }
+
+    func importEmployeePackage() {
+        let panel = NSOpenPanel()
+        panel.title = "Import employee package"
+        panel.message = "Choose one declarative JSON employee package. Packages cannot contain credentials or executable code."
+        panel.prompt = "Import Package"
+        panel.allowedContentTypes = [.json]
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                self.organization = try await self.store.importEmployeePackage(from: url, into: self.organization)
+                self.lastError = nil
+            } catch { self.lastError = error.localizedDescription }
+        }
+    }
+
+    @discardableResult
+    func updateWorkingContract(
+        employeeID: String,
+        role: String,
+        responsibility: String,
+        managerID: String?,
+        skillIDs: [String],
+        connectionIDs: [String],
+        grants: [String],
+        provider: EmployeeExecutionProvider,
+        modelName: String?,
+        boundaries: AutonomyBoundaries,
+        reviewPolicy: PlanReviewPolicy,
+        reason: String
+    ) -> Bool {
+        do {
+            try organization.updateWorkingContract(employeeID: employeeID, role: role, responsibility: responsibility, managerID: managerID, assignedSkillIDs: skillIDs, declaredConnectionIDs: connectionIDs, capabilityGrants: grants, executionProvider: provider, modelName: modelName, boundaries: boundaries, reviewPolicy: reviewPolicy, reason: reason)
+            lastError = nil
+            persistSoon()
+            return true
+        } catch { lastError = error.localizedDescription; return false }
     }
 
     func artifact(_ id: String?) -> Artifact? {
@@ -990,73 +1160,96 @@ final class AppModel: ObservableObject {
     }
 
     private func beginEmployeeOutcome(_ outcomeID: String) {
+        Task { [weak self] in await self?.scheduleEmployeeOutcome(outcomeID) }
+    }
+
+    private func dispatchEmployeeWork() {
+        Task { [weak self] in await self?.dispatchEligibleEmployeeWork() }
+    }
+
+    private func scheduleEmployeeOutcome(_ outcomeID: String) async {
         guard workTask == nil, organization.workdayStatus != .active,
               organization.activeResearchAssignment == nil, !isCustomerVoiceRunning,
               let outcome = organization.employeeOutcome(outcomeID),
-              [.queued, .waiting, .failed].contains(outcome.status)
+              !runningEmployeeIDs.contains(outcome.assigneeID),
+              [.queued, .waiting, .failed, .approved, .revision].contains(outcome.status),
+              organization.employee(outcome.assigneeID)?.effectiveEmploymentState == .hired,
+              await employeeWorkCoordinator.activeCount < organization.effectiveConcurrencyLimit
         else { return }
 
-        if outcome.attemptCount == 0 {
-            organization.dayNumber += 1
-        }
+        if outcome.attemptCount == 0 { organization.dayNumber += 1 }
         organization = employeeOutcomeEngine.start(organization, outcomeID: outcomeID)
         guard organization.employeeOutcome(outcomeID)?.status == .planning else { return }
+        do { try await store.save(organization) }
+        catch {
+            _ = organization.resetInterruptedEmployeeOutcome()
+            lastError = "The employee could not start because the organization folder was not saved: \(error.localizedDescription)"
+            return
+        }
 
-        let sessionID = UUID()
-        workdaySessionID = sessionID
-        let initial = organization
+        let request: EmployeeOutcomeRunRequest
+        do { request = try EmployeeOutcomeRunRequest(organization: organization, outcomeID: outcomeID) }
+        catch { lastError = error.localizedDescription; return }
         let store = self.store
         let outcomeEngine = self.employeeOutcomeEngine
-        workTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                try await store.save(initial)
-            } catch {
-                guard self.workdaySessionID == sessionID else { return }
-                self.organization = initial
-                _ = self.organization.resetInterruptedEmployeeOutcome()
-                self.workTask = nil
-                self.workdaySessionID = nil
-                self.lastError = "The employee could not start because the organization folder was not saved: \(error.localizedDescription)"
-                return
-            }
-
-            try? await Task.sleep(for: .milliseconds(450))
-            guard !Task.isCancelled, self.workdaySessionID == sessionID else { return }
+        let submitted = await employeeWorkCoordinator.submit(request, operation: { request in
+            let provider = request.organization.workingContract(for: request.employeeID)?.executionProvider
             let runner: any EmployeeRunner
-            if initial.executionMode == .localCodex, let codex = CodexEmployeeRunner.discover() {
-                runner = codex
-            } else {
-                runner = DeterministicEmployeeRunner()
+            if provider == .localCodex, let codex = CodexEmployeeRunner.discover() { runner = codex }
+            else { runner = DeterministicEmployeeRunner() }
+            return try await outcomeEngine.execute(request, runner: runner, store: store)
+        }, completion: { [weak self] result in
+            await self?.handleEmployeeRunResult(result, request: request)
+        })
+        if submitted { runningEmployeeIDs.insert(request.employeeID) }
+        else {
+            _ = organization.updateEmployeeOutcome(outcomeID) { $0.status = .queued }
+            if let index = organization.employees.firstIndex(where: { $0.id == request.employeeID }) { organization.employees[index].status = .resting }
+        }
+    }
+
+    private func handleEmployeeRunResult(_ result: Result<EmployeeOutcomeRunResult, Error>, request: EmployeeOutcomeRunRequest) async {
+        guard runningEmployeeIDs.remove(request.employeeID) != nil else { return }
+        do {
+            switch result {
+            case .success(let runResult):
+                try organization.apply(runResult)
+                organization.synchronizeLegacyAdapters(outcomeID: request.outcomeID)
+            case .failure(let error):
+                _ = organization.updateEmployeeOutcome(request.outcomeID) { value in
+                    value.status = .waiting
+                    value.helpRequest = "I could not continue: \(error.localizedDescription)"
+                    value.outcomeRevision = value.effectiveRevision + 1
+                }
+                if let index = organization.employees.firstIndex(where: { $0.id == request.employeeID }) {
+                    organization.employees[index].status = .blocked
+                    organization.employees[index].currentTaskID = nil
+                }
             }
-            let next = await outcomeEngine.run(
-                initial,
-                outcomeID: outcomeID,
-                runner: runner,
-                store: store
-            )
-            guard !Task.isCancelled, self.workdaySessionID == sessionID else { return }
-            do {
-                try await store.save(next)
-            } catch {
-                guard self.workdaySessionID == sessionID else { return }
-                var recovery = initial
-                _ = recovery.resetInterruptedEmployeeOutcome()
-                self.organization = recovery
-                self.workTask = nil
-                self.workdaySessionID = nil
-                self.lastError = "The employee finished a step, but the organization could not save it: \(error.localizedDescription)"
-                return
+            try await store.save(organization)
+            lastError = organization.employeeOutcome(request.outcomeID)?.helpRequest
+        } catch {
+            _ = organization.updateEmployeeOutcome(request.outcomeID) { value in
+                value.status = .waiting
+                value.helpRequest = "The run result could not be applied safely: \(error.localizedDescription)"
+                value.outcomeRevision = value.effectiveRevision + 1
             }
-            guard self.workdaySessionID == sessionID else { return }
-            self.organization = next
-            self.workTask = nil
-            self.workdaySessionID = nil
-            if let help = next.employeeOutcome(outcomeID)?.helpRequest {
-                self.lastError = help
-            } else {
-                self.lastError = nil
+            lastError = error.localizedDescription
+            try? await store.save(organization)
+        }
+        await dispatchEligibleEmployeeWork()
+    }
+
+    private func dispatchEligibleEmployeeWork() async {
+        let candidates = organization.employeeOutcomes
+            .filter { [.queued, .approved, .revision].contains($0.status) && organization.employee($0.assigneeID)?.effectiveEmploymentState == .hired }
+            .sorted {
+                if $0.effectivePriority.rank != $1.effectivePriority.rank { return $0.effectivePriority.rank < $1.effectivePriority.rank }
+                return $0.effectiveQueuePosition < $1.effectiveQueuePosition
             }
+        for outcome in candidates {
+            guard await employeeWorkCoordinator.activeCount < organization.effectiveConcurrencyLimit else { break }
+            await scheduleEmployeeOutcome(outcome.id)
         }
     }
 

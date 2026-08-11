@@ -26,11 +26,16 @@ The Office SHALL prioritize live people and current activity, Mission SHALL own 
 - **THEN** the application opens the Mission destination rather than embedding a duplicate full task board in the Office
 
 ### Requirement: Native navigation remains accessible
-Every primary destination SHALL be reachable with labelled native controls and keyboard shortcuts independently of the SpriteKit workplace.
+Every primary destination SHALL be reachable with labelled native controls and keyboard shortcuts independently of the SpriteKit workplace. At the supported minimum width, destination controls MUST retain their visible text labels rather than relying on icon recognition alone.
 
 #### Scenario: Keyboard user changes destination
 - **WHEN** the owner invokes the documented shortcut for a destination
 - **THEN** focus and visible content move to that destination with an accessible destination label
+
+#### Scenario: Window reaches its supported minimum width
+- **WHEN** the global navigation becomes compact
+- **THEN** Office, Mission, and Company remain visibly named
+- **AND** the current destination remains visually and semantically selected
 
 ### Requirement: Destinations share one committed visual world
 Office, Mission, Company, Employee Details, and onboarding SHALL use the Editorial Office visual system so navigation, controls, work state, and organization context feel like parts of one premium 2D workplace rather than separate themed applications.

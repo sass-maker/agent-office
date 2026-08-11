@@ -10,7 +10,7 @@ struct CustomerVoiceDutyCard: View {
     var onClose: (() -> Void)?
 
     private let ink = EditorialOfficeTheme.ink
-    private let spruce = EditorialOfficeTheme.sidebarInk
+    private let spruce = EditorialOfficeTheme.controlInk
     private let moss = EditorialOfficeTheme.graphite
     private let apricot = EditorialOfficeTheme.graphite
     private let paper = EditorialOfficeTheme.paper

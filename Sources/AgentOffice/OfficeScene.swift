@@ -132,7 +132,17 @@ final class OfficeScene: SKScene {
         loadBackground()
         var stationOccupancy: [OfficeStation: Int] = [:]
 
-        let officeEmployees = organization.employees.filter { $0.kind == .ai }
+        let officeEmployees = organization.employees.filter {
+            $0.kind == .ai && [.hired, .paused].contains($0.effectiveEmploymentState)
+        }
+        let officeEmployeeIDs = Set(officeEmployees.map(\.id))
+        let departedEmployeeIDs = Set(employeeNodes.keys).subtracting(officeEmployeeIDs)
+        for employeeID in departedEmployeeIDs {
+            guard let departedNode = employeeNodes.removeValue(forKey: employeeID) else { continue }
+            departedNode.removeAllActions()
+            departedNode.removeFromParent()
+        }
+
         for (index, employee) in officeEmployees.enumerated() {
             let currentTask = employee.currentTaskID.flatMap { organization.task($0) }
             let station = station(for: employee, task: currentTask)
