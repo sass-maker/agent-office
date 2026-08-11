@@ -2,49 +2,45 @@
   "$schema": "fleet.design-review.v1",
   "version": 1,
   "project": "agent-office",
-  "target": "Native workplace polish: labelled compact navigation, hiring disclosure, adaptive layouts, and authored appearance",
+  "target": "Office OS public product site",
   "mode": "preserve",
-  "register": "product",
+  "register": "brand",
   "context": {
     "product": "PRODUCT.md",
     "design": "DESIGN.md"
   },
   "direction": {
-    "references": [],
+    "references": [
+      "DESIGN.md Editorial Office marketing-surface contract",
+      ".fleet/design-reviews/marketing-site.json",
+      "site/assets/workplace.jpg"
+    ],
     "probes": [],
-    "selected": "existing-design",
+    "selected": "Preserve the existing Editorial Office landing page and harden it with explicit distribution trust states.",
     "approval": "not-required",
-    "before": "artifacts/design/agent-employment-mission-compact.png"
+    "before": "artifacts/design/site-release-before-1440.png"
   },
   "evidence": {
     "screenshots": [
       {
         "width": 390,
-        "path": "artifacts/design/native-polish-shell-compact-light.png"
+        "path": "artifacts/design/site-release-after-390.png"
       },
       {
         "width": 768,
-        "path": "artifacts/design/native-polish-onboarding-contract-compact-dark.png"
-      },
-      {
-        "width": 760,
-        "path": "artifacts/design/native-polish-company-compact-dark.png"
-      },
-      {
-        "width": 980,
-        "path": "artifacts/design/native-polish-office-intermediate-light.png"
+        "path": "artifacts/design/site-release-after-768.png"
       },
       {
         "width": 1440,
-        "path": "artifacts/design/native-polish-office-wide-light.png"
+        "path": "artifacts/design/site-release-after-1440.png"
       }
     ],
     "projectCheck": {
-      "command": "swift test; swift build; openspec validate polish-native-workplace-ui --strict",
+      "command": "node --check site/script.js && node scripts/check-site.mjs && Impeccable detector && git diff --check && design-workflow check",
       "status": "pass"
     },
     "critique": {
-      "score": 33,
+      "score": 37,
       "maximum": 40
     },
     "audit": {
@@ -57,13 +53,11 @@
     },
     "detector": {
       "posture": "advisory",
-      "findings": [
-        "detect.mjs returned no findings because its file walker excludes Swift; native source and screenshot evidence were used instead"
-      ]
+      "findings": []
     }
   },
   "ownerFeedback": {
     "decision": "delegated",
-    "note": "Owner asked Codex to complete the polish and ensure the interface remains sleek."
+    "note": "Owner approved the cross-repository product-site plan and delegated completion while requiring beautiful UI and quiet, sequential validation."
   }
 }

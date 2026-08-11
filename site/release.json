@@ -1,0 +1,18 @@
+{
+  "schema": "fleet.mac-release.v1",
+  "product": "Office OS",
+  "version": "0.1.0",
+  "build": "1",
+  "minimumSystem": "macOS 14",
+  "architecture": "arm64",
+  "status": "preparing",
+  "downloadUrl": null,
+  "sha256": null,
+  "supportUrl": null,
+  "trust": {
+    "developerId": false,
+    "notarized": false,
+    "stapled": false,
+    "gatekeeper": false
+  }
+}

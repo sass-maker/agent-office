@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#173b3a">
-    <meta name="description" content="A cosy native Mac workplace for named AI employees who research, write, review, and report back.">
-    <title>Agent Office — a little company that wakes up when you do</title>
+    <meta name="description" content="Office OS is a cosy, local-first Mac workplace for named AI employees who research, write, review, and report back.">
+    <title>Office OS — a little company that wakes up when you do</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
     <script src="script.js" defer></script>
@@ -14,16 +14,17 @@
     <a class="skip-link" href="#main">Skip to the workplace</a>
 
     <header class="site-header" aria-label="Primary navigation">
-      <a class="wordmark" href="#top" aria-label="Agent Office home">
+      <a class="wordmark" href="#top" aria-label="Office OS home">
         <span class="house-mark" aria-hidden="true">
           <span></span>
         </span>
-        <span class="brand-copy">Agent Office <small>working title</small></span>
+        <span class="brand-copy">Office OS <small>Agent Office · development name</small></span>
       </a>
       <nav>
         <a href="#workday">The workday</a>
         <a href="#team">The first team</a>
         <a href="#ownership">How you buy</a>
+        <a href="#release">Release status</a>
       </nav>
       <details class="mobile-menu">
         <summary>Explore</summary>
@@ -31,6 +32,7 @@
           <a href="#workday">The workday</a>
           <a href="#team">The first team</a>
           <a href="#ownership">How you buy</a>
+          <a href="#release">Release status</a>
         </div>
       </details>
       <a class="header-action" href="#workday">See it work</a>
@@ -39,7 +41,7 @@
     <main id="main">
       <section class="hero" id="top" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="availability"><span aria-hidden="true"></span> Native Mac proof of concept</p>
+          <p class="availability"><span aria-hidden="true"></span> Native Mac preview · public distribution in preparation</p>
           <h1 id="hero-title">A little company that wakes up when you do.</h1>
           <p class="hero-lede">Buy the workplace once. Hire AI employees as you need them. Give them an outcome, start the day, and let the right people take it from there.</p>
           <div class="hero-actions">
@@ -217,6 +219,48 @@
         </div>
       </section>
 
+      <section class="release" id="release" aria-labelledby="release-title">
+        <div class="release-heading">
+          <div>
+            <p class="section-kicker">Release desk · 0.1.0 (1)</p>
+            <h2 id="release-title">Built for your Mac.<br>Not distributed yet.</h2>
+          </div>
+          <div class="release-summary">
+            <p>The native preview is working, but the public download stays closed until the app has a Developer ID signature, Apple notarization, a stapled ticket, a verified Gatekeeper assessment, a SHA-256 checksum, and a published support contact.</p>
+            <span class="release-button" aria-disabled="true">Distribution build in preparation</span>
+          </div>
+        </div>
+
+        <dl class="release-ledger" aria-label="Office OS release readiness">
+          <div>
+            <dt>System</dt>
+            <dd>macOS 14 or newer</dd>
+            <dd class="release-detail">Current preview is built for Apple silicon.</dd>
+          </div>
+          <div>
+            <dt>Your data</dt>
+            <dd>Local organization files</dd>
+            <dd class="release-detail">Company state and artifacts stay in a folder you choose. Demo mode needs no account or network.</dd>
+          </div>
+          <div>
+            <dt>Optional AI</dt>
+            <dd>Your local Codex session</dd>
+            <dd class="release-detail">When selected, the app uses an already authenticated Codex CLI and stores no API key.</dd>
+          </div>
+          <div>
+            <dt>Support</dt>
+            <dd>Contact pending</dd>
+            <dd class="release-detail">A direct support address will appear here before signed distribution begins.</dd>
+          </div>
+        </dl>
+
+        <div class="privacy-note" id="privacy" aria-labelledby="privacy-title">
+          <p class="section-kicker">Privacy statement</p>
+          <h3 id="privacy-title">The workplace is local by default.</h3>
+          <p>Office OS does not include analytics, advertising, checkout, cloud sync, or an account system. Local Codex work and explicitly granted read-only web research can contact their respective services; those routes are optional and visible inside the app.</p>
+        </div>
+      </section>
+
       <section class="closing" aria-labelledby="closing-title">
         <div class="closing-house" aria-hidden="true"><span></span></div>
         <p>Start with three useful people.</p>
@@ -226,8 +270,8 @@
     </main>
 
     <footer>
-      <a class="wordmark" href="#top"><span class="house-mark" aria-hidden="true"><span></span></span><span>Agent Office</span></a>
-      <p>Working title. Native Mac POC. Built for real work, not busywork.</p>
+      <a class="wordmark" href="#top"><span class="house-mark" aria-hidden="true"><span></span></span><span>Office OS</span></a>
+      <p>Agent Office is the development name. <a href="#privacy">Privacy</a> · <a href="#release">Release status</a></p>
       <p>© 2026</p>
     </footer>
   </body>
