@@ -18,6 +18,8 @@ await Promise.all(requiredFiles.map((file) => access(resolve(site, file))));
 const html = await readFile(resolve(site, "index.html"), "utf8");
 const release = JSON.parse(await readFile(resolve(site, "release.json"), "utf8"));
 const requiredCopy = [
+  '<link rel="canonical" href="https://office-os.sassmaker.com/">',
+  '<meta property="og:url" content="https://office-os.sassmaker.com/">',
   "macOS 14 or newer",
   "Local organization files",
   "Contact pending",
