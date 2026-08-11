@@ -1,6 +1,6 @@
 # Agent Office — PROJECT STATUS
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 ## Why / What
 
@@ -11,7 +11,9 @@ artifacts. `Agent Office` is a descriptive development name, not the product
 brand.
 
 The first slice is a small content team. It is not HR software, a coding-agent
-product, or a generic automation platform.
+product, a generic automation platform, or an autonomous company with money,
+legal identity, and governance. Its focus is employing and managing agents as
+durable people-like collaborators whose execution remains bounded software.
 
 ## Dependencies
 
@@ -44,6 +46,16 @@ product, or a generic automation platform.
 - 2026-08-10 — Any AI employee can now own a free-form outcome, choose from
   existing skills, create Mission tickets, communicate progress, deliver local
   artifacts, and ask the owner for help inside explicit autonomy boundaries.
+- 2026-08-11 — Employment became explicit: versioned employee packages,
+  candidate-first onboarding, durable hired/paused/retired identities,
+  revisioned working contracts, independent employee queues, bounded concurrent
+  execution, plan review, delivery acceptance, delegation, reassignment, and a
+  state-derived management inbox now form one canonical work system.
+- 2026-08-11 — Native workplace polish added authored light and dark
+  appearances, labelled compact navigation, a vertical compact Company
+  directory, progressively disclosed candidate contracts, clearer hiring
+  commitment, adaptive sheet geometry, and consistent removal of retired
+  employees from the live office scene.
 
 ## Products
 
@@ -57,6 +69,13 @@ product, or a generic automation platform.
 - A native SwiftUI and SpriteKit organization home with a cosy, authored
   monochrome editorial office, a human owner, a paired executive assistant,
   and four named specialist AI employees.
+- Authored light and dark appearance roles across the native workplace, with a
+  dark tonal treatment for the illustrated Office and contrast-safe structural
+  controls.
+- Labelled compact navigation, a no-horizontal-scroll Company member directory,
+  compact-friendly sheet sizing, and candidate hiring summaries that reveal one
+  complete working contract at a time while keeping the final employment
+  commitment visible.
 - One persistent full-height sidebar with Office, Mission, and Company;
   a live selectable SpriteKit workplace; floating employee folios; a grouped,
   persistent native team and work summary with keyboard-selectable employee
@@ -66,9 +85,31 @@ product, or a generic automation platform.
 - A bounded content-team workday: research, drafting, manager review, one
   revision, approval, and an end-of-day report.
 - A general employee outcome loop entered from each Office folio: structured
-  one-to-four-ticket planning, assigned-skill selection, sequential execution,
-  local Markdown delivery, stop/retry/reopen recovery, and precise help
-  requests without self-granted tools or external writes.
+  one-to-four-ticket planning, assigned-skill selection, employee-local serial
+  execution within an organization-wide capacity limit, local Markdown
+  delivery, stop/retry/reopen recovery, and precise help requests without
+  self-granted tools or external writes.
+- Five versioned built-in employee packages whose declarative metadata can be
+  inspected before hiring. Package import rejects secret-shaped fields,
+  executable paths, invalid identifiers, and duplicate skill declarations.
+- Explicit employment lifecycle for AI employees: fresh organizations start
+  with candidates; hiring creates a durable identity and working contract;
+  pause, resume, and retire preserve attributable work and history.
+- Revisioned working contracts that keep identity, role, skills, declared
+  connections, granted authority, provider/model, local environment, review
+  policy, and autonomy boundaries separate and inspectable. Secret-free
+  `WORKING_CONTRACT.md` projections live in employee homes.
+- Independent employee outcome queues with a configurable local concurrency
+  limit (default two), one active run per employee, isolated cancellation, and
+  revision-safe application of typed execution results to fresh persisted
+  organization state.
+- A state-derived management inbox and Mission commitment ledger for plan
+  approval or return, contextual replies, priority and queue changes, redirect,
+  skill-validated delegation and reassignment, stop, bounded revision, delivery
+  inspection, acceptance, and closure.
+- Canonical outcome adapters for the prepared content mission, owner-directed
+  research, and Customer Voice duty. Legacy records retain their history and
+  link to employee-owned outcomes instead of starting parallel execution paths.
 - One owner-directed research assignment at a time, with explicit
   `You → Mira → Nia` delegation, permission and runtime waiting, cited Local
   Codex delivery, synthetic Demo honesty, retry, and reopen-safe resume.

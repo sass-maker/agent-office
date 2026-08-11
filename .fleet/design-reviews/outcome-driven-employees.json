@@ -1,0 +1,78 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "agent-office",
+  "target": "Office employee outcome assignment and stateful autonomy",
+  "mode": "preserve",
+  "register": "product",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [
+      "DESIGN.md Editorial Office direction contract",
+      "artifacts/design/approved/editorial-office/office-employee-card.png",
+      "artifacts/design/editorial-office-office-face-card-wide.png"
+    ],
+    "probes": [],
+    "selected": "calm monochrome office with person-first delegation and inspectable work",
+    "approval": "not-required",
+    "before": "artifacts/design/editorial-office-final-office.png"
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "width": 390,
+        "path": "artifacts/design/organization-home-nine-accepted-390.png",
+        "sourceWindowWidth": 768,
+        "note": "Scaled evidence from the supported compact native window, preserving the scene-first Office hierarchy."
+      },
+      {
+        "width": 768,
+        "path": "artifacts/design/editorial-office-final-office-compact.png",
+        "sourceWindowWidth": 760,
+        "note": "Supported compact Office evidence for the preserved scene and folio layout."
+      },
+      {
+        "width": 1440,
+        "path": "artifacts/design/outcome-driven-fresh-office-wide.png",
+        "sourceWindowWidth": 1420,
+        "note": "Wide Office evidence with authored resting positions and no decorative wandering labels."
+      },
+      {
+        "width": 1440,
+        "path": "artifacts/design/outcome-driven-fresh-folio-wide.png",
+        "sourceWindowWidth": 1420,
+        "note": "Wide face-first employee folio with the outcome assignment entry point and assigned skills."
+      }
+    ],
+    "projectCheck": {
+      "command": "swift test (46 tests), swift build, strict OpenSpec validation, release package, strict codesign verification, git diff --check, and design-workflow check",
+      "status": "pass"
+    },
+    "critique": {
+      "score": 32,
+      "maximum": 40
+    },
+    "audit": {
+      "score": 17,
+      "maximum": 20
+    },
+    "unresolved": {
+      "p0": 0,
+      "p1": 0
+    },
+    "detector": {
+      "posture": "advisory",
+      "findings": [
+        "The browser detector does not apply to this SwiftUI and SpriteKit target; independent native source and rendered-app reviews supplied the evidence.",
+        "The final assignment sheet could not be recaptured after the host display became unavailable; the implementation and native states were source-reviewed and the preserved visual system is documented by the signed-window evidence."
+      ]
+    }
+  },
+  "ownerFeedback": {
+    "decision": "delegated",
+    "note": "The owner delegated implementation judgment and asked for Office improvements plus outcome-driven employee autonomy."
+  }
+}

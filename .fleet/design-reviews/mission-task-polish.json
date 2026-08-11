@@ -1,0 +1,71 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "agent-office",
+  "target": "Mission task usability, face-first employee identity, monochrome system, employee folios, and application icon",
+  "mode": "preserve",
+  "register": "product",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [
+      "DESIGN.md Editorial Office direction contract",
+      "artifacts/design/approved/editorial-office/mission-list.png",
+      "artifacts/design/approved/editorial-office/company-members.png",
+      "artifacts/design/approved/editorial-office/office-employee-card.png"
+    ],
+    "probes": [],
+    "selected": "deliberate monochrome Editorial Office with a task-first Mission surface",
+    "approval": "not-required",
+    "before": "artifacts/design/editorial-office-task-polish-wide.png"
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "width": 390,
+        "path": "artifacts/design/editorial-office-monochrome-task-final-compact.png",
+        "sourceWindowWidth": 760,
+        "note": "Scaled evidence from the supported 760-point native minimum; summaries wrap and grouping remains named."
+      },
+      {
+        "width": 768,
+        "path": "artifacts/design/editorial-office-monochrome-task-inspector-next-compact.png",
+        "sourceWindowWidth": 760,
+        "note": "Compact task inspector traversed from task 1 to task 2 without returning to the list."
+      },
+      {
+        "width": 1440,
+        "path": "artifacts/design/editorial-office-monochrome-task-final-wide.png",
+        "sourceWindowWidth": 1420,
+        "note": "Final signed wide Mission uses monochrome status treatment, readable rows, and face-first identity."
+      },
+      {
+        "width": 1420,
+        "path": "artifacts/design/editorial-office-company-face-cards-signed-wide.png",
+        "note": "Final signed Company relationship wall uses face-first portrait folios."
+      },
+      {
+        "width": 1420,
+        "path": "artifacts/design/editorial-office-office-face-card-wide.png",
+        "note": "Office selection opens the refined face-first employee folio."
+      }
+    ],
+    "projectCheck": {
+      "command": "swift test (41 tests), release package, strict codesign verification, git diff --check, and design-workflow check",
+      "status": "pass"
+    },
+    "critique": { "score": 36, "maximum": 40 },
+    "audit": { "score": 16, "maximum": 20 },
+    "unresolved": { "p0": 0, "p1": 0 },
+    "detector": {
+      "posture": "advisory",
+      "findings": ["detect.mjs returned an empty result because native SwiftUI is unsupported; independent native source audit and signed-window evidence were used."]
+    }
+  },
+  "ownerFeedback": {
+    "decision": "delegated",
+    "note": "The owner delegated final implementation judgment, approved the overall page structure, and specified that monochrome must be designed in rather than applied as a filter."
+  }
+}

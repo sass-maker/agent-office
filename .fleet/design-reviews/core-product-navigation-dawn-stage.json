@@ -1,0 +1,98 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "agent-office",
+  "target": "Dawn Stage visual-world replacement across Office, Mission, Company, and onboarding",
+  "mode": "overhaul",
+  "register": "product",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [
+      "AI Town for an inhabited 2D workplace with meaningful movement",
+      "Contemporary animation backgrounds for authored light, adult characters, and clean spatial staging",
+      "Native Mac software for restrained semantic controls and keyboard access"
+    ],
+    "probes": [
+      {
+        "id": "illustrated-maquette",
+        "path": "artifacts/design/premium-direction-illustrated-maquette.png",
+        "summary": "A gallery-grade architectural plate with restrained graphite chrome."
+      },
+      {
+        "id": "dawn-stage",
+        "path": "artifacts/design/dawn-stage-composition-panorama.png",
+        "summary": "The selected panoramic continuous studio: a cinematic frontal animation stage with cobalt, rose, coral, and sparse backstage controls."
+      },
+      {
+        "id": "luminous-atelier",
+        "path": "artifacts/design/premium-direction-luminous-atelier.png",
+        "summary": "A meticulous high-resolution pixel workplace in a dark lacquer frame."
+      }
+    ],
+    "selected": "dawn-stage",
+    "approval": "delegated",
+    "before": "artifacts/design/product-shell-office-1440-final.png"
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "path": "artifacts/design/dawn-stage-window.png",
+        "surface": "Office",
+        "width": 926
+      },
+      {
+        "path": "artifacts/design/dawn-stage-mission-wide.png",
+        "surface": "Mission",
+        "width": 1440
+      },
+      {
+        "path": "artifacts/design/dawn-stage-company-wide.png",
+        "surface": "Company",
+        "width": 1440
+      },
+      {
+        "path": "artifacts/design/dawn-stage-onboarding-wide.png",
+        "surface": "Onboarding opening",
+        "width": 1440
+      },
+      {
+        "path": "artifacts/design/dawn-stage-onboarding-team.png",
+        "surface": "Onboarding founding team",
+        "width": 1440
+      },
+      {
+        "path": "artifacts/design/dawn-stage-office-compact.png",
+        "surface": "Compact onboarding",
+        "width": 760
+      }
+    ],
+    "projectCheck": {
+      "command": "swift build && swift test && openspec validate add-core-product-navigation --strict && git diff --check && ./scripts/package-app.sh debug && codesign --verify --deep --strict --verbose=2 dist/AgentOffice.app",
+      "status": "passed"
+    },
+    "critique": {
+      "score": 38,
+      "maximum": 40
+    },
+    "audit": {
+      "score": 19,
+      "maximum": 20
+    },
+    "unresolved": {
+      "p0": 0,
+      "p1": 0
+    },
+    "detector": {
+      "posture": "advisory",
+      "findings": []
+    },
+    "reviewNote": "The finish review found no P0. Both P1 findings and all three P2 findings were resolved before packaging: per-employee VoiceOver controls, semantic onboarding type, honest disabled-button styling, populated-lane emphasis, and quiet final-onboarding scene labels."
+  },
+  "ownerFeedback": {
+    "decision": "wrong-lane",
+    "note": "The owner said the execution was good but still did not like the visual world, and redirected the product toward a black-and-white secret-bureau theme inspired by Men in Black."
+  }
+}

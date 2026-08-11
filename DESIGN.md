@@ -39,19 +39,26 @@ density, contrast, and component relationships.
   folio; Open profile reveals the complete employee page.
 - Real state comes from the existing organization model. Decorative activity,
   invented progress, and duplicated task stores are forbidden.
+- Employment state is explicit. An installed package is a candidate definition,
+  not a person; hiring creates the employee and working contract, and pausing or
+  retiring preserves the employee's history.
+- Employee commitments lead supervision. Mission tickets appear beneath the
+  commitment as its inspectable plan rather than competing with it as a second
+  assignment system.
 - Controls use native semantics, focus, shortcuts, tooltips, and contrast.
 
 ## Palette
 
-- Sidebar ink: `#090A0B`
-- Primary ink: `#181817`
-- Warm bone: `#F3EFE7`
-- Paper white: `#FAF8F3`
-- Soft grey: `#DDD9D1`
-- Graphite: `#5D5B57`
-- Silver rule: `#B9B5AC`
-- Quiet success: `#5D5B57`
-- Quiet attention: `#181817`
+- Sidebar ink: `#090A0B` light / `#08090A` dark
+- Control ink: `#090A0B` light / `#D8D1C6` dark
+- Primary ink: `#181817` light / `#EEE9DF` dark
+- Warm bone: `#F3EFE7` light / `#1C1B19` dark
+- Paper: `#FAF8F3` light / `#262421` dark
+- Soft grey: `#DDD9D1` light / `#34312D` dark
+- Graphite: `#5D5B57` light / `#B9B3A9` dark
+- Silver rule: `#B9B5AC` light / `#575149` dark
+- On-ink content remains a fixed warm white; sidebar-muted content remains a
+  fixed light neutral so structural black surfaces retain contrast.
 
 Black and white describe identity, not maximum contrast. Large reading fields
 must never become glaring pure white or full-screen black.
@@ -79,9 +86,18 @@ rasterize functional text.
 - Mission uses grouped 42–48 point task rows, thin separators, compact employee
   portraits, local filters, a selected-row field, and one contextual task
   inspector.
-- Company Members uses portrait folios and fine relationship lines. Employee
-  Details expands the folio into identity, responsibilities, relationships,
-  active work, skills, artifacts, activity, and blockers.
+- Mission begins with an Employee commitments ledger showing accountable
+  employee, outcome state, priority, plan progress, owner decisions, and current
+  run capacity. Plan approval, contextual replies, queue movement, stopping,
+  delivery acceptance, and revision requests stay attached to the commitment.
+- Company Members uses portrait folios and fine relationship lines at wide
+  widths. Compact windows use one vertically ordered member directory with
+  reporting context and employment state, then open the same Employee Details
+  surface without requiring horizontal scrolling.
+- Company Library separates installed employee packages, employed identities,
+  and retired history. A package folio declares what the candidate brings and
+  requires; an employee folio shows actual skills, grants, execution, and an
+  editable revisioned working contract.
 - Artifact links use a document icon, filename, author, and native Reveal
   action. Start/End Day remains quiet and never uses destructive red.
 
@@ -91,15 +107,21 @@ rasterize functional text.
   stations and movement. Selecting an employee opens their floating folio and
   lets the owner assign one outcome directly to that person.
 - **Mission:** the grand mission remains visible above a Linear-inspired,
-  list-first task workspace grouped into In progress, Review, Next, and
+  list-first workspace. Employee commitments and owner decisions precede their
+  generated tickets, which remain grouped into In progress, Review, Next, and
   Delivered. Selection opens a task inspector.
 - **Company:** warm editorial organization memory. Members is a relationship
-  wall; Skills and Connections preserve their existing operational behavior.
+  wall; the Library manages packages, employment, working contracts, skills,
+  and connections without collapsing those concepts together.
 - **Employee Details:** a Company child surface where the employee folio docks
   beside current outcome, active work, responsibilities, relationships,
   skills, artifacts, activity, and blockers.
-- **Onboarding:** a bright split composition with a quiet vertical setup spine,
-  native paper-line questions, and an illustrated office preview.
+- **Onboarding:** a split editorial composition with a quiet vertical setup
+  spine, native paper-line questions, and an illustrated office preview. Its
+  Team step presents concise selectable candidate summaries and expands only
+  one full working contract at a time. The persistent final action recaps the
+  employee count, execution mode, connection grant, publishing boundary, and
+  whether initial work begins before the owner hires the team.
 
 ## Motion
 
@@ -117,9 +139,9 @@ rasterize functional text.
   state outside SpriteKit.
 - Provide keyboard focus, labels, tooltips, sufficient contrast, and no
   information encoded by color alone.
-- At narrower windows the sidebar may become a native compact control and
-  contextual detail may become a sheet, but labels and functional type do not
-  shrink.
+- At narrower windows the sidebar becomes a labelled compact rail and
+  contextual detail may become a sheet, but navigation labels and functional
+  type do not disappear or shrink.
 
 ## Marketing surface
 

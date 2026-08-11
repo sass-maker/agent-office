@@ -181,7 +181,7 @@ final class WorkdayEngineTests: XCTestCase {
 
         let migrated = LocalOrganizationStore.migrated(legacy, now: Date(timeIntervalSince1970: 200))
 
-        XCTAssertEqual(migrated.schemaVersion, 8)
+        XCTAssertEqual(migrated.schemaVersion, 9)
         XCTAssertEqual(migrated.employee("owner")?.kind, .human)
         XCTAssertEqual(migrated.assistant(for: "owner")?.id, "mira")
         XCTAssertEqual(migrated.tasks, originalTasks)
@@ -226,7 +226,7 @@ final class WorkdayEngineTests: XCTestCase {
         let decoded = try decoder.decode(OrganizationState.self, from: legacyData)
         XCTAssertTrue(decoded.knowledge?.skillDefinitions.isEmpty == true)
         let migrated = LocalOrganizationStore.migrated(decoded, now: Date(timeIntervalSince1970: 200))
-        XCTAssertEqual(migrated.schemaVersion, 8)
+        XCTAssertEqual(migrated.schemaVersion, 9)
         XCTAssertEqual(migrated.knowledge?.skillDefinitions.count, 8)
     }
 
@@ -252,7 +252,7 @@ final class WorkdayEngineTests: XCTestCase {
         XCTAssertEqual(decoded.knowledge?.profile, .empty)
 
         let migrated = LocalOrganizationStore.migrated(decoded, now: Date(timeIntervalSince1970: 200))
-        XCTAssertEqual(migrated.schemaVersion, 8)
+        XCTAssertEqual(migrated.schemaVersion, 9)
         XCTAssertEqual(migrated.knowledge?.profile.purpose, organization.goals.first?.title)
         XCTAssertTrue(migrated.knowledge?.profile.product.contains("Product brief") == true)
 

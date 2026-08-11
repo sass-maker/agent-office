@@ -115,6 +115,9 @@ public struct Employee: Identifiable, Codable, Sendable, Equatable {
     public var currentTaskID: String?
     public var avatarColor: String
     public var capabilityGrants: [String]
+    public var employmentState: EmploymentState?
+    public var packageID: String?
+    public var packageVersion: String?
 
     public init(
         id: String,
@@ -127,7 +130,10 @@ public struct Employee: Identifiable, Codable, Sendable, Equatable {
         status: EmployeeStatus = .resting,
         currentTaskID: String? = nil,
         avatarColor: String,
-        capabilityGrants: [String] = []
+        capabilityGrants: [String] = [],
+        employmentState: EmploymentState? = .hired,
+        packageID: String? = nil,
+        packageVersion: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -140,6 +146,13 @@ public struct Employee: Identifiable, Codable, Sendable, Equatable {
         self.currentTaskID = currentTaskID
         self.avatarColor = avatarColor
         self.capabilityGrants = capabilityGrants
+        self.employmentState = employmentState
+        self.packageID = packageID
+        self.packageVersion = packageVersion
+    }
+
+    public var effectiveEmploymentState: EmploymentState {
+        employmentState ?? .hired
     }
 }
 
@@ -249,6 +262,7 @@ public struct ResearchAssignment: Identifiable, Codable, Sendable, Equatable {
     public var attemptCount: Int
     public var createdAt: Date
     public var updatedAt: Date
+    public var canonicalOutcomeID: String?
 
     public init(
         id: String,
@@ -265,7 +279,8 @@ public struct ResearchAssignment: Identifiable, Codable, Sendable, Equatable {
         deliveryArtifactID: String? = nil,
         attemptCount: Int = 0,
         createdAt: Date,
-        updatedAt: Date
+        updatedAt: Date,
+        canonicalOutcomeID: String? = nil
     ) {
         self.id = id
         self.outcome = outcome
@@ -282,6 +297,7 @@ public struct ResearchAssignment: Identifiable, Codable, Sendable, Equatable {
         self.attemptCount = attemptCount
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.canonicalOutcomeID = canonicalOutcomeID
     }
 }
 
@@ -417,6 +433,10 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     public var employeeOutcomes: [EmployeeOutcome]
     public var employeeDuties: [EmployeeDuty]
     public var dutyOccurrences: [DutyOccurrence]
+    public var employeePackages: [EmployeePackage]
+    public var workingContracts: [WorkingContract]
+    public var contractChanges: [ContractChange]
+    public var supervisionEvents: [SupervisionEvent]
 
     public init(
         productBrief: String,
@@ -430,7 +450,11 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
         researchAssignments: [ResearchAssignment] = [],
         employeeOutcomes: [EmployeeOutcome] = [],
         employeeDuties: [EmployeeDuty] = [],
-        dutyOccurrences: [DutyOccurrence] = []
+        dutyOccurrences: [DutyOccurrence] = [],
+        employeePackages: [EmployeePackage] = [],
+        workingContracts: [WorkingContract] = [],
+        contractChanges: [ContractChange] = [],
+        supervisionEvents: [SupervisionEvent] = []
     ) {
         self.productBrief = productBrief
         self.profile = profile
@@ -444,6 +468,10 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
         self.employeeOutcomes = employeeOutcomes
         self.employeeDuties = employeeDuties
         self.dutyOccurrences = dutyOccurrences
+        self.employeePackages = employeePackages
+        self.workingContracts = workingContracts
+        self.contractChanges = contractChanges
+        self.supervisionEvents = supervisionEvents
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -459,6 +487,10 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
         case employeeOutcomes
         case employeeDuties
         case dutyOccurrences
+        case employeePackages
+        case workingContracts
+        case contractChanges
+        case supervisionEvents
     }
 
     public init(from decoder: Decoder) throws {
@@ -475,6 +507,10 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
         employeeOutcomes = try container.decodeIfPresent([EmployeeOutcome].self, forKey: .employeeOutcomes) ?? []
         employeeDuties = try container.decodeIfPresent([EmployeeDuty].self, forKey: .employeeDuties) ?? []
         dutyOccurrences = try container.decodeIfPresent([DutyOccurrence].self, forKey: .dutyOccurrences) ?? []
+        employeePackages = try container.decodeIfPresent([EmployeePackage].self, forKey: .employeePackages) ?? []
+        workingContracts = try container.decodeIfPresent([WorkingContract].self, forKey: .workingContracts) ?? []
+        contractChanges = try container.decodeIfPresent([ContractChange].self, forKey: .contractChanges) ?? []
+        supervisionEvents = try container.decodeIfPresent([SupervisionEvent].self, forKey: .supervisionEvents) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -491,6 +527,10 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
         try container.encode(employeeOutcomes, forKey: .employeeOutcomes)
         try container.encode(employeeDuties, forKey: .employeeDuties)
         try container.encode(dutyOccurrences, forKey: .dutyOccurrences)
+        try container.encode(employeePackages, forKey: .employeePackages)
+        try container.encode(workingContracts, forKey: .workingContracts)
+        try container.encode(contractChanges, forKey: .contractChanges)
+        try container.encode(supervisionEvents, forKey: .supervisionEvents)
     }
 }
 
@@ -537,6 +577,11 @@ public struct WorkTask: Identifiable, Codable, Sendable, Equatable {
     public var revisionCount: Int
     public var maxRevisions: Int
     public var updatedAt: Date
+    public var accountableEmployeeID: String?
+    public var delegationReason: String?
+    public var requiredSkillIDs: [String]?
+    public var requiredConnectionIDs: [String]?
+    public var workRevision: Int?
 
     public init(
         id: String,
@@ -550,7 +595,12 @@ public struct WorkTask: Identifiable, Codable, Sendable, Equatable {
         artifactIDs: [String],
         revisionCount: Int,
         maxRevisions: Int,
-        updatedAt: Date
+        updatedAt: Date,
+        accountableEmployeeID: String? = nil,
+        delegationReason: String? = nil,
+        requiredSkillIDs: [String]? = nil,
+        requiredConnectionIDs: [String]? = nil,
+        workRevision: Int? = 0
     ) {
         self.id = id
         self.title = title
@@ -564,7 +614,15 @@ public struct WorkTask: Identifiable, Codable, Sendable, Equatable {
         self.revisionCount = revisionCount
         self.maxRevisions = maxRevisions
         self.updatedAt = updatedAt
+        self.accountableEmployeeID = accountableEmployeeID
+        self.delegationReason = delegationReason
+        self.requiredSkillIDs = requiredSkillIDs
+        self.requiredConnectionIDs = requiredConnectionIDs
+        self.workRevision = workRevision
     }
+
+    public var effectiveAccountableEmployeeID: String { accountableEmployeeID ?? assigneeID }
+    public var effectiveWorkRevision: Int { workRevision ?? 0 }
 }
 
 public struct Blocker: Identifiable, Codable, Sendable, Equatable {
@@ -662,8 +720,10 @@ public struct OrganizationState: Codable, Sendable, Equatable {
     public var activity: [Activity]
     public var knowledge: OrganizationKnowledge?
     public var lastSavedAt: Date
+    public var organizationConcurrencyLimit: Int?
 
-    public static func seeded(now: Date = Date()) -> OrganizationState {
+    public static func seeded(now: Date = Date(), hiredStarterTeam: Bool = true) -> OrganizationState {
+        let starterEmployment: EmploymentState = hiredStarterTeam ? .hired : .candidate
         let owner = Employee(
             id: "owner",
             name: "Founder",
@@ -679,14 +739,20 @@ public struct OrganizationState: Codable, Sendable, Equatable {
             responsibility: "Keep the owner oriented, surface decisions, and prepare clear daily handoffs.",
             managerID: owner.id,
             assistantForHumanID: owner.id,
-            avatarColor: "B7A5D8"
+            avatarColor: "B7A5D8",
+            employmentState: starterEmployment,
+            packageID: "starter.mira",
+            packageVersion: "1.0.0"
         )
         let manager = Employee(
             id: "maya",
             name: "Maya",
             role: "Editorial Manager",
             responsibility: "Own the content outcome, review work, and keep the team moving.",
-            avatarColor: "E78B5B"
+            avatarColor: "E78B5B",
+            employmentState: starterEmployment,
+            packageID: "starter.maya",
+            packageVersion: "1.0.0"
         )
         let researcher = Employee(
             id: "nia",
@@ -694,7 +760,10 @@ public struct OrganizationState: Codable, Sendable, Equatable {
             role: "Audience Researcher",
             responsibility: "Understand the product and find useful questions worth answering.",
             managerID: manager.id,
-            avatarColor: "F2C96D"
+            avatarColor: "F2C96D",
+            employmentState: starterEmployment,
+            packageID: "starter.nia",
+            packageVersion: "1.0.0"
         )
         let writer = Employee(
             id: "theo",
@@ -702,7 +771,10 @@ public struct OrganizationState: Codable, Sendable, Equatable {
             role: "Content Writer",
             responsibility: "Turn evidence and direction into clear, useful articles.",
             managerID: manager.id,
-            avatarColor: "7395A8"
+            avatarColor: "7395A8",
+            employmentState: starterEmployment,
+            packageID: "starter.theo",
+            packageVersion: "1.0.0"
         )
         let customerVoiceAnalyst = Employee(
             id: "iris",
@@ -710,7 +782,10 @@ public struct OrganizationState: Codable, Sendable, Equatable {
             role: "Customer Voice Analyst",
             responsibility: "Turn deliberately supplied customer feedback into one cited owner decision each week.",
             managerID: assistant.id,
-            avatarColor: "6E8B62"
+            avatarColor: "6E8B62",
+            employmentState: starterEmployment,
+            packageID: "starter.iris",
+            packageVersion: "1.0.0"
         )
 
         let researchID = "research-audience"
@@ -718,7 +793,7 @@ public struct OrganizationState: Codable, Sendable, Equatable {
         let reportID = "prepare-daily-report"
 
         return OrganizationState(
-            schemaVersion: 8,
+            schemaVersion: 9,
             setupCompleted: false,
             id: "willow-studio",
             name: "Willow Studio",
@@ -820,8 +895,13 @@ public struct OrganizationState: Codable, Sendable, Equatable {
                 connectionDefinitions: OrganizationKnowledge.builtInConnections(),
                 employeeDuties: [.customerVoiceWeekly(now: now)]
             ),
-            lastSavedAt: now
+            lastSavedAt: now,
+            organizationConcurrencyLimit: 2
         )
+    }
+
+    public var effectiveConcurrencyLimit: Int {
+        min(max(organizationConcurrencyLimit ?? 2, 1), 4)
     }
 
     public func employee(_ id: String) -> Employee? {
@@ -884,12 +964,23 @@ public struct OrganizationState: Codable, Sendable, Equatable {
         }
         if knowledge == nil { knowledge = OrganizationKnowledge(productBrief: "") }
         let id = "research-assignment-\(UUID().uuidString.lowercased().prefix(8))"
+        let canonicalOutcomeID = try createEmployeeOutcome(
+            employeeID: "nia",
+            outcome: trimmedOutcome,
+            context: context.trimmingCharacters(in: .whitespacesAndNewlines),
+            acceptanceCriteria: ["Return an evidence basis, uncertainty, and one recommended next action."],
+            priority: .normal,
+            source: .legacyResearch,
+            sourceID: id,
+            now: now
+        )
         knowledge?.researchAssignments.append(ResearchAssignment(
             id: id,
             outcome: trimmedOutcome,
             context: context.trimmingCharacters(in: .whitespacesAndNewlines),
             createdAt: now,
-            updatedAt: now
+            updatedAt: now,
+            canonicalOutcomeID: canonicalOutcomeID
         ))
         activity.append(Activity(
             id: UUID().uuidString,

@@ -16,7 +16,7 @@ struct AgentOfficeApp: App {
                 }
             }
                 .environmentObject(model)
-                .preferredColorScheme(.light)
+                .preferredColorScheme(visualTestColorScheme)
                 .task {
                     await model.load()
                 }
@@ -24,6 +24,16 @@ struct AgentOfficeApp: App {
         }
         .defaultSize(width: 1_420, height: 900)
         .windowStyle(.hiddenTitleBar)
+    }
+
+    private var visualTestColorScheme: ColorScheme? {
+#if DEBUG
+        if CommandLine.arguments.contains("--appearance-light") { return .light }
+        if CommandLine.arguments.contains("--appearance-dark") { return .dark }
+        return nil
+#else
+        nil
+#endif
     }
 }
 

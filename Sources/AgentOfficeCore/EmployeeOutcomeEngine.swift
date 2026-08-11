@@ -12,14 +12,17 @@ public struct EmployeeOutcomeEngine: Sendable {
     ) -> OrganizationState {
         var state = input
         guard let outcome = state.employeeOutcome(outcomeID),
-              [.queued, .waiting, .failed].contains(outcome.status),
-              let employeeIndex = state.employees.firstIndex(where: { $0.id == outcome.assigneeID })
+              [.queued, .waiting, .failed, .approved, .revision].contains(outcome.status),
+              let employeeIndex = state.employees.firstIndex(where: { $0.id == outcome.assigneeID }),
+              state.employees[employeeIndex].effectiveEmploymentState == .hired
         else { return input }
 
         _ = state.updateEmployeeOutcome(outcomeID, now: now) { value in
             value.status = .planning
+            value.planStatus = value.taskIDs.isEmpty ? .drafting : .approved
             value.helpRequest = nil
             value.attemptCount += 1
+            value.outcomeRevision = value.effectiveRevision + 1
         }
         state.employees[employeeIndex].status = .planning
         state.employees[employeeIndex].currentTaskID = nil
@@ -38,11 +41,14 @@ public struct EmployeeOutcomeEngine: Sendable {
         outcomeID: String,
         runner: any EmployeeRunner,
         store: LocalOrganizationStore,
-        now: Date = Date()
+        now: Date = Date(),
+        persistsTransitions: Bool = true
     ) async -> OrganizationState {
         var state = input
         guard var outcome = state.employeeOutcome(outcomeID),
               !outcome.status.isTerminal,
+              outcome.status != .delivered,
+              outcome.status != .proposed,
               let employee = state.employee(outcome.assigneeID)
         else { return input }
 
@@ -58,7 +64,8 @@ public struct EmployeeOutcomeEngine: Sendable {
                 )
                 try apply(plan: plan, to: outcomeID, state: &state, now: now)
                 outcome = state.employeeOutcome(outcomeID) ?? outcome
-                try await store.save(state)
+                if persistsTransitions { try await store.save(state) }
+                if outcome.status == .proposed { return state }
             }
 
             for taskID in outcome.taskIDs {
@@ -94,7 +101,7 @@ public struct EmployeeOutcomeEngine: Sendable {
                     message: "I started ticket \(state.tasks[taskIndex].title).",
                     createdAt: now
                 ))
-                try await store.save(state)
+                if persistsTransitions { try await store.save(state) }
 
                 let request = EmployeeWorkRequest(
                     operation: operation(for: state.tasks[taskIndex].kind),
@@ -151,7 +158,7 @@ public struct EmployeeOutcomeEngine: Sendable {
                     message: "I finished \(state.tasks[taskIndex].title) and saved \(output.title).",
                     createdAt: now
                 ))
-                try await store.save(state)
+                if persistsTransitions { try await store.save(state) }
             }
 
             let finishedOutcome = state.employeeOutcome(outcomeID) ?? outcome
@@ -160,10 +167,23 @@ public struct EmployeeOutcomeEngine: Sendable {
 
             let artifactCount = finishedOutcome.artifactIDs.count
             let summary = "Delivered \(finishedOutcome.taskIDs.count) tickets and \(artifactCount) local artifact\(artifactCount == 1 ? "" : "s"). Review the work and decide the next outcome."
+            let evidenceBasis = Array(Set(finishedOutcome.artifactIDs.compactMap { artifactID in
+                state.artifacts.first { $0.id == artifactID }?.evidenceBasis
+            })).sorted().joined(separator: ", ")
             _ = state.updateEmployeeOutcome(outcomeID, now: now) { value in
                 value.status = .delivered
                 value.helpRequest = nil
                 value.deliverySummary = summary
+                value.deliveries = value.effectiveDeliveries + [OutcomeDelivery(
+                    summary: summary,
+                    artifactIDs: value.artifactIDs,
+                    evidenceBasis: evidenceBasis,
+                    limitations: "No external write or publishing was attempted.",
+                    recommendedNextAction: "Review the artifacts, then accept the delivery or request one bounded revision.",
+                    deliveredByEmployeeID: employee.id,
+                    createdAt: now
+                )]
+                value.outcomeRevision = value.effectiveRevision + 1
             }
             setEmployee(employee.id, status: .resting, taskID: nil, state: &state)
             state.knowledge?.memoryEntries.append(EmployeeMemoryEntry(
@@ -272,14 +292,28 @@ public struct EmployeeOutcomeEngine: Sendable {
                 artifactIDs: [],
                 revisionCount: 0,
                 maxRevisions: 0,
-                updatedAt: now
+                updatedAt: now,
+                accountableEmployeeID: outcome.assigneeID,
+                requiredSkillIDs: proposal.skillIDs,
+                requiredConnectionIDs: proposal.skillIDs.flatMap { state.skill($0)?.requiredConnectionIDs ?? [] },
+                workRevision: 0
             ))
             previousTaskID = taskID
         }
+        let requiresReview = state.workingContract(for: outcome.assigneeID)?.reviewPolicy == .always
         _ = state.updateEmployeeOutcome(outcomeID, now: now) { value in
             value.selectedSkillIDs = selected.sorted()
             value.taskIDs = taskIDs
-            value.status = .working
+            value.planStatus = requiresReview ? .proposed : .approved
+            value.status = requiresReview ? .proposed : .approved
+            value.outcomeRevision = value.effectiveRevision + 1
+        }
+        if state.employeeOutcome(outcomeID)?.status == .proposed {
+            if let employeeIndex = state.employees.firstIndex(where: { $0.id == outcome.assigneeID }) {
+                state.employees[employeeIndex].status = .waiting
+                state.employees[employeeIndex].currentTaskID = nil
+            }
+            state.knowledge?.supervisionEvents.append(SupervisionEvent(kind: .planProposed, actorID: outcome.assigneeID, employeeID: outcome.assigneeID, outcomeID: outcomeID, message: "Proposed a \(taskIDs.count)-ticket plan for owner review.", createdAt: now))
         }
         state.activity.append(Activity(
             id: UUID().uuidString,

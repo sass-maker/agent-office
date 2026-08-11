@@ -2,53 +2,53 @@
   "$schema": "fleet.design-review.v1",
   "version": 1,
   "project": "agent-office",
-  "target": "golden-hour product landing page",
+  "target": "Native workplace polish: labelled compact navigation, hiring disclosure, adaptive layouts, and authored appearance",
   "mode": "preserve",
-  "register": "brand",
+  "register": "product",
   "context": {
     "product": "PRODUCT.md",
     "design": "DESIGN.md"
   },
   "direction": {
-    "references": [
-      "artifacts/design/organization-home-current.png",
-      "DESIGN.md golden-hour dollhouse world",
-      "artifacts/design/landing-compositions.png"
-    ],
-    "probes": [
-      "full-bleed workday",
-      "workplace as a keepsake object",
-      "employee town expansion"
-    ],
-    "selected": "workplace as a keepsake object with a concrete workday",
+    "references": [],
+    "probes": [],
+    "selected": "existing-design",
     "approval": "not-required",
-    "before": "artifacts/design/organization-home-current.png"
+    "before": "artifacts/design/agent-employment-mission-compact.png"
   },
   "evidence": {
     "screenshots": [
       {
         "width": 390,
-        "path": "artifacts/design/landing-390.png"
+        "path": "artifacts/design/native-polish-shell-compact-light.png"
       },
       {
         "width": 768,
-        "path": "artifacts/design/landing-768.png"
+        "path": "artifacts/design/native-polish-onboarding-contract-compact-dark.png"
+      },
+      {
+        "width": 760,
+        "path": "artifacts/design/native-polish-company-compact-dark.png"
+      },
+      {
+        "width": 980,
+        "path": "artifacts/design/native-polish-office-intermediate-light.png"
       },
       {
         "width": 1440,
-        "path": "artifacts/design/landing-1440.png"
+        "path": "artifacts/design/native-polish-office-wide-light.png"
       }
     ],
     "projectCheck": {
-      "command": "swift test && swift build && openspec validate add-marketing-site --strict",
+      "command": "swift test; swift build; openspec validate polish-native-workplace-ui --strict",
       "status": "pass"
     },
     "critique": {
-      "score": 36,
+      "score": 33,
       "maximum": 40
     },
     "audit": {
-      "score": 17,
+      "score": 18,
       "maximum": 20
     },
     "unresolved": {
@@ -57,11 +57,13 @@
     },
     "detector": {
       "posture": "advisory",
-      "findings": []
+      "findings": [
+        "detect.mjs returned no findings because its file walker excludes Swift; native source and screenshot evidence were used instead"
+      ]
     }
   },
   "ownerFeedback": {
-    "decision": "pending",
-    "note": ""
+    "decision": "delegated",
+    "note": "Owner asked Codex to complete the polish and ensure the interface remains sleek."
   }
 }

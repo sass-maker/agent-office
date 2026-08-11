@@ -53,6 +53,18 @@ public actor LocalOrganizationStore {
         rootURL.appendingPathComponent("EMPLOYEE_OUTCOMES.md", isDirectory: false)
     }
 
+    public var employeePackagesURL: URL {
+        rootURL.appendingPathComponent("employee-packages", isDirectory: true)
+    }
+
+    public var employeePackageCatalogueFileURL: URL {
+        rootURL.appendingPathComponent("EMPLOYEE_PACKAGES.md", isDirectory: false)
+    }
+
+    public var supervisionFileURL: URL {
+        rootURL.appendingPathComponent("SUPERVISION.md", isDirectory: false)
+    }
+
     public nonisolated var feedbackInboxURL: URL {
         rootURL.appendingPathComponent("feedback-inbox", isDirectory: true)
     }
@@ -60,7 +72,7 @@ public actor LocalOrganizationStore {
     public func loadOrCreate() throws -> OrganizationState {
         try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
         guard fileManager.fileExists(atPath: organizationFileURL.path) else {
-            let organization = Self.migrated(OrganizationState.seeded())
+            let organization = Self.migrated(OrganizationState.seeded(hiredStarterTeam: false))
             try save(organization)
             return organization
         }
@@ -102,6 +114,31 @@ public actor LocalOrganizationStore {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    public func importEmployeePackage(from sourceURL: URL, into input: OrganizationState) throws -> OrganizationState {
+        let data = try Data(contentsOf: sourceURL)
+        let package = try EmployeePackageCatalogue.decodeAndValidate(data)
+        var organization = input
+        try organization.installEmployeePackage(package)
+        try fileManager.createDirectory(at: employeePackagesURL, withIntermediateDirectories: true)
+        let destination = employeePackagesURL.appendingPathComponent(Self.packageFilename(package), isDirectory: false)
+        let canonicalData = try encoder.encode(package)
+        try canonicalData.write(to: destination, options: .atomic)
+        try save(organization)
+        return organization
+    }
+
+    public func removeEmployeePackage(id: String, version: String, from input: OrganizationState) throws -> OrganizationState {
+        var organization = input
+        try organization.removeEmployeePackage(id: id, version: version)
+        let package = EmployeePackage(
+            id: id, version: version, creator: "", name: "", role: "", responsibility: "", avatarColor: "", skills: []
+        )
+        let destination = employeePackagesURL.appendingPathComponent(Self.packageFilename(package), isDirectory: false)
+        if fileManager.fileExists(atPath: destination.path) { try fileManager.removeItem(at: destination) }
+        try save(organization)
+        return organization
+    }
+
     @discardableResult
     public func ensureFeedbackInbox() throws -> URL {
         try fileManager.createDirectory(at: feedbackInboxURL, withIntermediateDirectories: true)
@@ -124,7 +161,8 @@ public actor LocalOrganizationStore {
         now: Date = Date()
     ) -> OrganizationState {
         var organization = input
-        organization.schemaVersion = max(organization.schemaVersion, 8)
+        let priorSchemaVersion = organization.schemaVersion
+        organization.schemaVersion = max(organization.schemaVersion, 9)
 
         if organization.knowledge == nil {
             organization.knowledge = OrganizationKnowledge(
@@ -230,6 +268,14 @@ public actor LocalOrganizationStore {
         if organization.employeeDuty("customer-voice-weekly") == nil {
             organization.knowledge?.employeeDuties.append(.customerVoiceWeekly(now: now))
         }
+        if priorSchemaVersion < 9 {
+            for index in organization.employees.indices where organization.employees[index].employmentState == nil {
+                organization.employees[index].employmentState = .hired
+            }
+        }
+        organization.migrateEmployment(now: now)
+        organization.migrateCanonicalOutcomeDefaults()
+        organization.linkLegacyWorkToCanonicalOutcomes(now: now)
         return organization
     }
 
@@ -243,8 +289,13 @@ public actor LocalOrganizationStore {
         return "employees/\(employeeID)/\(taskID)-\(kind.rawValue)\(suffix).md"
     }
 
+    private nonisolated static func packageFilename(_ package: EmployeePackage) -> String {
+        "\(safePathComponent(package.id))-\(safePathComponent(package.version)).json"
+    }
+
     private func materialize(_ organization: OrganizationState) throws {
         try fileManager.createDirectory(at: feedbackInboxURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: employeePackagesURL, withIntermediateDirectories: true)
         try (organization.productBrief + "\n").write(
             to: productBriefFileURL,
             atomically: true,
@@ -444,6 +495,42 @@ public actor LocalOrganizationStore {
             encoding: .utf8
         )
 
+        let packageCatalogue = organization.employeePackages
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .map { package in
+                let skills = package.skills.map(\.name).joined(separator: ", ")
+                let connections = package.requiredConnectionIDs.isEmpty ? "None" : package.requiredConnectionIDs.joined(separator: ", ")
+                return """
+                ## \(package.name) · \(package.version)
+
+                - Package: `\(package.id)`
+                - Creator: \(package.creator)
+                - Role: \(package.role)
+                - Skills: \(skills)
+                - Required connections: \(connections)
+                - Preferred execution: `\(package.preferredProvider.rawValue)`
+                - Built in: \(package.builtIn ? "Yes" : "No")
+
+                \(package.responsibility)
+                """
+            }.joined(separator: "\n\n")
+        try "# Available employee packages\n\nPackages declare capability but never contain credentials or grants.\n\n\(packageCatalogue)\n".write(
+            to: employeePackageCatalogueFileURL,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let supervisionHistory = organization.supervisionEvents
+            .sorted { $0.createdAt > $1.createdAt }
+            .map { event in
+                "- \(event.createdAt.formatted(.iso8601)) · `\(event.kind.rawValue)` · actor `\(event.actorID)` · employee `\(event.employeeID)`\n  \(event.message)"
+            }.joined(separator: "\n")
+        try "# Supervision history\n\n\(supervisionHistory.isEmpty ? "No management decisions yet." : supervisionHistory)\n".write(
+            to: supervisionFileURL,
+            atomically: true,
+            encoding: .utf8
+        )
+
         for employee in organization.employees where employee.kind == .ai {
             let home = employeeHomeURL(employeeID: employee.id)
             try fileManager.createDirectory(at: home, withIntermediateDirectories: true)
@@ -503,6 +590,51 @@ public actor LocalOrganizationStore {
                 atomically: true,
                 encoding: .utf8
             )
+
+            if let contract = organization.workingContract(for: employee.id) {
+                let sources = Dictionary(uniqueKeysWithValues: contract.provenance.map { ($0.field, $0.source.rawValue) })
+                let skillList = contract.assignedSkillIDs.isEmpty ? "None" : contract.assignedSkillIDs.map { "`\($0)`" }.joined(separator: ", ")
+                let declared = contract.declaredConnectionIDs.isEmpty ? "None" : contract.declaredConnectionIDs.map { "`\($0)`" }.joined(separator: ", ")
+                let grants = contract.capabilityGrants.isEmpty ? "None" : contract.capabilityGrants.map { "`\($0)`" }.joined(separator: ", ")
+                try """
+                # Working contract
+
+                - Employee: `\(contract.employeeID)`
+                - Employment: `\(employee.effectiveEmploymentState.rawValue)`
+                - Package: `\(contract.packageID ?? "organization")` · `\(contract.packageVersion ?? "unversioned")`
+                - Contract revision: \(contract.revision)
+
+                ## Identity and role
+
+                - Role: \(contract.role)
+                - Responsibility: \(contract.responsibility)
+                - Manager: `\(contract.managerID ?? "none")`
+                - Source: `\(sources["role"] ?? "organization")`
+
+                ## Skills and tools
+
+                - Assigned skills: \(skillList)
+                - Declared connections: \(declared)
+                - Source: `\(sources["skills"] ?? "organization")`
+
+                ## Granted authority
+
+                - Capability grants: \(grants)
+                - External tools allowed: \(contract.boundaries.mayUseExternalTools ? "Yes" : "No")
+                - Publishing allowed: \(contract.boundaries.mayPublish ? "Yes" : "No")
+
+                ## Execution
+
+                - Provider: `\(contract.executionProvider.rawValue)`
+                - Model: \(contract.modelName ?? "Provider default")
+                - Environment: `\(contract.environment.rawValue)`
+                - Workspace: `\(contract.workspacePath)`
+                - Plan review: `\(contract.reviewPolicy.rawValue)`
+                - Maximum revisions: \(contract.boundaries.maximumRevisions)
+
+                This projection records identifiers and availability only. It never contains credential values.
+                """.write(to: home.appendingPathComponent("WORKING_CONTRACT.md"), atomically: true, encoding: .utf8)
+            }
 
             let artifacts = organization.artifacts
                 .filter { $0.authorID == employee.id }

@@ -9,7 +9,7 @@ struct ResearchAssignmentSheet: View {
     @FocusState private var focusedField: Field?
 
     private let ink = EditorialOfficeTheme.ink
-    private let spruce = EditorialOfficeTheme.sidebarInk
+    private let spruce = EditorialOfficeTheme.controlInk
     private let paper = EditorialOfficeTheme.paper
     private let plaster = EditorialOfficeTheme.bone
     private let apricot = EditorialOfficeTheme.graphite
@@ -60,7 +60,7 @@ struct ResearchAssignmentSheet: View {
                     .font(.body)
                     .lineLimit(2...4)
                     .padding(14)
-                    .background(Color.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 11))
+                    .background(EditorialOfficeTheme.paper.opacity(0.82), in: RoundedRectangle(cornerRadius: 11))
                     .overlay {
                         RoundedRectangle(cornerRadius: 11)
                             .stroke(spruce.opacity(0.18), lineWidth: 1)
@@ -88,7 +88,7 @@ struct ResearchAssignmentSheet: View {
                     .font(.body)
                     .lineLimit(3...5)
                     .padding(14)
-                    .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 11))
+                    .background(EditorialOfficeTheme.paper.opacity(0.68), in: RoundedRectangle(cornerRadius: 11))
                     .overlay {
                         RoundedRectangle(cornerRadius: 11)
                             .stroke(ink.opacity(0.12), lineWidth: 1)
@@ -122,21 +122,20 @@ struct ResearchAssignmentSheet: View {
                 Button("Send to Mira") { submit() }
                     .buttonStyle(.plain)
                     .font(.body.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(EditorialOfficeTheme.onInk)
                     .padding(.horizontal, 17)
                     .frame(minHeight: 38)
-                    .background(spruce, in: RoundedRectangle(cornerRadius: 10))
+                    .background(EditorialOfficeTheme.sidebarInk, in: RoundedRectangle(cornerRadius: 10))
                     .disabled(trimmedOutcome.isEmpty)
                     .opacity(trimmedOutcome.isEmpty ? 0.45 : 1)
                     .keyboardShortcut(.defaultAction)
             }
         }
         .padding(26)
-        .frame(minWidth: 620, minHeight: 520)
+        .frame(minWidth: 520, idealWidth: 620, minHeight: 480, idealHeight: 520)
         .foregroundStyle(ink)
         .tint(spruce)
         .background(paper)
-        .preferredColorScheme(.light)
         .onAppear { focusedField = .outcome }
     }
 
@@ -181,7 +180,7 @@ struct ResearchDeskCard: View {
     let onNewAssignment: () -> Void
 
     private let ink = EditorialOfficeTheme.ink
-    private let spruce = EditorialOfficeTheme.sidebarInk
+    private let spruce = EditorialOfficeTheme.controlInk
     private let paper = EditorialOfficeTheme.paper
     private let apricot = EditorialOfficeTheme.graphite
 
@@ -342,7 +341,7 @@ struct ResearchDeskCard: View {
                 .foregroundStyle(spruce)
                 .padding(.horizontal, 10)
                 .frame(minHeight: 34)
-                .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+                .background(EditorialOfficeTheme.paper.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
     }
@@ -411,7 +410,7 @@ struct ResearchDeskEmptyCard: View {
             Button(action: action) {
                 Label("Ask Nia to research", systemImage: "arrow.right")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(EditorialOfficeTheme.onInk)
                     .padding(.horizontal, 11)
                     .frame(minHeight: 31)
                     .background(EditorialOfficeTheme.sidebarInk, in: RoundedRectangle(cornerRadius: 8))

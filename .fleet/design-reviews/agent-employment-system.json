@@ -1,0 +1,82 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "agent-office",
+  "target": "Hiring, working contracts, employee supervision, and canonical Mission",
+  "mode": "preserve",
+  "register": "product",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [
+      "DESIGN.md Editorial Office direction contract",
+      "artifacts/design/approved/editorial-office/mission-list.png",
+      "artifacts/design/approved/editorial-office/company-members.png",
+      "artifacts/design/approved/editorial-office/onboarding.png"
+    ],
+    "probes": [],
+    "selected": "Preserve the monochrome Editorial Office and extend its paper folios into hiring contracts, employee commitments, and owner decisions.",
+    "approval": "not-required",
+    "before": "artifacts/design/outcome-driven-current.png"
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "width": 390,
+        "path": "artifacts/design/agent-employment-catalogue-compact.png",
+        "sourceWindowWidth": 700,
+        "note": "Native Company Library sheet at its supported compact minimum; packages, employed identities, and contract detail remain distinct."
+      },
+      {
+        "width": 768,
+        "path": "artifacts/design/agent-employment-mission-compact.png",
+        "sourceWindowWidth": 760,
+        "note": "Native minimum Mission keeps the employee commitment, owner plan actions, and generated tickets visible."
+      },
+      {
+        "width": 1440,
+        "path": "artifacts/design/agent-employment-mission-wide.png",
+        "sourceWindowWidth": 1420,
+        "note": "Wide Mission shows canonical commitment and ticket counts, three owner decisions, capacity, and the task inspector."
+      },
+      {
+        "width": 1420,
+        "path": "artifacts/design/agent-employment-team-wide.png",
+        "note": "Final onboarding Team step discloses each candidate's responsibility, skills, environment, review, authority boundary, package provenance, provider preference, and reduced mode before hiring."
+      },
+      {
+        "width": 1420,
+        "path": "artifacts/design/agent-employment-office-wide.png",
+        "note": "Office evidence shows named hired employees, attributable commitments, and state-derived owner queues."
+      }
+    ],
+    "projectCheck": {
+      "command": "swift test (63 tests), swift build, openspec validate add-agent-employment-system --strict, git diff --check",
+      "status": "pass"
+    },
+    "critique": {
+      "score": 33,
+      "maximum": 40
+    },
+    "audit": {
+      "score": 16,
+      "maximum": 20
+    },
+    "unresolved": {
+      "p0": 0,
+      "p1": 0
+    },
+    "detector": {
+      "posture": "advisory",
+      "findings": [
+        "The bundled detector returned an empty result because its directory scanner excludes Swift; isolated native source assessment and real macOS window evidence found zero unresolved P0/P1 issues."
+      ]
+    }
+  },
+  "ownerFeedback": {
+    "decision": "delegated",
+    "note": "The owner explicitly asked to do all remaining philosophy-alignment work. Final judgment was delegated within that scope; the preserved Editorial Office now expresses explicit hiring, working contracts, employee-owned commitments, and owner supervision without expanding into money, legal identity, governance, publishing, or cloud infrastructure."
+  }
+}

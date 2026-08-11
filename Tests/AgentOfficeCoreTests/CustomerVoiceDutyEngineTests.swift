@@ -13,7 +13,7 @@ final class CustomerVoiceDutyEngineTests: XCTestCase {
         let migrated = LocalOrganizationStore.migrated(legacy, now: Date(timeIntervalSince1970: 200))
         let migratedAgain = LocalOrganizationStore.migrated(migrated, now: Date(timeIntervalSince1970: 300))
 
-        XCTAssertEqual(migrated.schemaVersion, 8)
+        XCTAssertEqual(migrated.schemaVersion, 9)
         XCTAssertEqual(migrated.employee("iris")?.role, "Customer Voice Analyst")
         XCTAssertEqual(migrated.employeeDuty(CustomerVoiceDutyEngine.dutyID)?.assigneeID, "iris")
         XCTAssertEqual(Set(migrated.assignedSkills(employeeID: "iris").map(\.id)), ["communication", "customer-voice-analysis"])

@@ -24,9 +24,17 @@ embedded and an ad-hoc signature applied:
 open dist/AgentOffice.app
 ```
 
-Pass `debug` to the packaging script for a debug bundle. This is local preview
-packaging; notarization, distribution signing, updates, and release packaging
-are not implemented yet.
+Pass `debug` to the packaging script for a debug bundle. The default build is
+ad-hoc signed for local verification. A direct-distribution build can provide
+the complete personal Developer ID certificate name through
+`AGENT_OFFICE_SIGNING_IDENTITY`; the script then enables hardened runtime and a
+trusted timestamp. `AGENT_OFFICE_DISPLAY_NAME` and `AGENT_OFFICE_BUNDLE_ID`
+allow the temporary Office OS identity without renaming the Swift package.
+
+`scripts/notarize-app.sh` fails closed unless the bundle has a Developer ID
+Application signature and `AGENT_OFFICE_NOTARY_PROFILE` names an existing
+`notarytool` Keychain profile. Neither helper publishes the app or creates a
+store record. Updates and final release packaging remain outside this POC.
 
 The first launch creates a fresh Willow Studio organization under:
 

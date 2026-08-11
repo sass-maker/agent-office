@@ -89,9 +89,11 @@ struct CompanyView: View {
                             .font(.system(.title3, design: .serif, weight: section == item ? .medium : .regular))
                             .padding(.horizontal, compact ? 18 : 28)
                             .frame(height: 45)
-                            .background(section == item ? EditorialOfficeTheme.paper : Color.clear)
-                            .overlay {
-                                Rectangle().stroke(EditorialOfficeTheme.rule, lineWidth: 1)
+                            .background(section == item ? EditorialOfficeTheme.softGrey.opacity(0.72) : Color.clear)
+                            .overlay(alignment: .bottom) {
+                                Rectangle()
+                                    .fill(section == item ? EditorialOfficeTheme.ink : EditorialOfficeTheme.rule.opacity(0.72))
+                                    .frame(height: section == item ? 2 : 1)
                             }
                     }
                     .buttonStyle(.plain)
@@ -111,28 +113,31 @@ struct CompanyView: View {
         }
     }
 
+    @ViewBuilder
     private func membersDirectory(compact: Bool) -> some View {
-        HStack(spacing: 0) {
-            ScrollView([.vertical, .horizontal]) {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Organisation Members")
-                        .font(.system(.title2, design: .serif))
+        if compact {
+            compactMembersDirectory
+        } else {
+            HStack(spacing: 0) {
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("Organization Members")
+                            .font(.system(.title2, design: .serif))
 
-                    relationshipWall(compact: compact)
-                        .frame(minWidth: compact ? 650 : 780)
+                        relationshipWall(compact: false)
+                            .frame(minWidth: 780)
 
-                    Text("Humans and AI employees belong to one organization. Their kind changes their capabilities and permissions, not whether they are members.")
-                        .font(.caption)
-                        .foregroundStyle(EditorialOfficeTheme.graphite)
-                        .frame(maxWidth: 720, alignment: .leading)
-                        .padding(.top, 4)
+                        Text("Humans and AI employees belong to one organization. Their kind changes their capabilities and permissions, not whether they are members.")
+                            .font(.caption)
+                            .foregroundStyle(EditorialOfficeTheme.graphite)
+                            .frame(maxWidth: 720, alignment: .leading)
+                            .padding(.top, 4)
+                    }
+                    .padding(.horizontal, 42)
+                    .padding(.vertical, 28)
                 }
-                .padding(.horizontal, compact ? 24 : 42)
-                .padding(.vertical, 28)
-            }
-            .scrollIndicators(.hidden)
+                .scrollIndicators(.hidden)
 
-            if !compact {
                 Rectangle().fill(EditorialOfficeTheme.rule.opacity(0.72)).frame(width: 1)
                 memberSummary
                     .frame(width: 290)
@@ -140,9 +145,93 @@ struct CompanyView: View {
         }
     }
 
+    private var compactMembersDirectory: some View {
+        let members = model.organization.employees.filter {
+            $0.id == "owner" || $0.kind == .human || [.hired, .paused].contains($0.effectiveEmploymentState)
+        }
+
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Organization Members")
+                        .font(.system(.title2, design: .serif))
+                    Text("People first. Reporting context and employment state stay visible without a sideways canvas.")
+                        .font(.callout)
+                        .foregroundStyle(EditorialOfficeTheme.graphite)
+                }
+                .padding(.bottom, 6)
+
+                ForEach(members) { employee in
+                    compactMemberRow(employee)
+                }
+
+                Text("Humans and AI employees belong to one organization. Their kind changes their capabilities and permissions, not whether they are members.")
+                    .font(.caption)
+                    .foregroundStyle(EditorialOfficeTheme.graphite)
+                    .padding(.top, 8)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 26)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private func compactMemberRow(_ employee: Employee) -> some View {
+        let assignedSkills = model.organization.assignedSkills(employeeID: employee.id)
+
+        return Button {
+            selectedEmployeeID = employee.id
+            showsEmployeeDetails = true
+        } label: {
+            HStack(spacing: 16) {
+                EmployeePortrait(employee: employee, size: CGSize(width: 62, height: 70))
+                    .saturation(0)
+                    .contrast(1.12)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 7) {
+                        Text(employee.name)
+                            .font(.system(.title3, design: .serif, weight: .medium))
+                        Text(employee.kind == .human ? "OWNER" : statusText(employee).uppercased())
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(EditorialOfficeTheme.graphite)
+                    }
+
+                    Text(employee.kind == .human ? "Organization owner" : employee.role)
+                        .font(.callout)
+
+                    Text(employee.kind == .human
+                        ? "Leads the organization"
+                        : "Reports to \(managerName(for: employee)) · \(assignedSkills.count) skill\(assignedSkills.count == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(EditorialOfficeTheme.graphite)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 12)
+
+                Image(systemName: "chevron.right")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(EditorialOfficeTheme.graphite)
+            }
+            .foregroundStyle(EditorialOfficeTheme.ink)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 94, alignment: .leading)
+            .background(EditorialOfficeTheme.paper)
+            .overlay {
+                Rectangle()
+                    .stroke(EditorialOfficeTheme.rule, lineWidth: 1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open \(employee.name), \(employee.kind == .human ? "organization owner" : employee.role)")
+    }
+
     private func relationshipWall(compact: Bool) -> some View {
         let owner = model.organization.employee("owner")
-        let employees = model.organization.employees.filter { $0.id != "owner" }
+        let employees = model.organization.employees.filter { $0.id != "owner" && ($0.kind == .human || [.hired, .paused].contains($0.effectiveEmploymentState)) }
 
         return VStack(spacing: 0) {
             if let owner {
@@ -227,9 +316,8 @@ struct CompanyView: View {
                 HStack(spacing: 5) {
                     ForEach(assignedSkills.prefix(1)) { skill in
                         Text(skill.name)
-                            .font(.system(size: 9))
+                            .font(.caption2)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.78)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 2)
                             .overlay {
@@ -239,7 +327,7 @@ struct CompanyView: View {
 
                     if assignedSkills.count > 1 {
                         Text("+\(assignedSkills.count - 1)")
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.caption2.weight(.medium))
                             .padding(.horizontal, 4)
                             .padding(.vertical, 2)
                             .overlay {
@@ -264,6 +352,7 @@ struct CompanyView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Open \(employee.name), \(employee.role)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var memberSummary: some View {
@@ -323,7 +412,7 @@ struct CompanyView: View {
             VStack(alignment: .leading, spacing: 28) {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Organisation data")
+                        Text("Organization data")
                             .font(.system(.title2, design: .serif))
                         Text("The shared company context every employee receives.")
                             .font(.callout)
@@ -477,6 +566,14 @@ struct CompanyView: View {
                 }
                 .buttonStyle(EditorialSecondaryButtonStyle())
                 .padding(.top, 10)
+
+                if employee.effectiveEmploymentState == .hired {
+                    Button("Pause employment") { model.pauseEmployee(employee.id) }
+                        .buttonStyle(EditorialSecondaryButtonStyle()).padding(.top, 10)
+                } else if employee.effectiveEmploymentState == .paused {
+                    Button("Resume employment") { model.resumeEmployee(employee.id) }
+                        .buttonStyle(EditorialPrimaryButtonStyle()).padding(.top, 10)
+                }
             }
         }
         .padding(28)
@@ -528,15 +625,15 @@ struct CompanyView: View {
                 .padding(.vertical, 30)
 
             detailRule
-            Text("Current outcome").font(.system(.title3, design: .serif, weight: .medium)).padding(.top, 22)
-            Text(model.organization.outcome)
-                .font(.title3.weight(.medium))
-                .padding(.top, 10)
-
-            let evidence = model.organization.goals.first?.detail ?? "Advance the assigned work and leave inspectable evidence."
-            Label(evidence, systemImage: "checkmark.circle.fill")
-                .font(.callout)
-                .padding(.top, 12)
+            Text("Current commitment").font(.system(.title3, design: .serif, weight: .medium)).padding(.top, 22)
+            if let outcome = model.organization.activeEmployeeOutcome(for: employee.id) ?? model.organization.latestEmployeeOutcome(for: employee.id) {
+                Text(outcome.outcome).font(.title3.weight(.medium)).padding(.top, 10)
+                Label("\(outcome.status.rawValue.capitalized) · \(outcome.effectivePriority.rawValue) priority", systemImage: outcome.status == .delivered ? "checkmark.circle.fill" : "scope")
+                    .font(.callout).padding(.top, 12)
+                if !outcome.effectiveAcceptanceCriteria.isEmpty { Text("Acceptance: \(outcome.effectiveAcceptanceCriteria.joined(separator: " · "))").font(.caption).foregroundStyle(EditorialOfficeTheme.graphite).padding(.top, 8) }
+            } else {
+                Text("No outcome is currently assigned.").font(.callout).foregroundStyle(EditorialOfficeTheme.graphite).padding(.top, 10)
+            }
 
             detailRule.padding(.vertical, 22)
             Text("Active work").font(.system(.title3, design: .serif, weight: .medium))
@@ -572,6 +669,50 @@ struct CompanyView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            if let contract = model.organization.workingContract(for: employee.id) {
+                detailRule.padding(.vertical, 22)
+                Text("Working contract · revision \(contract.revision)").font(.system(.title3, design: .serif, weight: .medium))
+                VStack(alignment: .leading, spacing: 12) {
+                    contractFact("Identity and role", "\(employee.name) · \(contract.role)")
+                    contractFact("Responsibilities", contract.responsibility)
+                    contractFact("Relationships", "Manager: \(contract.managerID.map(model.employeeName) ?? "None")")
+                    contractFact("Assigned skills", contract.assignedSkillIDs.map(contractSkillName).joined(separator: ", "))
+                    contractFact("Declared tools", contract.declaredConnectionIDs.isEmpty ? "None" : contract.declaredConnectionIDs.map(contractConnectionName).joined(separator: ", "))
+                    contractFact("Granted authority", contract.capabilityGrants.isEmpty ? "None" : contract.capabilityGrants.map(contractCapabilityName).joined(separator: ", "))
+                    contractFact("Execution", "\(contract.executionProvider == .localCodex ? "Local Codex" : "Practice mode") · \(contract.modelName ?? "provider default")")
+                    contractFact("Environment", "Local organization sandbox · \(contract.workspacePath)")
+                    contractFact("Autonomy", "\(contractReviewName(contract.reviewPolicy)) · delegate: \(contract.boundaries.mayDelegate ? "yes" : "no") · publish: \(contract.boundaries.mayPublish ? "yes" : "no")")
+                }
+                .padding(.top, 14)
+            }
+        }
+    }
+
+    private func contractFact(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(EditorialOfficeTheme.graphite).frame(width: 128, alignment: .leading)
+            Text(value.isEmpty ? "None" : value).font(.callout).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func contractSkillName(_ id: String) -> String {
+        model.organization.skill(id)?.name ?? id
+    }
+
+    private func contractConnectionName(_ id: String) -> String {
+        model.organization.knowledge?.connectionDefinitions.first { $0.id == id }?.name ?? id
+    }
+
+    private func contractCapabilityName(_ id: String) -> String {
+        model.organization.knowledge?.connectionDefinitions.first { $0.capabilityID == id }?.name ?? id
+    }
+
+    private func contractReviewName(_ policy: PlanReviewPolicy) -> String {
+        switch policy {
+        case .always: "Review every plan"
+        case .whenAuthorityChanges: "Review authority changes"
+        case .automaticForLocalWork: "Approve bounded local plans"
         }
     }
 
@@ -844,7 +985,9 @@ struct CompanyView: View {
     }
 
     private func statusText(_ employee: Employee) -> String {
-        switch employee.status {
+        if employee.kind == .ai, employee.effectiveEmploymentState == .paused { return "Paused" }
+        if employee.kind == .ai, employee.effectiveEmploymentState == .retired { return "Retired" }
+        return switch employee.status {
         case .working, .planning: "In progress"
         case .reviewing: "Reviewing"
         case .blocked: "Blocked"
