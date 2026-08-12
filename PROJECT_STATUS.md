@@ -24,6 +24,10 @@ durable people-like collaborators whose execution remains bounded software.
 
 ## Timeline
 
+- 2026-08-12 — Adopted the Fleet native code-health standard with hosted macOS
+  tests, core coverage, build, formatting, unused-code, complexity, duplication,
+  dependency, suppression, hygiene, and static-site gates. Existing measured
+  debt is ratcheted and owned by GitHub issue #21.
 - 2026-08-08 — Standalone POC project initialized.
 - 2026-08-09 — First local workday slice implemented and verified.
 - 2026-08-09 — First usable organization slice added with a paired executive
@@ -166,6 +170,10 @@ durable people-like collaborators whose execution remains bounded software.
   requirements, version/build identity, support readiness, repository-owned
   manual Pages deployment, and release metadata that cannot expose an
   untrusted Mac binary.
+- A repository-owned native quality gate with 63 passing XCTest tests,
+  explicit `AgentOfficeCore` coverage floors, a clean Swift build, zero external
+  Swift packages, and non-regression ratchets for existing format, unused-code,
+  complexity, and duplication debt.
 
 ## Work queue
 

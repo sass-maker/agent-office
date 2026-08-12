@@ -1,0 +1,29 @@
+name: Native Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-office-native-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: astral-sh/setup-uv@v8.1.0
+      - name: Install Swift unused-code analyzer
+        run: brew install periphery
+      - name: Run native and site quality gates
+        run: node scripts/check-code-health.mjs all
