@@ -10,8 +10,9 @@
   directory.
 - Do not add cloud integrations, credentials, publishing, or infrastructure
   actions to the POC.
-- Run `swift test` before claiming behavior is complete and `swift build`
-  before claiming the app builds.
+- Run `node scripts/check-code-health.mjs all` before claiming repository work
+  is complete. It includes Swift tests, core coverage, build, formatting,
+  unused-code, complexity, duplication, dependency, suppression, hygiene, and
+  static-site checks. Use the focused subcommands for the smallest first check.
 - Preserve the distinction between employee identity, skills, execution
   environment, permissions, and the model powering the employee.
-

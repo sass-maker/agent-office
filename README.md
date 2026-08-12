@@ -45,6 +45,22 @@ The first launch creates a fresh Willow Studio organization under:
 Choose **company folder** in the app to create or reopen a different local
 organization. Selecting an empty folder seeds a fresh team.
 
+## Checks
+
+The full local and hosted gate covers the Swift test suite and core coverage,
+the native build, formatting, unused code, complexity, duplication, external
+dependencies, suppressions, repository hygiene, and the static site:
+
+```bash
+brew install periphery
+node scripts/check-code-health.mjs all
+```
+
+Existing measured debt is ratcheted so it cannot grow and is tracked in
+[#21](https://github.com/sass-maker/agent-office/issues/21). The executable UI
+target still needs direct coverage; the current coverage floor applies to
+`AgentOfficeCore` and is reported explicitly as such.
+
 ## What works
 
 - Start and end a workday without losing progress.

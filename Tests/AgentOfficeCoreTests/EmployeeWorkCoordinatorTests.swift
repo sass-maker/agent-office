@@ -26,7 +26,7 @@ final class EmployeeWorkCoordinatorTests: XCTestCase {
         XCTAssertFalse(duplicateEmployee)
         XCTAssertTrue(second)
         XCTAssertFalse(overCapacity)
-        try await Task.sleep(for: .milliseconds(180))
+        while await coordinator.activeCount > 0 { await Task.yield() }
         let activeCount = await coordinator.activeCount
         let peak = await probe.peak
         XCTAssertEqual(activeCount, 0)
