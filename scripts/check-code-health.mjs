@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import process from "node:process";
@@ -123,12 +123,25 @@ function checkBuild() {
 
 function checkUnused() {
   const scratch = mkdtempSync(join(tmpdir(), "agent-office-periphery-"));
-  run("swift", ["build", "--scratch-path", scratch]);
+  const requestedIndexStore = join(scratch, "index-store");
+  run("swift", [
+    "build",
+    "--scratch-path",
+    scratch,
+    "-Xswiftc",
+    "-index-store-path",
+    "-Xswiftc",
+    requestedIndexStore,
+  ]);
+  const indexStore = [requestedIndexStore, join(scratch, "out")].find(existsSync);
+  if (!indexStore) {
+    throw new Error("Swift build did not produce the requested Periphery index store.");
+  }
   const result = run("periphery", [
     "scan",
     "--skip-build",
     "--index-store-path",
-    join(scratch, "out"),
+    indexStore,
     "--format",
     "json",
     "--relative-results",
