@@ -78,7 +78,7 @@ function checkFormat() {
     .filter((line) => line.includes("error:")).length;
   log(`Swift format debt: ${diagnostics} diagnostics.`);
   // Ratcheted legacy debt: https://github.com/sass-maker/agent-office/issues/21
-  failRegressions("Swift format", { diagnostics }, { diagnostics: 17660 });
+  failRegressions("Swift format", { diagnostics }, { diagnostics: 0 });
 }
 
 function checkCoverage() {
@@ -187,7 +187,7 @@ function checkComplexity() {
   failRegressions("Complexity", observed, {
     violations: 42,
     maxCcn: 25,
-    maxLength: 356,
+    maxLength: 293,
     maxParams: 28,
   });
 }
@@ -225,9 +225,9 @@ function checkDuplication() {
   );
   // Ratcheted legacy debt: https://github.com/sass-maker/agent-office/issues/21
   failRegressions("Duplication", observed, {
-    clones: 15,
-    duplicatedLines: 158,
-    percentage: 0.9917147878483554,
+    clones: 14,
+    duplicatedLines: 154,
+    percentage: 0.8735110606920022,
   });
 }
 
