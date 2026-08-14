@@ -1,0 +1,38 @@
+{
+  "name": "Office OS",
+  "version": "1",
+  "url": "https://office-os.sassmaker.com",
+  "llms": "https://office-os.sassmaker.com/llms.txt",
+  "llmsFull": "https://office-os.sassmaker.com/llms-full.txt",
+  "sitemap": "https://office-os.sassmaker.com/sitemap.xml",
+  "robots": "https://office-os.sassmaker.com/robots.txt",
+  "markdown": {
+    "suffix": ".md",
+    "negotiation": true
+  },
+  "searchIntents": [
+    {
+      "id": "agent-office-brand",
+      "kind": "brand",
+      "query": "Office OS sassmaker"
+    },
+    {
+      "id": "agent-office-category",
+      "kind": "category",
+      "query": "local-first Mac workplace for AI employees"
+    }
+  ],
+  "surfaces": [
+    {
+      "id": "home",
+      "url": "https://office-os.sassmaker.com/",
+      "md": "https://office-os.sassmaker.com/index.md",
+      "kind": "static",
+      "description": "Product home"
+    }
+  ],
+  "auth": {
+    "public": true,
+    "notes": "Auth-walled app routes are not agent-indexed unless listed here."
+  }
+}

@@ -1,0 +1,46 @@
+# Office OS — full agent brief
+
+Local-first Mac workplace for named AI employees with bounded responsibilities, inspectable work, and owner supervision.
+
+## Index
+
+# Office OS
+
+A local-first Mac workplace for named AI employees.
+
+## What it is
+
+- Durable employees with bounded responsibilities
+- Inspectable local work and artifacts
+- Explicit owner supervision and permissions
+
+## Agent entrypoints
+
+- https://office-os.sassmaker.com/llms.txt
+- https://office-os.sassmaker.com/api/ai
+- https://office-os.sassmaker.com/index.md
+
+## Product links
+
+- Home: https://office-os.sassmaker.com/ — Product overview and workday
+- System: https://office-os.sassmaker.com/#system — Local-first system boundary
+- Privacy: https://office-os.sassmaker.com/#privacy — Data and external-request policy
+
+## Tracked search intents
+
+- [brand] agent-office-brand: Office OS sassmaker
+- [category] agent-office-category: local-first Mac workplace for AI employees
+
+## Machine surfaces
+
+- https://office-os.sassmaker.com/llms.txt
+- https://office-os.sassmaker.com/llms-full.txt
+- https://office-os.sassmaker.com/api/ai
+- https://office-os.sassmaker.com/index.md
+- https://office-os.sassmaker.com/sitemap.xml
+- https://office-os.sassmaker.com/robots.txt
+
+## Contact
+
+- Owner: https://sarthakagrawal.dev
+- Agent email for directory verification: sarthakagrawal@agentmail.to
