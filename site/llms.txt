@@ -1,0 +1,15 @@
+# Office OS
+
+> Local-first Mac workplace for named AI employees with bounded responsibilities, inspectable work, and owner supervision.
+
+## Product
+
+- [Home](https://office-os.sassmaker.com/): Product overview and workday
+- [System](https://office-os.sassmaker.com/#system): Local-first system boundary
+- [Privacy](https://office-os.sassmaker.com/#privacy): Data and external-request policy
+
+## Machine surfaces
+
+- [Agent catalog](https://office-os.sassmaker.com/api/ai): JSON inventory of public surfaces
+- [Homepage markdown](https://office-os.sassmaker.com/index.md): Product brief without JS
+- [This index](https://office-os.sassmaker.com/llms.txt)
