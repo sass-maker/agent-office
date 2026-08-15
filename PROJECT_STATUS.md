@@ -1,6 +1,6 @@
 # Agent Office — PROJECT STATUS
 
-Last updated: 2026-08-11
+Last updated: 2026-08-15
 
 ## Why / What
 
@@ -66,6 +66,26 @@ durable people-like collaborators whose execution remains bounded software.
 - 2026-08-11 — The informational site adopted
   `office-os.sassmaker.com` as its product-owned canonical hostname while
   retaining `office-os.pages.dev` as the Cloudflare provider origin.
+- 2026-08-15 — Consequential organization change moved onto one journalled
+  command boundary: typed commands with actor, correlation and idempotency,
+  an append-only local event journal beside the existing snapshot, deterministic
+  replay, and visible failure on corrupt history.
+- 2026-08-15 — Agent runtimes became employable through a provider-neutral
+  driver contract with durable bindings, normalized runtime events, resume
+  cursors, and named unavailable states. The demo and local Codex paths moved
+  behind it, and a missing Codex now reports itself instead of silently
+  producing demo work.
+- 2026-08-15 — Employee authority became enforceable at runtime: one broker
+  intersects runtime support, package boundaries, working contract, organization
+  grant, commitment scope, and review policy, contains the runtime until a
+  decision is recorded, and fails closed.
+- 2026-08-15 — Employees on different runtimes can complete one bounded,
+  permission-filtered consultation, and a runtime can propose a delegation
+  without moving accountability.
+- 2026-08-15 — Scheduled work gained durable occurrences, planned-versus-actual
+  timestamps, honest terminal states, and structured run receipts that keep a
+  quiet successful run distinct from a failure and from a run that never
+  started.
 
 ## Products
 
@@ -79,6 +99,29 @@ durable people-like collaborators whose execution remains bounded software.
   `office-os.pages.dev` provider origin remains available as a fallback.
 
 ## Features (shipped)
+
+- One journalled command boundary for consequential change, shared by the owner
+  UI and employee runtimes, with idempotent retries, an append-only
+  `journal.jsonl` history beside the existing snapshot, and deterministic replay
+  that fails visibly on truncated, duplicated, out-of-order, or unsupported
+  history.
+- A provider-neutral runtime driver contract: versioned kinds, declared
+  capabilities, secret-reference-only configuration, durable bindings separate
+  from employee identity, normalized runtime events with validated origins, and
+  isolated unavailable states that never substitute one runtime for another.
+- A runtime permission broker that enforces effective authority as the
+  intersection of every existing limit, supports once/occurrence/commitment
+  approvals with genuinely different lifetimes, refuses to let a provider
+  suggestion become policy, and fails closed on expiry, malformed requests,
+  unknown capabilities, and unrecordable decisions.
+- One-hop employee collaboration: a permission-filtered coworker directory,
+  bounded consultation run on the target's own runtime and contract, and
+  delegation proposals that are recorded for review without moving
+  accountability.
+- Employee schedule policies with duplicate-proof occurrences, planned-versus-
+  actual execution, and run receipts that record what ran, for how long, on
+  which runtime, with what evidence, and whether usage was observed, unknown,
+  or not applicable.
 
 - A native SwiftUI and SpriteKit organization home with a cosy, authored
   monochrome editorial office, a human owner, a paired executive assistant,
