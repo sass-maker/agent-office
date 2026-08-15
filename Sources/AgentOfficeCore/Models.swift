@@ -446,6 +446,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
   public var scheduledOccurrences: [ScheduledOccurrence]
   public var runReceipts: [RunReceipt]
   public var runtimeSessions: [RuntimeSessionPresence]
+  public var resourceLeases: [ResourceLease]
 
   public init(
     productBrief: String,
@@ -468,7 +469,8 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     schedulePolicies: [SchedulePolicy] = [],
     scheduledOccurrences: [ScheduledOccurrence] = [],
     runReceipts: [RunReceipt] = [],
-    runtimeSessions: [RuntimeSessionPresence] = []
+    runtimeSessions: [RuntimeSessionPresence] = [],
+    resourceLeases: [ResourceLease] = []
   ) {
     self.productBrief = productBrief
     self.profile = profile
@@ -491,6 +493,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     self.scheduledOccurrences = scheduledOccurrences
     self.runReceipts = runReceipts
     self.runtimeSessions = runtimeSessions
+    self.resourceLeases = resourceLeases
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -515,6 +518,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     case scheduledOccurrences
     case runReceipts
     case runtimeSessions
+    case resourceLeases
   }
 
   public init(from decoder: Decoder) throws {
@@ -559,6 +563,8 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     runReceipts = try container.decodeIfPresent([RunReceipt].self, forKey: .runReceipts) ?? []
     runtimeSessions =
       try container.decodeIfPresent([RuntimeSessionPresence].self, forKey: .runtimeSessions) ?? []
+    resourceLeases =
+      try container.decodeIfPresent([ResourceLease].self, forKey: .resourceLeases) ?? []
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -584,6 +590,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     try container.encode(scheduledOccurrences, forKey: .scheduledOccurrences)
     try container.encode(runReceipts, forKey: .runReceipts)
     try container.encode(runtimeSessions, forKey: .runtimeSessions)
+    try container.encode(resourceLeases, forKey: .resourceLeases)
   }
 }
 

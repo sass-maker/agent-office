@@ -1,13 +1,18 @@
 import Foundation
 
-/// A durable thing an event concerns, so history can be read by entity without
-/// decoding every payload.
+/// A durable thing in the organization, named by kind and identifier.
+///
+/// One type for both purposes: history reads by entity, and leases are held
+/// over the same entities. Two near-identical reference types would drift.
 public struct OrganizationEntityReference: Codable, Sendable, Equatable, Hashable {
   public enum Kind: String, Codable, Sendable {
     case employee
     case commitment
     case task
     case artifact
+    case record
+    case connection
+    case workspace
   }
 
   public var kind: Kind
@@ -22,7 +27,13 @@ public struct OrganizationEntityReference: Codable, Sendable, Equatable, Hashabl
   public static func commitment(_ id: String) -> Self { .init(kind: .commitment, id: id) }
   public static func task(_ id: String) -> Self { .init(kind: .task, id: id) }
   public static func artifact(_ id: String) -> Self { .init(kind: .artifact, id: id) }
+  public static func record(_ id: String) -> Self { .init(kind: .record, id: id) }
+  public static func connection(_ id: String) -> Self { .init(kind: .connection, id: id) }
+  public static func workspace(_ id: String) -> Self { .init(kind: .workspace, id: id) }
 }
+
+/// The same durable things, named as leases talk about them.
+public typealias OrganizationResource = OrganizationEntityReference
 
 /// One accepted organization transition.
 ///
