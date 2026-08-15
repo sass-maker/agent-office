@@ -16,3 +16,6 @@
   static-site checks. Use the focused subcommands for the smallest first check.
 - Preserve the distinction between employee identity, skills, execution
   environment, permissions, and the model powering the employee.
+- Read `docs/runtime-drivers.md` before changing the driver contract, runtime
+  events, bindings, or the permission broker. It records the three evidence
+  layers and what a runtime may never do.
