@@ -57,7 +57,7 @@ public actor RuntimeCapabilityBroker {
   /// request is denied and no approval is retained.
   public typealias ReceiptRecorder =
     @Sendable (RuntimeAccessRequest, RuntimeAccessResolution)
-    throws -> Void
+    async throws -> Void
 
   private let evaluator = RuntimeAuthorityEvaluator()
   private let recorder: ReceiptRecorder
@@ -85,22 +85,22 @@ public actor RuntimeCapabilityBroker {
     organization: OrganizationState,
     runtimeCapabilities: Set<RuntimeCapability>,
     now: Date = Date()
-  ) -> Outcome {
+  ) async -> Outcome {
     // A repeated request identifier can never produce a second effect.
     if let existing = resolutions[request.id] { return outcome(for: existing) }
     if pending[request.id] != nil { return .awaitingOwner(requestID: request.id) }
 
     if let approval = approvals.first(where: { $0.covers(request) }) {
-      return record(request, .allowed(scope: approval.scope))
+      return await record(request, .allowed(scope: approval.scope))
     }
 
     switch evaluator.evaluate(
       request, organization: organization, runtimeCapabilities: runtimeCapabilities, now: now)
     {
     case .refused(_, let reason):
-      return record(request, .denied(reason: reason))
+      return await record(request, .denied(reason: reason))
     case .permitted:
-      return record(request, .allowed(scope: .once))
+      return await record(request, .allowed(scope: .once))
     case .requiresOwnerDecision:
       pending[request.id] = request
       return .awaitingOwner(requestID: request.id)
@@ -117,7 +117,7 @@ public actor RuntimeCapabilityBroker {
     with resolution: RuntimeAccessResolution,
     actor: OrganizationActor,
     now: Date = Date()
-  ) throws -> RuntimeAccessResolution {
+  ) async throws -> RuntimeAccessResolution {
     if let existing = resolutions[requestID] { return existing }
     guard actor.isOwner else { throw RuntimeBrokerError.notOwner }
     guard let request = pending[requestID] else {
@@ -133,7 +133,7 @@ public actor RuntimeCapabilityBroker {
       settled = .denied(reason: "This request expired before it was answered.")
     }
     do {
-      try recorder(request, settled)
+      try await recorder(request, settled)
     } catch {
       // Fail closed: an unrecorded decision is not a decision.
       let denial = RuntimeAccessResolution.denied(
@@ -162,11 +162,11 @@ public actor RuntimeCapabilityBroker {
   }
 
   /// Expires anything past its deadline, denying rather than leaving it open.
-  public func expirePending(now: Date = Date()) {
+  public func expirePending(now: Date = Date()) async {
     for (id, request) in pending where request.hasExpired(at: now) {
       let denial = RuntimeAccessResolution.denied(
         reason: "This request expired before it was answered.")
-      try? recorder(request, denial)
+      try? await recorder(request, denial)
       pending[id] = nil
       resolutions[id] = denial
     }
@@ -218,9 +218,9 @@ public actor RuntimeCapabilityBroker {
 
   private func record(
     _ request: RuntimeAccessRequest, _ resolution: RuntimeAccessResolution
-  ) -> Outcome {
+  ) async -> Outcome {
     do {
-      try recorder(request, resolution)
+      try await recorder(request, resolution)
     } catch {
       let denial = RuntimeAccessResolution.denied(
         reason: "The decision could not be recorded, so access was refused.")

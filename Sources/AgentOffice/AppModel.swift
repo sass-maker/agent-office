@@ -15,11 +15,29 @@ final class AppModel: ObservableObject {
   private var store: LocalOrganizationStore
   private let employeeOutcomeEngine = EmployeeOutcomeEngine()
   private let runtimeRegistry = RuntimeDriverRegistry.builtIn()
+  private let runtimeBroker: RuntimeCapabilityBroker
+  /// Runtime requests waiting on the owner. Empty unless a runtime has asked
+  /// for authority it does not already hold.
+  @Published private(set) var pendingRuntimeRequests: [RuntimeAccessRequest] = []
   private let employeeWorkCoordinator = EmployeeWorkCoordinator(concurrencyLimit: 2)
   private var workTask: Task<Void, Never>?
 
   init() {
-    store = LocalOrganizationStore(rootURL: Self.defaultOrganizationURL)
+    let store = LocalOrganizationStore(rootURL: Self.defaultOrganizationURL)
+    self.store = store
+    // A decision only counts once it is organization history. If the journal
+    // refuses the write, the broker denies — the same fail-closed path its
+    // tests cover, now with a real failure mode behind it.
+    runtimeBroker = RuntimeCapabilityBroker(recorder: { request, resolution in
+      let command = OrganizationCommand(
+        actor: .owner(id: "owner"),
+        payload: .recordRuntimeDecision(
+          RuntimeDecisionReceipt(request: request, resolution: resolution)),
+        idempotencyKey: "runtime-decision:\(request.id)"
+      )
+      let current = try await store.loadOrCreate()
+      _ = try await store.submit(command, to: current)
+    })
   }
 
   deinit {
@@ -695,6 +713,28 @@ final class AppModel: ObservableObject {
     }
   }
 
+  // MARK: - Runtime authority
+
+  /// Refreshes what the runtime broker is waiting on, expiring anything past
+  /// its deadline rather than leaving it open.
+  func refreshPendingRuntimeRequests() async {
+    await runtimeBroker.expirePending()
+    pendingRuntimeRequests = await runtimeBroker.pendingRequests()
+  }
+
+  /// Settles a runtime request. Only the owner reaches this path.
+  func resolveRuntimeRequest(_ requestID: String, with resolution: RuntimeAccessResolution) async {
+    do {
+      _ = try await runtimeBroker.resolve(
+        requestID: requestID, with: resolution, actor: .owner(id: "owner"))
+      lastError = nil
+    } catch {
+      lastError = error.localizedDescription
+    }
+    pendingRuntimeRequests = await runtimeBroker.pendingRequests()
+    if let reloaded = try? await store.loadOrCreate() { organization = reloaded }
+  }
+
   func retryEmployeeOutcome(_ outcomeID: String) {
     guard workTask == nil, organization.workdayStatus != .active,
       organization.activeResearchAssignment == nil, !isCustomerVoiceRunning,
@@ -1104,6 +1144,7 @@ final class AppModel: ObservableObject {
     let store = self.store
     let outcomeEngine = self.employeeOutcomeEngine
     let registry = self.runtimeRegistry
+    let broker = self.runtimeBroker
     let binding = organization.effectiveRuntimeBinding(for: request.employeeID)
     let submitted = await employeeWorkCoordinator.submit(
       request,
@@ -1126,7 +1167,15 @@ final class AppModel: ObservableObject {
             commitmentID: request.outcomeID,
             correlationID: request.outcomeID
           )
-          return try await outcomeEngine.execute(request, runner: runner, store: store)
+          // Work receives what the broker authorizes now, not the employee's
+          // whole grant list.
+          let authorized = await broker.authorizedCapabilities(
+            employeeID: request.employeeID,
+            commitmentID: request.outcomeID,
+            organization: request.organization
+          )
+          return try await outcomeEngine.execute(
+            request, runner: runner, store: store, authorizedCapabilities: authorized)
         }
       },
       completion: { [weak self] result in

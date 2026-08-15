@@ -489,3 +489,148 @@ final class RuntimeCapabilityBrokerTests: XCTestCase {
     XCTAssertEqual(entries.first?.1, .allowed(scope: .once))
   }
 }
+
+/// The broker is only an enforcement point if what it authorizes is what work
+/// actually receives, and if its decisions become organization history.
+final class RuntimeBrokerWiringTests: XCTestCase {
+  private func hiredOrganization() -> OrganizationState {
+    var state = LocalOrganizationStore.migrated(
+      .seeded(now: Date(timeIntervalSince1970: 1_000)), now: Date(timeIntervalSince1970: 1_000))
+    for index in state.employees.indices where state.employees[index].kind == .ai {
+      state.employees[index].employmentState = .hired
+    }
+    return state
+  }
+
+  func testGrantOutsideTheCommitmentDoesNotReachTheAuthorizedSet() async throws {
+    var state = hiredOrganization()
+    let commitmentID = try state.createEmployeeOutcome(
+      employeeID: "theo", outcome: "Draft", context: "")
+    // Granted at the organization level but absent from the working contract.
+    if let index = state.employees.firstIndex(where: { $0.id == "theo" }) {
+      state.employees[index].capabilityGrants = ["web-research", "publishing"]
+    }
+    let broker = RuntimeCapabilityBroker()
+
+    let authorized = await broker.authorizedCapabilities(
+      employeeID: "theo", commitmentID: commitmentID, organization: state)
+
+    XCTAssertFalse(authorized.contains("publishing"))
+  }
+
+  func testDecisionIsRecordedThroughTheCommandBoundary() async throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+      .appendingPathComponent("agent-office-wiring-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let journal = OrganizationJournal(
+      fileURL: directory.appendingPathComponent("journal.jsonl"))
+    let processor = OrganizationCommandProcessor(journal: journal)
+    var state = hiredOrganization()
+    let commitmentID = try state.createEmployeeOutcome(
+      employeeID: "theo", outcome: "Draft", context: "")
+
+    let request = RuntimeAccessRequest(
+      id: "request-1",
+      origin: RuntimeAccessOrigin(
+        employeeID: "theo", bindingID: "binding-theo", sessionID: "session-1",
+        commitmentID: commitmentID),
+      need: .capability(id: "web-research", action: "search"),
+      context: RuntimeAccessContext(inputSummary: "call with api_key=sk-live-abcdefgh")
+    )
+    let command = OrganizationCommand(
+      actor: .owner(id: "owner"),
+      payload: .recordRuntimeDecision(
+        RuntimeDecisionReceipt(request: request, resolution: .allowed(scope: .once))),
+      idempotencyKey: "runtime-decision:request-1"
+    )
+    _ = try processor.submit(command, to: &state)
+
+    let events = try journal.events()
+    XCTAssertEqual(events.map(\.type), ["runtime.decision-recorded"])
+    XCTAssertEqual(events[0].actor, .owner(id: "owner"))
+    XCTAssertTrue(events[0].references(.employee("theo")))
+    XCTAssertTrue(events[0].references(.commitment(commitmentID)))
+    XCTAssertFalse(
+      String(describing: events[0].payload).contains("sk-live-abcdefgh"),
+      "a credential must never reach organization history")
+  }
+
+  func testRuntimeCannotRecordItsOwnDecision() async throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+      .appendingPathComponent("agent-office-wiring-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let journal = OrganizationJournal(
+      fileURL: directory.appendingPathComponent("journal.jsonl"))
+    let processor = OrganizationCommandProcessor(journal: journal)
+    var state = hiredOrganization()
+    let commitmentID = try state.createEmployeeOutcome(
+      employeeID: "theo", outcome: "Draft", context: "")
+
+    let request = RuntimeAccessRequest(
+      id: "request-2",
+      origin: RuntimeAccessOrigin(
+        employeeID: "theo", bindingID: "binding-theo", sessionID: "session-1",
+        commitmentID: commitmentID),
+      need: .capability(id: "web-research", action: "search")
+    )
+    let command = OrganizationCommand(
+      actor: .employeeRuntime(employeeID: "theo", sessionID: "session-1"),
+      payload: .recordRuntimeDecision(
+        RuntimeDecisionReceipt(request: request, resolution: .allowed(scope: .commitment))),
+      idempotencyKey: "runtime-decision:request-2"
+    )
+
+    XCTAssertThrowsError(try processor.submit(command, to: &state)) { error in
+      XCTAssertEqual(
+        error as? OrganizationCommandError,
+        .unauthorizedActor(actor: "theo", commandType: "runtime.decision-recorded"))
+    }
+    XCTAssertEqual(try journal.events().count, 0)
+  }
+
+  func testWorkReceivesTheAuthorizedSetRatherThanEveryGrant() async throws {
+    var state = hiredOrganization()
+    if let index = state.employees.firstIndex(where: { $0.id == "theo" }) {
+      state.employees[index].capabilityGrants = ["web-research", "publishing"]
+    }
+
+    // The engine honours an explicitly authorized set when one is supplied.
+    let engine = EmployeeOutcomeEngine()
+    let outcomeID = try state.createEmployeeOutcome(
+      employeeID: "theo", outcome: "Draft", context: "")
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+      .appendingPathComponent("agent-office-engine-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = LocalOrganizationStore(rootURL: directory)
+    state = engine.start(state, outcomeID: outcomeID)
+
+    let recording = RecordingRunner()
+    _ = await engine.run(
+      state, outcomeID: outcomeID, runner: recording, store: store,
+      authorizedCapabilities: ["web-research"])
+
+    let seen = await recording.grantsSeen()
+    XCTAssertFalse(seen.isEmpty, "the runner should have been asked for work")
+    XCTAssertTrue(seen.allSatisfy { $0 == ["web-research"] })
+  }
+}
+
+private actor RecordingRunner: EmployeeRunner {
+  private var grants: [[String]] = []
+
+  func grantsSeen() -> [[String]] { grants }
+
+  nonisolated func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
+    await record(request.capabilityGrants)
+    return EmployeeWorkOutput(
+      title: "Draft", summary: "Done", content: "Content",
+      proposedTasks: [
+        EmployeeTaskProposal(
+          title: "Write it", detail: "Write the note", kind: .draft, skillIDs: ["communication"])
+      ],
+      selectedSkillIDs: ["communication"]
+    )
+  }
+
+  private func record(_ capabilityGrants: [String]) { grants.append(capabilityGrants) }
+}

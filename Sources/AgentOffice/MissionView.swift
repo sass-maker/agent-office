@@ -29,6 +29,7 @@ struct MissionView: View {
         VStack(spacing: 0) {
           missionHeader(compact: compact)
           missionControls(compact: compact)
+          runtimeRequestQueue(compact: compact)
           outcomeLedger(compact: compact)
           taskList(compact: compact)
         }
@@ -51,6 +52,7 @@ struct MissionView: View {
     }
     .background(EditorialOfficeTheme.workingField.ignoresSafeArea())
     .foregroundStyle(EditorialOfficeTheme.ink)
+    .task { await model.refreshPendingRuntimeRequests() }
     .onAppear {
       missionDraft = model.organization.outcome
       selectedTaskID = preferredTask?.id
@@ -134,6 +136,89 @@ struct MissionView: View {
       Text(
         "The employee's plan, completed tickets, deliveries, and activity will remain in the organization history."
       )
+    }
+  }
+
+  /// Runtime requests waiting on the owner.
+  ///
+  /// Sits above the commitment ledger because a paused runtime is the most
+  /// time-sensitive thing on this surface: work is stopped until it is answered.
+  @ViewBuilder
+  private func runtimeRequestQueue(compact: Bool) -> some View {
+    if !model.pendingRuntimeRequests.isEmpty {
+      VStack(alignment: .leading, spacing: 0) {
+        HStack {
+          Label("Waiting on you", systemImage: "hand.raised")
+            .font(.headline)
+            .labelStyle(.titleAndIcon)
+          Text("\(model.pendingRuntimeRequests.count) paused")
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(EditorialOfficeTheme.graphite)
+          Spacer()
+        }
+        .padding(.horizontal, compact ? 24 : 38)
+        .padding(.vertical, 11)
+
+        ForEach(model.pendingRuntimeRequests) { request in
+          runtimeRequestRow(request, compact: compact)
+        }
+      }
+      .background(EditorialOfficeTheme.attention.opacity(0.10))
+      .overlay(alignment: .bottom) {
+        Rectangle().fill(EditorialOfficeTheme.rule.opacity(0.75)).frame(height: 1)
+      }
+    }
+  }
+
+  private func runtimeRequestRow(_ request: RuntimeAccessRequest, compact: Bool) -> some View {
+    let employee = model.organization.employee(request.origin.employeeID)
+    return VStack(alignment: .leading, spacing: 8) {
+      Text(runtimeRequestTitle(request, employeeName: employee?.name))
+        .font(.callout.weight(.medium))
+        .fixedSize(horizontal: false, vertical: true)
+
+      if !request.inputSummary.isEmpty {
+        Text(request.inputSummary)
+          .font(.caption)
+          .foregroundStyle(EditorialOfficeTheme.graphite)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      HStack(spacing: 8) {
+        Button("Allow once") {
+          Task { await model.resolveRuntimeRequest(request.id, with: .allowed(scope: .once)) }
+        }
+        .buttonStyle(.borderedProminent)
+        Button("Allow for this commitment") {
+          Task { await model.resolveRuntimeRequest(request.id, with: .allowed(scope: .commitment)) }
+        }
+        .buttonStyle(.bordered)
+        Button("Refuse") {
+          Task {
+            await model.resolveRuntimeRequest(
+              request.id, with: .denied(reason: "You refused this request."))
+          }
+        }
+        .buttonStyle(.bordered)
+        Spacer(minLength: 0)
+      }
+      .font(.caption)
+      .controlSize(.small)
+    }
+    .padding(.horizontal, compact ? 24 : 38)
+    .padding(.bottom, 12)
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel(runtimeRequestTitle(request, employeeName: employee?.name))
+  }
+
+  private func runtimeRequestTitle(_ request: RuntimeAccessRequest, employeeName: String?) -> String
+  {
+    let name = employeeName ?? request.origin.employeeID
+    switch request.need {
+    case .capability(let id, let action):
+      return "\(name) is paused, asking to use \(id) to \(action)."
+    case .question(let prompt):
+      return "\(name) is paused, asking: \(prompt)"
     }
   }
 

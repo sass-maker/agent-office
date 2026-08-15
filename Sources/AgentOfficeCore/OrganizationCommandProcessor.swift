@@ -98,6 +98,20 @@ public struct OrganizationCommandProcessor: Sendable {
     return try replay(from: snapshot, events: events)
   }
 
+  private static func decisionMessage(_ receipt: RuntimeDecisionReceipt) -> String {
+    let subject = receipt.capabilityID ?? "a question"
+    switch receipt.resolution {
+    case .allowed(let scope):
+      return "You allowed \(subject) for \(receipt.employeeID) (\(scope.rawValue))."
+    case .denied(let reason):
+      return "You refused \(subject) for \(receipt.employeeID): \(reason)"
+    case .answered:
+      return "You answered \(receipt.employeeID)'s question."
+    case .contractRevisionRequested:
+      return "\(receipt.employeeID) needs a working-contract revision for \(subject)."
+    }
+  }
+
   // MARK: - Authority
 
   private static func authorize(_ command: OrganizationCommand) throws {
@@ -115,6 +129,12 @@ public struct OrganizationCommandProcessor: Sendable {
       guard employeeID == result.employeeID else {
         throw OrganizationCommandError.actorMismatch(
           claimed: employeeID, actual: result.employeeID)
+      }
+    case .recordRuntimeDecision:
+      // Only the owner settles authority. A runtime cannot approve itself.
+      guard command.actor.isOwner else {
+        throw OrganizationCommandError.unauthorizedActor(
+          actor: command.actor.id, commandType: command.payload.eventType)
       }
     }
   }
@@ -156,6 +176,22 @@ public struct OrganizationCommandProcessor: Sendable {
       entities.append(contentsOf: result.tasks.map { .task($0.id) })
       entities.append(contentsOf: result.artifacts.map { .artifact($0.id) })
       return Application(producedIDs: [], entities: entities)
+
+    case .recordRuntimeDecision(let receipt):
+      // The decision is history, not a state mutation: authority itself lives
+      // in contracts and grants, which this deliberately does not touch.
+      state.activity.append(
+        Activity(
+          id: "runtime-decision-\(receipt.requestID)",
+          actorID: "owner",
+          kind: .approved,
+          message: Self.decisionMessage(receipt),
+          createdAt: now
+        ))
+      return Application(
+        producedIDs: [],
+        entities: [.employee(receipt.employeeID), .commitment(receipt.commitmentID)]
+      )
     }
   }
 }

@@ -165,3 +165,26 @@ public enum RuntimeSecretRedaction {
     return result
   }
 }
+
+/// The sanitized record of one runtime decision, written to organization
+/// history through the command boundary.
+public struct RuntimeDecisionReceipt: Codable, Sendable, Equatable {
+  public var requestID: String
+  public var employeeID: String
+  public var commitmentID: String
+  public var sessionID: String
+  public var capabilityID: String?
+  /// Sanitized. The request's redaction already applied.
+  public var detail: String
+  public var resolution: RuntimeAccessResolution
+
+  public init(request: RuntimeAccessRequest, resolution: RuntimeAccessResolution) {
+    self.requestID = request.id
+    self.employeeID = request.origin.employeeID
+    self.commitmentID = request.origin.commitmentID
+    self.sessionID = request.origin.sessionID
+    self.capabilityID = request.need.capabilityID
+    self.detail = request.inputSummary
+    self.resolution = resolution
+  }
+}

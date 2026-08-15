@@ -183,11 +183,12 @@ extension EmployeeOutcomeEngine {
     _ request: EmployeeOutcomeRunRequest,
     runner: any EmployeeRunner,
     store: LocalOrganizationStore,
-    now: Date = Date()
+    now: Date = Date(),
+    authorizedCapabilities: Set<String>? = nil
   ) async throws -> EmployeeOutcomeRunResult {
     let result = await run(
       request.organization, outcomeID: request.outcomeID, runner: runner, store: store, now: now,
-      persistsTransitions: false)
+      persistsTransitions: false, authorizedCapabilities: authorizedCapabilities)
     if Task.isCancelled { throw CancellationError() }
     return try EmployeeOutcomeRunResult(
       request: request, initial: request.organization, result: result)
