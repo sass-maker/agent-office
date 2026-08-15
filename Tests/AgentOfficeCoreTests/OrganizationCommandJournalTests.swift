@@ -511,3 +511,113 @@ final class SupervisionCommandTests: XCTestCase {
     XCTAssertEqual(try journal().events().count, 0)
   }
 }
+
+/// Who works here is as consequential as what they are working on.
+final class EmploymentCommandTests: XCTestCase {
+  private var directory = URL(fileURLWithPath: "/tmp")
+  private let now = Date(timeIntervalSince1970: 5_000)
+
+  override func setUpWithError() throws {
+    try super.setUpWithError()
+    directory = URL(fileURLWithPath: NSTemporaryDirectory())
+      .appendingPathComponent("agent-office-employment-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  }
+
+  override func tearDownWithError() throws {
+    try? FileManager.default.removeItem(at: directory)
+    try super.tearDownWithError()
+  }
+
+  private func journal() -> OrganizationJournal {
+    OrganizationJournal(fileURL: directory.appendingPathComponent("journal.jsonl"))
+  }
+
+  private func hiredOrganization() -> OrganizationState {
+    var state = LocalOrganizationStore.migrated(
+      .seeded(now: Date(timeIntervalSince1970: 1_000)), now: Date(timeIntervalSince1970: 1_000))
+    for index in state.employees.indices where state.employees[index].kind == .ai {
+      state.employees[index].employmentState = .hired
+    }
+    return state
+  }
+
+  private func command(_ decision: EmploymentDecision, id: String = "command-1")
+    -> OrganizationCommand
+  {
+    OrganizationCommand(
+      id: id,
+      actor: .owner(id: "owner"),
+      payload: .decideEmployment(decision),
+      idempotencyKey: "employment-\(id)",
+      issuedAt: now
+    )
+  }
+
+  func testPausingIsJournalledAgainstTheEmployee() throws {
+    var state = hiredOrganization()
+    let processor = OrganizationCommandProcessor(journal: journal())
+
+    _ = try processor.submit(command(.pause(employeeID: "theo")), to: &state)
+
+    XCTAssertEqual(state.employee("theo")?.effectiveEmploymentState, .paused)
+    let events = try journal().events()
+    XCTAssertEqual(events.map(\.type), ["employment.paused"])
+    XCTAssertTrue(events[0].references(.employee("theo")))
+  }
+
+  func testARuntimeCannotChangeEmployment() throws {
+    var state = hiredOrganization()
+    let processor = OrganizationCommandProcessor(journal: journal())
+    let escalation = OrganizationCommand(
+      actor: .employeeRuntime(employeeID: "theo", sessionID: "session-1"),
+      payload: .decideEmployment(.retire(employeeID: "nia")),
+      idempotencyKey: "escalation-1"
+    )
+
+    XCTAssertThrowsError(try processor.submit(escalation, to: &state)) { error in
+      XCTAssertEqual(
+        error as? OrganizationCommandError,
+        .unauthorizedActor(actor: "theo", commandType: "employment.retired"))
+    }
+    XCTAssertEqual(state.employee("nia")?.effectiveEmploymentState, .hired)
+    XCTAssertEqual(try journal().events().count, 0)
+  }
+
+  func testAnEmploymentDecisionReplaysToTheSameState() throws {
+    var state = hiredOrganization()
+    let snapshot = state
+    let processor = OrganizationCommandProcessor(journal: journal())
+
+    _ = try processor.submit(command(.pause(employeeID: "theo")), to: &state)
+    _ = try processor.submit(
+      command(.resume(employeeID: "theo"), id: "command-2"), to: &state)
+    let replayed = try processor.replay(from: snapshot, events: journal().events())
+
+    XCTAssertEqual(replayed, state)
+  }
+
+  func testARepeatedEmploymentDecisionAppliesOnce() throws {
+    var state = hiredOrganization()
+    let processor = OrganizationCommandProcessor(journal: journal())
+
+    _ = try processor.submit(command(.pause(employeeID: "theo")), to: &state)
+    let supervisionCount = state.supervisionEvents.count
+    let second = try processor.submit(command(.pause(employeeID: "theo")), to: &state)
+
+    XCTAssertTrue(second.wasAlreadyApplied)
+    XCTAssertEqual(state.supervisionEvents.count, supervisionCount)
+    XCTAssertEqual(try journal().events().count, 1)
+  }
+
+  func testARejectedEmploymentDecisionLeavesNoHistory() throws {
+    var state = hiredOrganization()
+    let processor = OrganizationCommandProcessor(journal: journal())
+    let before = state
+
+    XCTAssertThrowsError(
+      try processor.submit(command(.pause(employeeID: "nobody")), to: &state))
+    XCTAssertEqual(state, before)
+    XCTAssertEqual(try journal().events().count, 0)
+  }
+}

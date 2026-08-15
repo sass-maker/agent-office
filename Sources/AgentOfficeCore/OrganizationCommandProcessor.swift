@@ -130,7 +130,7 @@ public struct OrganizationCommandProcessor: Sendable {
         throw OrganizationCommandError.actorMismatch(
           claimed: employeeID, actual: result.employeeID)
       }
-    case .recordRuntimeDecision, .superviseCommitment:
+    case .recordRuntimeDecision, .superviseCommitment, .decideEmployment:
       // Supervision and authority are the owner's. A runtime cannot approve
       // itself, accept its own delivery, or answer its own help request.
       guard command.actor.isOwner else {
@@ -200,6 +200,14 @@ public struct OrganizationCommandProcessor: Sendable {
       var entities: [OrganizationEntityReference] = [.commitment(decision.commitmentID)]
       if let assigneeID { entities.append(.employee(assigneeID)) }
       return Application(producedIDs: [], entities: entities)
+
+    case .decideEmployment(let decision):
+      let produced = try state.apply(decision, now: now)
+      let employeeIDs = (produced + [decision.employeeID].compactMap { $0 })
+      return Application(
+        producedIDs: produced,
+        entities: employeeIDs.map { .employee($0) }
+      )
     }
   }
 }
