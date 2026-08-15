@@ -65,6 +65,39 @@ public actor LocalOrganizationStore {
     rootURL.appendingPathComponent("SUPERVISION.md", isDirectory: false)
   }
 
+  public nonisolated var journalFileURL: URL {
+    rootURL.appendingPathComponent("journal.jsonl", isDirectory: false)
+  }
+
+  /// The append-only history for this organization.
+  public nonisolated var journal: OrganizationJournal {
+    OrganizationJournal(fileURL: journalFileURL)
+  }
+
+  /// Applies a command through the shared organization boundary, records it,
+  /// and persists the resulting snapshot.
+  ///
+  /// Journal reads and writes are file work, so they belong on the store actor
+  /// rather than on the main actor driving the UI.
+  public func submit(
+    _ command: OrganizationCommand,
+    to state: OrganizationState
+  ) throws -> (state: OrganizationState, result: OrganizationCommandResult) {
+    var updated = state
+    let result = try OrganizationCommandProcessor(journal: journal).submit(command, to: &updated)
+    if !result.wasAlreadyApplied {
+      try save(updated)
+    }
+    return (updated, result)
+  }
+
+  /// Rebuilds organization state from the current snapshot plus everything the
+  /// journal recorded after it. Used to verify history, not to serve reads.
+  public func replayFromJournal(startingAt snapshot: OrganizationState) throws -> OrganizationState
+  {
+    try OrganizationCommandProcessor(journal: journal).replayFromJournal(startingAt: snapshot)
+  }
+
   public nonisolated var feedbackInboxURL: URL {
     rootURL.appendingPathComponent("feedback-inbox", isDirectory: true)
   }
