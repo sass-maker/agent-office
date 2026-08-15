@@ -442,6 +442,9 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
   public var contractChanges: [ContractChange]
   public var supervisionEvents: [SupervisionEvent]
   public var runtimeBindings: [RuntimeBinding]
+  public var schedulePolicies: [SchedulePolicy]
+  public var scheduledOccurrences: [ScheduledOccurrence]
+  public var runReceipts: [RunReceipt]
 
   public init(
     productBrief: String,
@@ -460,7 +463,10 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     workingContracts: [WorkingContract] = [],
     contractChanges: [ContractChange] = [],
     supervisionEvents: [SupervisionEvent] = [],
-    runtimeBindings: [RuntimeBinding] = []
+    runtimeBindings: [RuntimeBinding] = [],
+    schedulePolicies: [SchedulePolicy] = [],
+    scheduledOccurrences: [ScheduledOccurrence] = [],
+    runReceipts: [RunReceipt] = []
   ) {
     self.productBrief = productBrief
     self.profile = profile
@@ -479,6 +485,9 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     self.contractChanges = contractChanges
     self.supervisionEvents = supervisionEvents
     self.runtimeBindings = runtimeBindings
+    self.schedulePolicies = schedulePolicies
+    self.scheduledOccurrences = scheduledOccurrences
+    self.runReceipts = runReceipts
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -499,6 +508,9 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     case contractChanges
     case supervisionEvents
     case runtimeBindings
+    case schedulePolicies
+    case scheduledOccurrences
+    case runReceipts
   }
 
   public init(from decoder: Decoder) throws {
@@ -536,6 +548,11 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
       try container.decodeIfPresent([SupervisionEvent].self, forKey: .supervisionEvents) ?? []
     runtimeBindings =
       try container.decodeIfPresent([RuntimeBinding].self, forKey: .runtimeBindings) ?? []
+    schedulePolicies =
+      try container.decodeIfPresent([SchedulePolicy].self, forKey: .schedulePolicies) ?? []
+    scheduledOccurrences =
+      try container.decodeIfPresent([ScheduledOccurrence].self, forKey: .scheduledOccurrences) ?? []
+    runReceipts = try container.decodeIfPresent([RunReceipt].self, forKey: .runReceipts) ?? []
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -557,6 +574,9 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     try container.encode(contractChanges, forKey: .contractChanges)
     try container.encode(supervisionEvents, forKey: .supervisionEvents)
     try container.encode(runtimeBindings, forKey: .runtimeBindings)
+    try container.encode(schedulePolicies, forKey: .schedulePolicies)
+    try container.encode(scheduledOccurrences, forKey: .scheduledOccurrences)
+    try container.encode(runReceipts, forKey: .runReceipts)
   }
 }
 
