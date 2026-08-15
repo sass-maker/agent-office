@@ -445,6 +445,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
   public var schedulePolicies: [SchedulePolicy]
   public var scheduledOccurrences: [ScheduledOccurrence]
   public var runReceipts: [RunReceipt]
+  public var runtimeSessions: [RuntimeSessionPresence]
 
   public init(
     productBrief: String,
@@ -466,7 +467,8 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     runtimeBindings: [RuntimeBinding] = [],
     schedulePolicies: [SchedulePolicy] = [],
     scheduledOccurrences: [ScheduledOccurrence] = [],
-    runReceipts: [RunReceipt] = []
+    runReceipts: [RunReceipt] = [],
+    runtimeSessions: [RuntimeSessionPresence] = []
   ) {
     self.productBrief = productBrief
     self.profile = profile
@@ -488,6 +490,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     self.schedulePolicies = schedulePolicies
     self.scheduledOccurrences = scheduledOccurrences
     self.runReceipts = runReceipts
+    self.runtimeSessions = runtimeSessions
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -511,6 +514,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     case schedulePolicies
     case scheduledOccurrences
     case runReceipts
+    case runtimeSessions
   }
 
   public init(from decoder: Decoder) throws {
@@ -553,6 +557,8 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     scheduledOccurrences =
       try container.decodeIfPresent([ScheduledOccurrence].self, forKey: .scheduledOccurrences) ?? []
     runReceipts = try container.decodeIfPresent([RunReceipt].self, forKey: .runReceipts) ?? []
+    runtimeSessions =
+      try container.decodeIfPresent([RuntimeSessionPresence].self, forKey: .runtimeSessions) ?? []
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -577,6 +583,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     try container.encode(schedulePolicies, forKey: .schedulePolicies)
     try container.encode(scheduledOccurrences, forKey: .scheduledOccurrences)
     try container.encode(runReceipts, forKey: .runReceipts)
+    try container.encode(runtimeSessions, forKey: .runtimeSessions)
   }
 }
 
