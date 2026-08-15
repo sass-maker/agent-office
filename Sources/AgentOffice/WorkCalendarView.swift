@@ -39,6 +39,8 @@ struct WorkCalendarView: View {
     }
     .background(EditorialOfficeTheme.workingField.ignoresSafeArea())
     .foregroundStyle(EditorialOfficeTheme.ink)
+    // Scheduled work starts while the app is open, never behind its back.
+    .task { await model.dispatchDueScheduledWork() }
   }
 
   private var days: [CalendarDay] {
