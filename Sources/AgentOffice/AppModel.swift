@@ -687,6 +687,40 @@ final class AppModel: ObservableObject {
 
   // MARK: - Scheduled work
 
+  /// Starts scheduled work whose window is open right now.
+  ///
+  /// Foreground only, deliberately: nothing here claims the Mac will run work
+  /// while asleep or while the app is closed. Windows that passed unnoticed are
+  /// reconciled as missed rather than run late.
+  func dispatchDueScheduledWork(now: Date = Date()) async {
+    _ = organization.applyCatchUpPolicies(now: now)
+    for occurrence in organization.dueOccurrences(now: now) {
+      let sessionID = "scheduled-\(occurrence.id)"
+      let binding = organization.effectiveRuntimeBinding(for: occurrence.origin.employeeID)
+      switch organization.beginScheduledWork(
+        occurrence.id, now: now, sessionID: sessionID,
+        runtimeKind: binding.driverKind.rawValue)
+      {
+      case .dispatched(_, let commitmentID):
+        organization.registerRuntimeSession(
+          RuntimeSessionPresence(
+            id: sessionID,
+            employeeID: occurrence.origin.employeeID,
+            bindingID: binding.id,
+            commitmentID: commitmentID,
+            startedAt: now,
+            state: .starting
+          ))
+        beginEmployeeOutcome(commitmentID)
+      case .skippedNotReady(let occurrenceID, let reason):
+        _ = try? organization.skipOccurrence(occurrenceID, reason: reason)
+      case .notDue:
+        continue
+      }
+    }
+    persistSoon()
+  }
+
   /// Skips an upcoming occurrence. Completed history is never touched.
   func skipScheduledOccurrence(_ occurrenceID: String) async {
     do {
