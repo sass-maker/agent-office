@@ -3,7 +3,6 @@ import SwiftUI
 
 struct CompanyView: View {
   @EnvironmentObject private var model: AppModel
-  let onOpenOffice: () -> Void
   let onDirtyChange: (Bool) -> Void
   var initialEmployeeID: String? = nil
 

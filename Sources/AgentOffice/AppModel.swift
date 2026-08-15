@@ -13,13 +13,9 @@ final class AppModel: ObservableObject {
   @Published private(set) var runningEmployeeIDs: Set<String> = []
 
   private var store: LocalOrganizationStore
-  private let engine = WorkdayEngine()
-  private let researchEngine = ResearchAssignmentEngine()
-  private let customerVoiceEngine = CustomerVoiceDutyEngine()
   private let employeeOutcomeEngine = EmployeeOutcomeEngine()
   private let employeeWorkCoordinator = EmployeeWorkCoordinator(concurrencyLimit: 2)
   private var workTask: Task<Void, Never>?
-  private var workdaySessionID: UUID?
 
   init() {
     store = LocalOrganizationStore(rootURL: Self.defaultOrganizationURL)
@@ -46,10 +42,6 @@ final class AppModel: ObservableObject {
   var organizationURL: URL { store.rootURL }
 
   var codexAvailable: Bool { CodexEmployeeRunner.discover() != nil }
-
-  var assistantBrief: AssistantBrief? {
-    ExecutiveAssistant.morningBrief(for: organization)
-  }
 
   var webResearchGranted: Bool {
     organization.hasCapability("web-research", employeeID: "nia")
@@ -96,12 +88,6 @@ final class AppModel: ObservableObject {
       && organization.workdayStatus != .active
       && organization.activeResearchAssignment?.status != .researching
       && organization.activeEmployeeOutcome == nil
-  }
-
-  var canCreateResearchAssignment: Bool {
-    organization.activeResearchAssignment == nil
-      && runningEmployeeIDs.isEmpty
-      && workTask == nil
   }
 
   var canCreateEmployeeOutcome: Bool {
@@ -280,7 +266,6 @@ final class AppModel: ObservableObject {
     let previous = organization
     workTask?.cancel()
     workTask = nil
-    workdaySessionID = nil
     _ = organization.resetInterruptedResearch()
     _ = organization.resetInterruptedDuty()
     _ = organization.resetInterruptedEmployeeOutcome()
@@ -503,7 +488,6 @@ final class AppModel: ObservableObject {
     {
       workTask?.cancel()
       workTask = nil
-      workdaySessionID = nil
       if next.activeResearchAssignment?.status == .researching {
         pauseResearchAfterPermissionRevocation(state: &next)
       } else {
@@ -617,7 +601,6 @@ final class AppModel: ObservableObject {
     }
     workTask?.cancel()
     workTask = nil
-    workdaySessionID = nil
     let previous = organization
     var next = organization
     guard next.stopDutyOccurrence(occurrence.id) else { return }
@@ -653,7 +636,6 @@ final class AppModel: ObservableObject {
     if wasResearching {
       workTask?.cancel()
       workTask = nil
-      workdaySessionID = nil
     }
     let previous = organization
     var next = organization
@@ -795,15 +777,6 @@ final class AppModel: ObservableObject {
     guard let index = queue.firstIndex(where: { $0.id == outcomeID }) else { return }
     do {
       try organization.reorderOutcome(outcomeID, to: index + offset)
-      lastError = nil
-      persistSoon()
-    } catch { lastError = error.localizedDescription }
-  }
-
-  func redirectEmployeeOutcome(_ outcomeID: String, instruction: String) {
-    do {
-      try organization.redirectOutcome(
-        outcomeID, context: instruction, actorID: "owner", reason: instruction)
       lastError = nil
       persistSoon()
     } catch { lastError = error.localizedDescription }
@@ -996,7 +969,6 @@ final class AppModel: ObservableObject {
     guard panel.runModal() == .OK, let url = panel.url else { return }
     workTask?.cancel()
     workTask = nil
-    workdaySessionID = nil
     Task { await switchOrganization(to: url) }
   }
 
@@ -1088,171 +1060,6 @@ final class AppModel: ObservableObject {
         detail: detail,
         createdAt: Date()
       ))
-  }
-
-  private func runWorkday(sessionID: UUID) async {
-    defer {
-      if workdaySessionID == sessionID {
-        workTask = nil
-        workdaySessionID = nil
-      }
-    }
-
-    while !Task.isCancelled && organization.workdayStatus == .active {
-      let runner: any EmployeeRunner
-      if organization.executionMode == .localCodex, let codex = CodexEmployeeRunner.discover() {
-        runner = codex
-      } else {
-        runner = DeterministicEmployeeRunner()
-      }
-
-      let next = await engine.advance(organization, runner: runner, store: store)
-      guard !Task.isCancelled, workdaySessionID == sessionID else {
-        try? await store.save(organization)
-        return
-      }
-      organization = next
-      if organization.workdayStatus != .active { break }
-
-      do {
-        try await Task.sleep(for: .milliseconds(1_900))
-      } catch {
-        break
-      }
-    }
-  }
-
-  private func prepareResearchAssignment(_ assignmentID: String) {
-    guard let assignment = organization.researchAssignment(assignmentID),
-      assignment.status == .queued
-    else { return }
-    if organization.executionMode == .localCodex && !codexAvailable {
-      _ = organization.updateResearchAssignment(assignmentID) { value in
-        value.status = .waiting
-        value.blockingReason =
-          "Local Codex is unavailable. Reconnect it or choose Demo for a synthetic rehearsal."
-      }
-      appendCapabilityEvent(
-        kind: .unavailable,
-        actorID: "nia",
-        detail: "Local Codex was unavailable, so Nia did not begin the owner-directed research.",
-        taskID: assignmentID
-      )
-      lastError =
-        "Local Codex is unavailable. Reconnect it or switch to Demo to rehearse this assignment without external research."
-      persistSoon()
-      return
-    }
-    if organization.executionMode == .localCodex && !webResearchGranted {
-      _ = organization.updateResearchAssignment(assignmentID) { value in
-        value.status = .waiting
-        value.blockingReason = "Nia needs your read-only web research grant before starting."
-      }
-      requestWebResearch(taskID: assignmentID)
-      lastError = "Nia is waiting for read-only web research permission."
-      persistSoon()
-      return
-    }
-    beginResearchAssignment(assignmentID)
-  }
-
-  private func beginResearchAssignment(_ assignmentID: String) {
-    guard workTask == nil, organization.workdayStatus != .active else { return }
-    organization.dayNumber += 1
-    organization = researchEngine.start(organization, assignmentID: assignmentID)
-    guard organization.researchAssignment(assignmentID)?.status == .researching else { return }
-    lastError = nil
-
-    let sessionID = UUID()
-    workdaySessionID = sessionID
-    let initial = organization
-    let store = self.store
-    let researchEngine = self.researchEngine
-    workTask = Task { [weak self] in
-      guard let self else { return }
-      do {
-        try await store.save(initial)
-      } catch {
-        guard self.workdaySessionID == sessionID else { return }
-        self.handleResearchPersistenceFailure(assignmentID: assignmentID, error: error)
-        return
-      }
-      try? await Task.sleep(for: .milliseconds(450))
-      guard !Task.isCancelled, self.workdaySessionID == sessionID else { return }
-      let runner: any EmployeeRunner
-      if initial.executionMode == .localCodex, let codex = CodexEmployeeRunner.discover() {
-        runner = codex
-      } else {
-        runner = DeterministicEmployeeRunner()
-      }
-      let next = await researchEngine.run(
-        initial,
-        assignmentID: assignmentID,
-        runner: runner,
-        store: store
-      )
-      guard !Task.isCancelled, self.workdaySessionID == sessionID else { return }
-      do {
-        try await store.save(next)
-      } catch {
-        guard self.workdaySessionID == sessionID else { return }
-        self.handleResearchPersistenceFailure(assignmentID: assignmentID, error: error)
-        return
-      }
-      guard self.workdaySessionID == sessionID else { return }
-      self.organization = next
-      self.workTask = nil
-      self.workdaySessionID = nil
-    }
-  }
-
-  private func beginCustomerVoiceDuty(_ occurrenceID: String) {
-    guard workTask == nil,
-      organization.dutyOccurrence(occurrenceID)?.status == .running
-    else { return }
-
-    let sessionID = UUID()
-    workdaySessionID = sessionID
-    let initial = organization
-    let store = self.store
-    let dutyEngine = self.customerVoiceEngine
-    workTask = Task { [weak self] in
-      guard let self else { return }
-      do {
-        try await store.save(initial)
-      } catch {
-        guard self.workdaySessionID == sessionID else { return }
-        self.handleDutyPersistenceFailure(occurrenceID: occurrenceID, error: error)
-        return
-      }
-
-      try? await Task.sleep(for: .milliseconds(450))
-      guard !Task.isCancelled, self.workdaySessionID == sessionID else { return }
-      let runner: any EmployeeRunner
-      if initial.executionMode == .localCodex, let codex = CodexEmployeeRunner.discover() {
-        runner = codex
-      } else {
-        runner = DeterministicEmployeeRunner()
-      }
-      let next = await dutyEngine.run(
-        initial,
-        occurrenceID: occurrenceID,
-        runner: runner,
-        store: store
-      )
-      guard !Task.isCancelled, self.workdaySessionID == sessionID else { return }
-      do {
-        try await store.save(next)
-      } catch {
-        guard self.workdaySessionID == sessionID else { return }
-        self.handleDutyPersistenceFailure(occurrenceID: occurrenceID, error: error)
-        return
-      }
-      guard self.workdaySessionID == sessionID else { return }
-      self.organization = next
-      self.workTask = nil
-      self.workdaySessionID = nil
-    }
   }
 
   private func beginEmployeeOutcome(_ outcomeID: String) {
@@ -1391,33 +1198,6 @@ final class AppModel: ObservableObject {
         message: "Mira paused Nia's research after web access was revoked.",
         createdAt: Date()
       ))
-  }
-
-  private func handleResearchPersistenceFailure(assignmentID: String, error: Error) {
-    _ = organization.updateResearchAssignment(assignmentID) { value in
-      value.status = .failed
-      value.blockingReason =
-        "The research state could not be saved. Check the company folder, then try again."
-    }
-    organization.workdayStatus = .resting
-    restEmployees()
-    workTask = nil
-    workdaySessionID = nil
-    lastError =
-      "Nia's research was not marked delivered because the company folder could not be saved: \(error.localizedDescription)"
-  }
-
-  private func handleDutyPersistenceFailure(occurrenceID: String, error: Error) {
-    _ = organization.updateDutyOccurrence(occurrenceID) { value in
-      value.status = .blocked
-      value.blockingReason =
-        "The duty state could not be saved. Check the company folder, then retry."
-    }
-    restEmployees()
-    workTask = nil
-    workdaySessionID = nil
-    lastError =
-      "Iris's duty was not marked delivered because the company folder could not be saved: \(error.localizedDescription)"
   }
 
   private func restEmployees() {

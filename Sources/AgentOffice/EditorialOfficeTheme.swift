@@ -21,12 +21,6 @@ enum EditorialOfficeTheme {
     startPoint: .topLeading,
     endPoint: .bottomTrailing
   )
-
-  static let quietField = LinearGradient(
-    colors: [softGrey.opacity(0.48), paper, bone.opacity(0.94)],
-    startPoint: .topLeading,
-    endPoint: .bottomTrailing
-  )
 }
 
 struct EditorialPrimaryButtonStyle: ButtonStyle {

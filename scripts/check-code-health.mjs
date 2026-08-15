@@ -110,9 +110,9 @@ function checkCoverage() {
   );
   // Ratcheted legacy debt: https://github.com/sass-maker/agent-office/issues/21
   checkMinimums("AgentOfficeCore coverage", observed, {
-    lines: 83,
-    functions: 69,
-    regions: 66,
+    lines: 84,
+    functions: 72,
+    regions: 69,
   });
 }
 
@@ -152,7 +152,7 @@ function checkUnused() {
   const observed = { findings: JSON.parse(result.stdout).length };
   log(`Swift unused-code debt: ${observed.findings} Periphery findings.`);
   // Ratcheted legacy debt: https://github.com/sass-maker/agent-office/issues/21
-  failRegressions("Swift unused code", observed, { findings: 59 });
+  failRegressions("Swift unused code", observed, { findings: 4 });
 }
 
 function checkComplexity() {
@@ -185,7 +185,7 @@ function checkComplexity() {
   );
   // Ratcheted legacy debt: https://github.com/sass-maker/agent-office/issues/21
   failRegressions("Complexity", observed, {
-    violations: 42,
+    violations: 41,
     maxCcn: 25,
     maxLength: 293,
     maxParams: 28,
@@ -225,9 +225,9 @@ function checkDuplication() {
   );
   // Ratcheted legacy debt: https://github.com/sass-maker/agent-office/issues/21
   failRegressions("Duplication", observed, {
-    clones: 14,
-    duplicatedLines: 154,
-    percentage: 0.8735110606920022,
+    clones: 11,
+    duplicatedLines: 124,
+    percentage: 0.7478439177372897,
   });
 }
 

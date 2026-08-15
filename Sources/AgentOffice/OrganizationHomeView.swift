@@ -2,7 +2,6 @@ import AgentOfficeCore
 import SwiftUI
 
 struct OrganizationHomeView: View {
-  var showsCommandShelf = true
   var onOpenEmployeeProfile: (String) -> Void = { _ in }
   var onOpenMission: () -> Void = {}
   @EnvironmentObject private var model: AppModel
@@ -19,18 +18,9 @@ struct OrganizationHomeView: View {
   @State private var hasExplicitlyOpenedEmployeeDrawer = false
   @State private var traySelection: OwnerTraySelection?
   @State private var pendingStopOutcomeID: String?
-  @FocusState private var outcomeFieldFocused: Bool
   @AccessibilityFocusState private var drawerAccessibilityFocus: DrawerAccessibilityFocus?
 
-  private let spruce = EditorialOfficeTheme.ink
-  private let deepSpruce = EditorialOfficeTheme.sidebarInk
   private let ink = EditorialOfficeTheme.ink
-  private let paper = EditorialOfficeTheme.paper
-  private let sunlitPaper = EditorialOfficeTheme.paper
-  private let butter = EditorialOfficeTheme.softGrey
-  private let apricot = EditorialOfficeTheme.attention
-  private let walnut = EditorialOfficeTheme.rule
-  private let dustyBlue = EditorialOfficeTheme.graphite
 
   var body: some View {
     GeometryReader { proxy in
@@ -280,379 +270,11 @@ struct OrganizationHomeView: View {
     }
   }
 
-  private func commandShelf(compact: Bool) -> some View {
-    HStack(spacing: compact ? 9 : 13) {
-      HStack(spacing: 9) {
-        ZStack {
-          RoundedRectangle(cornerRadius: 8)
-            .fill(sunlitPaper)
-            .frame(width: 40, height: 42)
-            .overlay {
-              RoundedRectangle(cornerRadius: 8)
-                .stroke(butter.opacity(0.92), lineWidth: 2)
-            }
-          Image(systemName: "house.and.flag.fill")
-            .font(.system(size: 16, weight: .bold))
-            .foregroundStyle(spruce)
-        }
-
-        if !compact {
-          VStack(alignment: .leading, spacing: 2) {
-            Text(model.organization.name)
-              .font(.system(.headline, design: .rounded, weight: .bold))
-              .lineLimit(1)
-            Text(officeStatusText)
-              .font(.caption2.weight(.medium))
-              .foregroundStyle(sunlitPaper.opacity(0.72))
-          }
-        }
-      }
-      .padding(.horizontal, compact ? 2 : 8)
-      .padding(.vertical, 5)
-      .background(Color.black.opacity(0.13), in: RoundedRectangle(cornerRadius: 10))
-      .overlay {
-        RoundedRectangle(cornerRadius: 10)
-          .stroke(Color.white.opacity(0.08), lineWidth: 1)
-      }
-
-      Rectangle()
-        .fill(butter.opacity(0.36))
-        .frame(width: 1, height: 42)
-
-      ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: compact ? 5 : 7) {
-          ForEach(Array(model.organization.employees.enumerated()), id: \.element.id) {
-            index, employee in
-            employeeShelfButton(employee, index: index, compact: compact)
-          }
-        }
-        .padding(.vertical, 2)
-      }
-
-      Spacer(minLength: 4)
-
-      Button {
-        productBriefDraft = model.organization.productBrief
-        showsProductBrief = true
-      } label: {
-        Label(
-          "Product",
-          systemImage: model.organization.hasMeaningfulProductBrief
-            ? "book.closed.fill" : "exclamationmark.triangle.fill"
-        )
-        .frame(minHeight: 34)
-      }
-      .buttonStyle(
-        ShelfToolButtonStyle(
-          fill: Color.black.opacity(0.16), foreground: sunlitPaper, outline: butter.opacity(0.2))
-      )
-      .disabled(!model.canEditOrganization)
-      .help("Open the company product brief")
-      .accessibilityLabel("Product brief")
-
-      Button {
-        showsCompanyLibrary = true
-      } label: {
-        Label(compact ? "" : "Library", systemImage: "books.vertical.fill")
-          .frame(minHeight: 34)
-      }
-      .buttonStyle(
-        ShelfToolButtonStyle(
-          fill: Color.black.opacity(0.16), foreground: sunlitPaper, outline: butter.opacity(0.2))
-      )
-      .help("Open employees, skills, connections, and teaching")
-      .accessibilityLabel("Company library")
-
-      companyMenu
-
-      if model.organization.workdayStatus == .complete {
-        Label(completionShelfTitle, systemImage: "checkmark.circle.fill")
-          .font(.system(.callout, design: .rounded, weight: .bold))
-          .foregroundStyle(sunlitPaper)
-          .padding(.horizontal, 11)
-          .frame(minHeight: 34)
-          .background(workButtonTint, in: RoundedRectangle(cornerRadius: 7))
-          .overlay {
-            RoundedRectangle(cornerRadius: 7)
-              .stroke(butter.opacity(0.36), lineWidth: 1)
-          }
-          .help(
-            "This POC workflow is complete. Review delivered work or the items saved for tomorrow."
-          )
-          .accessibilityLabel(completionStatusText)
-      } else {
-        Button(action: model.toggleDay) {
-          Label(workButtonTitle, systemImage: workButtonIcon)
-            .font(.system(.callout, design: .rounded, weight: .bold))
-            .frame(minHeight: 34)
-        }
-        .buttonStyle(
-          ShelfToolButtonStyle(
-            fill: workButtonTint, foreground: sunlitPaper, outline: butter.opacity(0.36))
-        )
-        .disabled(model.isEmployeeRunActive && model.organization.workdayStatus != .active)
-        .keyboardShortcut(.return, modifiers: [.command])
-        .help(
-          model.organization.workdayStatus == .active
-            ? "Stop before the next work step and save progress"
-            : "Wake the team and begin the next available work")
-      }
-    }
-    .padding(.horizontal, compact ? 12 : 16)
-    .padding(.vertical, 6)
-    .frame(minHeight: 80)
-    .foregroundStyle(.white)
-    .background {
-      ZStack(alignment: .bottom) {
-        deepSpruce
-        LinearGradient(
-          colors: [Color.white.opacity(0.07), .clear, Color.black.opacity(0.15)],
-          startPoint: .top,
-          endPoint: .bottom
-        )
-        Rectangle()
-          .fill(walnut)
-          .frame(height: 7)
-          .overlay(alignment: .top) {
-            Rectangle().fill(butter.opacity(0.7)).frame(height: 1.5)
-          }
-      }
-    }
-    .shadow(color: .black.opacity(0.34), radius: 11, y: 6)
-  }
-
-  private func employeeShelfButton(_ employee: Employee, index: Int, compact: Bool) -> some View {
-    let selected =
-      model.selectedEmployeeID == employee.id && isEmployeeDrawerPresented(compact: compact)
-
-    return Button {
-      selectEmployee(employee.id)
-    } label: {
-      VStack(spacing: 2) {
-        ZStack(alignment: .bottomTrailing) {
-          EmployeePortrait(
-            employee: employee, size: CGSize(width: compact ? 30 : 34, height: compact ? 36 : 41))
-          Circle()
-            .fill(employeeStatusColor(employee))
-            .frame(width: 9, height: 9)
-            .overlay(Circle().stroke(deepSpruce, lineWidth: 1.5))
-        }
-        if !compact || selected {
-          Text(employee.name)
-            .font(.caption2.weight(.bold))
-            .lineLimit(1)
-        }
-      }
-      .frame(width: compact ? (selected ? 48 : 40) : 54, height: compact ? 50 : 58)
-      .background(
-        selected ? sunlitPaper.opacity(0.2) : Color.black.opacity(0.12),
-        in: RoundedRectangle(cornerRadius: 8)
-      )
-      .overlay {
-        RoundedRectangle(cornerRadius: 8)
-          .stroke(selected ? butter : Color.white.opacity(0.09), lineWidth: selected ? 2 : 1)
-      }
-      .overlay(alignment: .bottom) {
-        Rectangle()
-          .fill(selected ? butter.opacity(0.9) : walnut.opacity(0.85))
-          .frame(height: 3)
-          .clipShape(.rect(bottomLeadingRadius: 8, bottomTrailingRadius: 8))
-      }
-    }
-    .buttonStyle(.plain)
-    .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: [.command])
-    .help("Open \(employee.name)'s desk")
-    .accessibilityLabel("\(employee.name), \(employee.role), \(employee.status.rawValue)")
-    .accessibilityAddTraits(selected ? .isSelected : [])
-  }
-
-  private var companyMenu: some View {
-    Menu {
-      Section("Employee runner") {
-        Button {
-          model.setExecutionMode(.demo)
-        } label: {
-          Label(
-            "Demo team",
-            systemImage: model.organization.executionMode == .demo ? "checkmark" : "sparkles")
-        }
-        Button {
-          model.setExecutionMode(.localCodex)
-        } label: {
-          Label(
-            "Local Codex",
-            systemImage: model.organization.executionMode == .localCodex ? "checkmark" : "cpu")
-        }
-        .disabled(!model.codexAvailable)
-      }
-
-      Divider()
-
-      Button(
-        "Open company folder", systemImage: "arrow.up.forward.square",
-        action: model.revealOrganizationFolder)
-      Button(
-        "Move company home", systemImage: "folder.badge.gearshape",
-        action: model.chooseOrganizationFolder)
-      Button(
-        "Welcome and setup", systemImage: "door.left.hand.open", action: model.revisitOnboarding
-      )
-      .disabled(model.organization.workdayStatus == .active)
-    } label: {
-      Image(systemName: "ellipsis.circle.fill")
-        .font(.title3)
-        .foregroundStyle(sunlitPaper)
-        .frame(width: 34, height: 34)
-        .background(Color.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
-        .overlay {
-          RoundedRectangle(cornerRadius: 7)
-            .stroke(butter.opacity(0.2), lineWidth: 1)
-        }
-    }
-    .menuStyle(.borderlessButton)
-    .fixedSize()
-    .disabled(model.isEmployeeRunActive)
-    .help("Company and employee-runner settings")
-    .accessibilityLabel("Company settings")
-  }
-
-  private func outcomeRibbon(compact: Bool) -> some View {
-    VStack(alignment: .leading, spacing: compact ? 4 : 10) {
-      HStack(spacing: 7) {
-        Image(systemName: "sparkle")
-          .foregroundStyle(DawnStageTheme.coral)
-        Text("CURRENT MISSION")
-          .font(.caption2.weight(.bold))
-          .tracking(0.8)
-          .foregroundStyle(DawnStageTheme.coral)
-      }
-
-      TextField(
-        "What should the company achieve?", text: $outcomeDraft,
-        axis: compact ? .horizontal : .vertical
-      )
-      .textFieldStyle(.plain)
-      .font(.system(compact ? .callout : .body, design: .rounded, weight: .medium))
-      .foregroundStyle(DawnStageTheme.ivory)
-      .lineLimit(compact ? 1 : 4)
-      .layoutPriority(1)
-      .focused($outcomeFieldFocused)
-      .onSubmit { commitOutcomeDraft() }
-      .onChange(of: outcomeFieldFocused) { _, focused in
-        if !focused { commitOutcomeDraft() }
-      }
-      .disabled(!model.canEditOrganization)
-      .accessibilityLabel("Organization outcome")
-
-      if !compact {
-        Rectangle()
-          .fill(DawnStageTheme.rose.opacity(0.52))
-          .frame(height: 1)
-      }
-    }
-    .padding(compact ? 10 : 14)
-    .frame(maxWidth: compact ? .infinity : 220, alignment: .leading)
-    .modifier(StagePanelSurface(accent: DawnStageTheme.coral, cornerRadius: 10))
-  }
-
-  private func activityRibbon(compact: Bool) -> some View {
-    HStack(spacing: 9) {
-      Image(systemName: "quote.bubble.fill")
-        .foregroundStyle(apricot)
-      if model.organization.activity.last != nil {
-        Text(latestActivityText)
-          .lineLimit(compact ? 1 : 2)
-      } else {
-        Text("The office is ready.")
-      }
-    }
-    .font(.caption.weight(.medium))
-    .foregroundStyle(DawnStageTheme.ivory.opacity(0.82))
-    .padding(.horizontal, 12)
-    .frame(minHeight: 36)
-    .background(DawnStageTheme.proscenium.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
-    .overlay {
-      RoundedRectangle(cornerRadius: 8)
-        .stroke(DawnStageTheme.rose.opacity(0.28), lineWidth: 1)
-    }
-    .frame(maxWidth: compact ? .infinity : 430, alignment: .leading)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.bottom, 10)
-    .accessibilityLabel(
-      "Latest activity. \(model.organization.activity.last?.message ?? "The office is ready")")
-  }
-
-  private func ownerTray(compact: Bool) -> some View {
-    HStack(spacing: compact ? 4 : 8) {
-      trayButton(.attention, count: attentionCount, compact: compact)
-      trayButton(.motion, count: inMotionCount, compact: compact)
-      trayButton(.delivered, count: deliveredCount, compact: compact)
-    }
-    .padding(5)
-    .background(DawnStageTheme.proscenium.opacity(0.96), in: RoundedRectangle(cornerRadius: 11))
-    .overlay {
-      RoundedRectangle(cornerRadius: 11)
-        .stroke(DawnStageTheme.hairline, lineWidth: 1)
-    }
-    .shadow(color: .black.opacity(0.28), radius: 12, y: 8)
-    .frame(maxWidth: compact ? .infinity : 620)
-    .frame(maxWidth: .infinity)
-  }
-
-  private func trayButton(_ selection: OwnerTraySelection, count: Int, compact: Bool) -> some View {
-    let selected = traySelection == selection
-    return Button {
-      let willOpen = !selected
-      animateSelection {
-        traySelection = willOpen ? selection : nil
-        if traySelection != nil { showsEmployeeDrawer = false }
-      }
-      drawerAccessibilityFocus = willOpen ? .ownerTray : nil
-    } label: {
-      HStack(spacing: 8) {
-        CueLight(color: selection.tint, active: selected || count > 0)
-          .frame(width: 10, height: 10)
-        Text(ownerTrayTitle(selection))
-          .font(.callout.weight(.semibold))
-        if count > 0 {
-          Text("\(count)")
-            .font(.caption2.weight(.bold))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .foregroundStyle(DawnStageTheme.proscenium)
-            .background(selection.tint, in: Capsule())
-        }
-        if !compact {
-          Spacer(minLength: 0)
-          Image(systemName: selected ? "chevron.down" : "chevron.up")
-            .font(.caption2.weight(.bold))
-            .foregroundStyle(DawnStageTheme.steel)
-        }
-      }
-      .frame(maxWidth: .infinity)
-      .padding(.horizontal, compact ? 8 : 12)
-      .frame(minHeight: 38)
-      .background(
-        selected ? DawnStageTheme.cobalt.opacity(0.72) : Color.clear,
-        in: RoundedRectangle(cornerRadius: 7)
-      )
-      .overlay {
-        RoundedRectangle(cornerRadius: 7)
-          .stroke(selected ? selection.tint.opacity(0.7) : Color.clear, lineWidth: 1)
-      }
-    }
-    .buttonStyle(.plain)
-    .keyboardShortcut(selection.shortcut, modifiers: [.command, .shift])
-    .foregroundStyle(DawnStageTheme.ivory)
-    .accessibilityLabel("\(ownerTrayTitle(selection)), \(count) items")
-    .accessibilityAddTraits(selected ? .isSelected : [])
-  }
-
   @ViewBuilder
   private func contextualDrawer(compact: Bool) -> some View {
     if let traySelection {
       drawerPlacement(compact: compact) {
-        ownerDrawer(traySelection, compact: compact)
+        ownerDrawer(traySelection)
       }
       .transition(drawerTransition(compact: compact))
     } else if showsEmployeeDrawer,
@@ -1158,180 +780,7 @@ struct OrganizationHomeView: View {
       .title ?? "None"
   }
 
-  @ViewBuilder
-  private func employeeDrawerContent(_ employee: Employee, compact: Bool) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      if !compact || employee.id != "iris" {
-        employeeIdentityCard(employee)
-      }
-
-      if employee.id == "iris", let duty = model.customerVoiceDuty {
-        CustomerVoiceDutyCard(
-          duty: duty,
-          compact: compact,
-          onClose: compact
-            ? {
-              animateSelection { showsEmployeeDrawer = false }
-              drawerAccessibilityFocus = nil
-            } : nil
-        )
-        .environmentObject(model)
-      } else if employee.id == "nia" {
-        if let assignment = model.latestResearchAssignment {
-          ResearchDeskCard(
-            assignment: assignment,
-            onNewAssignment: { showsResearchAssignment = true }
-          )
-          .environmentObject(model)
-        } else {
-          ResearchDeskEmptyCard {
-            showsResearchAssignment = true
-          }
-        }
-      } else if employee.id == "owner" {
-        ownerDeskCard
-      } else {
-        employeeWorkCard(employee)
-      }
-    }
-    .padding(1)
-  }
-
-  private func employeeIdentityCard(_ employee: Employee) -> some View {
-    VStack(alignment: .leading, spacing: 11) {
-      HStack(alignment: .top, spacing: 11) {
-        EmployeePortrait(employee: employee, size: CGSize(width: 48, height: 58))
-        VStack(alignment: .leading, spacing: 3) {
-          Text("\(employee.name)'s desk")
-            .font(.system(.headline, design: .rounded, weight: .bold))
-          Text(employee.role)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(spruce.opacity(0.72))
-          Label(employeeStatusLabel(employee), systemImage: "circle.fill")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(employeeStatusColor(employee, onPaper: true))
-        }
-        Spacer(minLength: 8)
-        Button {
-          animateSelection { showsEmployeeDrawer = false }
-          drawerAccessibilityFocus = nil
-        } label: {
-          Image(systemName: "xmark.circle.fill")
-            .font(.title3)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(ink.opacity(0.5))
-        .help("Close employee desk")
-        .accessibilityLabel("Close \(employee.name)'s desk")
-      }
-
-      Text(employee.responsibility)
-        .font(.caption)
-        .foregroundStyle(ink.opacity(0.78))
-        .fixedSize(horizontal: false, vertical: true)
-
-      HStack(spacing: 12) {
-        if let managerID = employee.managerID {
-          Label("with \(model.employeeName(managerID))", systemImage: "arrow.turn.up.right")
-        }
-        if let humanID = employee.assistantForHumanID {
-          Label(
-            "paired with \(model.employeeName(humanID))",
-            systemImage: "person.line.dotted.person.fill")
-        }
-        Spacer()
-        if employee.kind == .ai {
-          Button {
-            model.revealEmployeeHome(employee.id)
-          } label: {
-            Label("Open home", systemImage: "folder.fill")
-          }
-          .buttonStyle(.plain)
-          .foregroundStyle(spruce)
-        }
-      }
-      .font(.caption2.weight(.semibold))
-      .foregroundStyle(ink.opacity(0.76))
-    }
-    .padding(.bottom, 12)
-    .overlay(alignment: .bottom) {
-      Rectangle()
-        .fill(walnut.opacity(0.18))
-        .frame(height: 1)
-    }
-  }
-
-  private var ownerDeskCard: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      if let brief = model.assistantBrief,
-        let assistant = model.organization.employee(brief.assistantID)
-      {
-        HStack(spacing: 9) {
-          EmployeePortrait(employee: assistant, size: CGSize(width: 38, height: 46))
-          VStack(alignment: .leading, spacing: 2) {
-            Text("A note from \(assistant.name)")
-              .font(.callout.weight(.bold))
-            Text(brief.title)
-              .font(.caption2.weight(.semibold))
-              .foregroundStyle(spruce.opacity(0.82))
-          }
-        }
-        Text(brief.summary)
-          .font(.caption)
-          .foregroundStyle(ink.opacity(0.76))
-        Text(brief.nextAction)
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(spruce)
-      }
-
-      Button {
-        productBriefDraft = model.organization.productBrief
-        showsProductBrief = true
-      } label: {
-        Label("Open product brief", systemImage: "book.closed.fill")
-          .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.bordered)
-      .tint(spruce)
-    }
-    .padding(.top, 2)
-  }
-
-  private func employeeWorkCard(_ employee: Employee) -> some View {
-    VStack(alignment: .leading, spacing: 10) {
-      if let taskID = employee.currentTaskID,
-        let task = model.organization.task(taskID)
-      {
-        Label("At work", systemImage: "lamp.desk.fill")
-          .font(.caption.weight(.bold))
-          .foregroundStyle(apricot)
-        WorkLine(task: task, employeeName: employee.name)
-      } else {
-        Label("Desk is clear", systemImage: "cup.and.saucer.fill")
-          .font(.callout.weight(.bold))
-        Text(
-          "No active task is assigned right now. Their responsibility and learned skills remain here when work resumes."
-        )
-        .font(.caption)
-        .foregroundStyle(ink.opacity(0.78))
-      }
-
-      let skills = model.organization.assignedSkills(employeeID: employee.id)
-      if !skills.isEmpty {
-        Divider()
-        Text("Skills at this desk")
-          .font(.caption2.weight(.bold))
-          .foregroundStyle(spruce.opacity(0.82))
-        Text(skills.map(\.name).joined(separator: " · "))
-          .font(.caption)
-          .foregroundStyle(ink.opacity(0.72))
-          .fixedSize(horizontal: false, vertical: true)
-      }
-    }
-    .padding(.top, 2)
-  }
-
-  private func ownerDrawer(_ selection: OwnerTraySelection, compact: Bool) -> some View {
+  private func ownerDrawer(_ selection: OwnerTraySelection) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
         Label(ownerTrayTitle(selection), systemImage: selection.icon)
@@ -1365,7 +814,7 @@ struct OrganizationHomeView: View {
     }
     .padding(16)
     .padding(.leading, 18)
-    .modifier(DeskFolioSurface(paper: sunlitPaper, binding: selection.tint, edge: walnut))
+    .modifier(DeskFolioSurface(binding: selection.tint))
     .accessibilityFocused($drawerAccessibilityFocus, equals: .ownerTray)
     .accessibilityLabel(ownerTrayTitle(selection))
   }
@@ -1542,76 +991,11 @@ struct OrganizationHomeView: View {
     }
   }
 
-  private var officeStatusText: String {
-    if model.isCustomerVoiceRunning { return "Iris is reading customer notes" }
-    if model.latestResearchAssignment?.status == .researching { return "Nia is researching" }
-    switch model.organization.workdayStatus {
-    case .active, .ending: return "The team is working"
-    case .complete:
-      return attentionCount > 0
-        ? "\(attentionCount) items queued for tomorrow" : "Today's work is complete"
-    case .resting: return "Office resting"
-    }
-  }
-
-  private var completionShelfTitle: String {
-    "Work complete"
-  }
-
-  private var completionStatusText: String {
-    attentionCount > 0
-      ? "Today's work is complete. \(attentionCount) items are queued for tomorrow."
-      : "Today's work is complete."
-  }
-
   private func ownerTrayTitle(_ selection: OwnerTraySelection) -> String {
     if selection == .attention, model.organization.workdayStatus == .complete {
       return "For tomorrow"
     }
     return selection.title
-  }
-
-  private var latestActivityText: String {
-    guard let latest = model.organization.activity.last else { return "The office is ready." }
-    if model.organization.workdayStatus == .complete,
-      let delivered = model.organization.artifacts.last
-    {
-      return "\(model.employeeName(delivered.authorID)) delivered \(delivered.title)."
-    }
-    let actor = model.employeeName(latest.actorID)
-    let normalizedMessage = latest.message.trimmingCharacters(in: .whitespacesAndNewlines)
-    let lowercasedMessage = normalizedMessage.lowercased()
-    let lowercasedActor = actor.lowercased()
-    if lowercasedMessage.hasPrefix("\(lowercasedActor):")
-      || lowercasedMessage.hasPrefix("\(lowercasedActor) ")
-    {
-      return normalizedMessage
-    }
-    return "\(actor): \(normalizedMessage)"
-  }
-
-  private var workButtonTitle: String {
-    switch model.organization.workdayStatus {
-    case .active, .ending: "End work"
-    case .complete: "Work complete"
-    case .resting: "Start work"
-    }
-  }
-
-  private var workButtonIcon: String {
-    switch model.organization.workdayStatus {
-    case .active, .ending: "moon.stars.fill"
-    case .complete: "checkmark.circle.fill"
-    case .resting: "sun.max.fill"
-    }
-  }
-
-  private var workButtonTint: Color {
-    switch model.organization.workdayStatus {
-    case .active, .ending: DawnStageTheme.coral
-    case .complete: DawnStageTheme.cobalt
-    case .resting: DawnStageTheme.mint
-    }
   }
 
   private var sceneAccessibilitySummary: String {
@@ -1631,11 +1015,6 @@ struct OrganizationHomeView: View {
     drawerAccessibilityFocus = .employee
   }
 
-  private func commitOutcomeDraft() {
-    guard outcomeDraft != model.organization.outcome else { return }
-    Task { _ = await model.updateOutcome(outcomeDraft) }
-  }
-
   private func animateSelection(_ changes: () -> Void) {
     if reduceMotion {
       changes()
@@ -1648,16 +1027,6 @@ struct OrganizationHomeView: View {
     reduceMotion
       ? .opacity
       : .move(edge: compact ? .bottom : .trailing).combined(with: .opacity)
-  }
-
-  private func employeeStatusColor(_ employee: Employee, onPaper: Bool = false) -> Color {
-    switch employee.status {
-    case .blocked: DawnStageTheme.amber
-    case .reviewing: DawnStageTheme.coral
-    case .resting: onPaper ? DawnStageTheme.steel : DawnStageTheme.ivory.opacity(0.7)
-    case .waiting: DawnStageTheme.rose
-    default: DawnStageTheme.mint
-    }
   }
 
   private func employeeStatusLabel(_ employee: Employee) -> String {
@@ -1724,115 +1093,6 @@ private enum OwnerTraySelection: String, CaseIterable, Identifiable {
     case .attention: "n"
     case .motion: "m"
     case .delivered: "d"
-    }
-  }
-}
-
-private struct ShelfToolButtonStyle: ButtonStyle {
-  let fill: Color
-  let foreground: Color
-  let outline: Color
-
-  func makeBody(configuration: Configuration) -> some View {
-    configuration.label
-      .foregroundStyle(foreground)
-      .padding(.horizontal, 11)
-      .background(
-        configuration.isPressed ? fill.opacity(0.72) : fill,
-        in: RoundedRectangle(cornerRadius: 7)
-      )
-      .overlay {
-        RoundedRectangle(cornerRadius: 7)
-          .stroke(outline, lineWidth: 1)
-      }
-      .offset(y: configuration.isPressed ? 1 : 0)
-  }
-}
-
-private struct FileFolderShape: Shape {
-  func path(in rect: CGRect) -> Path {
-    var path = Path()
-    let tabWidth = rect.width * 0.34
-    let tabHeight: CGFloat = 6
-    let radius: CGFloat = 6
-
-    path.move(to: CGPoint(x: radius, y: tabHeight))
-    path.addLine(to: CGPoint(x: tabWidth - 8, y: tabHeight))
-    path.addQuadCurve(
-      to: CGPoint(x: tabWidth, y: 0),
-      control: CGPoint(x: tabWidth - 2, y: tabHeight)
-    )
-    path.addLine(to: CGPoint(x: rect.width - radius, y: 0))
-    path.addQuadCurve(to: CGPoint(x: rect.width, y: radius), control: CGPoint(x: rect.width, y: 0))
-    path.addLine(to: CGPoint(x: rect.width, y: rect.height - radius))
-    path.addQuadCurve(
-      to: CGPoint(x: rect.width - radius, y: rect.height),
-      control: CGPoint(x: rect.width, y: rect.height))
-    path.addLine(to: CGPoint(x: radius, y: rect.height))
-    path.addQuadCurve(
-      to: CGPoint(x: 0, y: rect.height - radius), control: CGPoint(x: 0, y: rect.height))
-    path.addLine(to: CGPoint(x: 0, y: tabHeight + radius))
-    path.addQuadCurve(to: CGPoint(x: radius, y: tabHeight), control: CGPoint(x: 0, y: tabHeight))
-    path.closeSubpath()
-    return path
-  }
-}
-
-private struct WorkLine: View {
-  let task: WorkTask
-  let employeeName: String
-
-  var body: some View {
-    HStack(alignment: .top, spacing: 9) {
-      Image(systemName: icon)
-        .font(.caption.weight(.bold))
-        .foregroundStyle(tint)
-        .frame(width: 19, height: 19)
-      VStack(alignment: .leading, spacing: 3) {
-        Text(task.title)
-          .font(.caption.weight(.semibold))
-          .lineLimit(2)
-        Text("\(employeeName) · \(statusLabel)")
-          .font(.caption2)
-          .foregroundStyle(DawnStageTheme.steel)
-      }
-      Spacer(minLength: 0)
-    }
-    .padding(.vertical, 7)
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel("\(task.title), \(statusLabel), assigned to \(employeeName)")
-  }
-
-  private var icon: String {
-    switch task.status {
-    case .done: "checkmark.circle.fill"
-    case .review: "eye.circle.fill"
-    case .revision: "arrow.triangle.2.circlepath.circle.fill"
-    case .blocked: "exclamationmark.circle.fill"
-    case .doing: "pencil.circle.fill"
-    case .ready: "play.circle.fill"
-    case .waiting: "clock.fill"
-    }
-  }
-
-  private var tint: Color {
-    switch task.status {
-    case .done: DawnStageTheme.mint
-    case .blocked: DawnStageTheme.amber
-    case .review, .revision: DawnStageTheme.coral
-    default: DawnStageTheme.steel
-    }
-  }
-
-  private var statusLabel: String {
-    switch task.status {
-    case .doing: "Working"
-    case .review: "With manager"
-    case .revision: "Revising"
-    case .done: "Done"
-    case .blocked: "Blocked"
-    case .ready: "Ready"
-    case .waiting: "Waiting"
     }
   }
 }
@@ -1925,9 +1185,7 @@ private struct EmptyDrawerState: View {
 }
 
 private struct DeskFolioSurface: ViewModifier {
-  let paper: Color
   let binding: Color
-  let edge: Color
 
   func body(content: Content) -> some View {
     content

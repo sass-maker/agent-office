@@ -906,12 +906,6 @@ struct MissionView: View {
     missionTasks.count - deliveredTaskCount
   }
 
-  private var attentionTaskCount: Int {
-    missionTasks.filter {
-      $0.status == .blocked || blocker(for: $0) != nil
-    }.count
-  }
-
   private var managementDecisionCount: Int {
     model.organization.managementInbox.count
   }
