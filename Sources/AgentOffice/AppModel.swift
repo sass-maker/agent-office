@@ -170,24 +170,10 @@ final class AppModel: ObservableObject {
     for packageID in acceptedPackages {
       _ = try? next.hireEmployee(packageID: packageID, actorID: "owner")
     }
-    for contract in next.workingContracts
-    where next.employee(contract.employeeID)?.effectiveEmploymentState == .hired {
-      try? next.updateWorkingContract(
-        employeeID: contract.employeeID,
-        role: contract.role,
-        responsibility: contract.responsibility,
-        managerID: contract.managerID,
-        assignedSkillIDs: contract.assignedSkillIDs,
-        declaredConnectionIDs: contract.declaredConnectionIDs,
-        capabilityGrants: contract.capabilityGrants,
-        executionProvider: EmployeeExecutionProvider(requestedMode),
-        modelName: contract.modelName,
-        boundaries: contract.boundaries,
-        reviewPolicy: contract.reviewPolicy,
-        actorID: "owner",
-        reason: "Selected during organization setup."
-      )
-    }
+    next.applyExecutionProvider(
+      EmployeeExecutionProvider(requestedMode),
+      reason: "Selected during organization setup."
+    )
     do {
       try await store.save(next)
       organization = next
@@ -314,7 +300,7 @@ final class AppModel: ObservableObject {
         _ = recovery.resetInterruptedDuty()
         _ = recovery.resetInterruptedEmployeeOutcome()
         recovery.workdayStatus = .resting
-        self.restEmployees(state: &recovery)
+        recovery.restAIEmployees()
         self.organization = recovery
         self.lastError =
           "The day could not end because the latest company state was not saved: \(error.localizedDescription)"
@@ -335,24 +321,10 @@ final class AppModel: ObservableObject {
       return
     }
     organization.executionMode = mode
-    for contract in organization.workingContracts
-    where organization.employee(contract.employeeID)?.effectiveEmploymentState == .hired {
-      try? organization.updateWorkingContract(
-        employeeID: contract.employeeID,
-        role: contract.role,
-        responsibility: contract.responsibility,
-        managerID: contract.managerID,
-        assignedSkillIDs: contract.assignedSkillIDs,
-        declaredConnectionIDs: contract.declaredConnectionIDs,
-        capabilityGrants: contract.capabilityGrants,
-        executionProvider: EmployeeExecutionProvider(mode),
-        modelName: contract.modelName,
-        boundaries: contract.boundaries,
-        reviewPolicy: contract.reviewPolicy,
-        actorID: "owner",
-        reason: "Changed the default local execution route."
-      )
-    }
+    organization.applyExecutionProvider(
+      EmployeeExecutionProvider(mode),
+      reason: "Changed the default local execution route."
+    )
     persistSoon()
     if mode == .demo, let assignment = organization.activeResearchAssignment,
       assignment.status == .waiting
@@ -511,7 +483,7 @@ final class AppModel: ObservableObject {
         pauseResearchAfterPermissionRevocation(state: &next)
       } else {
         next.workdayStatus = .resting
-        restEmployees(state: &next)
+        next.restAIEmployees()
         next.activity.append(
           Activity(
             id: UUID().uuidString,
@@ -539,7 +511,7 @@ final class AppModel: ObservableObject {
         var recovery = previous
         _ = recovery.resetInterruptedResearch()
         recovery.workdayStatus = .resting
-        self.restEmployees(state: &recovery)
+        recovery.restAIEmployees()
         self.organization = recovery
         self.lastError =
           granted
@@ -633,7 +605,7 @@ final class AppModel: ObservableObject {
       } catch {
         var recovery = previous
         _ = recovery.resetInterruptedDuty()
-        self.restEmployees(state: &recovery)
+        recovery.restAIEmployees()
         self.organization = recovery
         self.lastError =
           "Iris stopped, but the resumable duty state could not be saved: \(error.localizedDescription)"
@@ -661,7 +633,7 @@ final class AppModel: ObservableObject {
     guard next.cancelResearchAssignment(assignmentID) else { return }
     if wasResearching {
       next.workdayStatus = .resting
-      restEmployees(state: &next)
+      next.restAIEmployees()
     }
     lastError = nil
 
@@ -675,7 +647,7 @@ final class AppModel: ObservableObject {
         _ = recovery.resetInterruptedResearch()
         if wasResearching {
           recovery.workdayStatus = .resting
-          self.restEmployees(state: &recovery)
+          recovery.restAIEmployees()
         }
         self.organization = recovery
         self.lastError =
@@ -1263,7 +1235,7 @@ final class AppModel: ObservableObject {
         "Web research was revoked. Grant it again, use Demo, or stop this assignment."
     }
     state.workdayStatus = .resting
-    restEmployees(state: &state)
+    state.restAIEmployees()
     state.activity.append(
       Activity(
         id: UUID().uuidString,
@@ -1275,14 +1247,7 @@ final class AppModel: ObservableObject {
   }
 
   private func restEmployees() {
-    restEmployees(state: &organization)
-  }
-
-  private func restEmployees(state: inout OrganizationState) {
-    for index in state.employees.indices where state.employees[index].kind == .ai {
-      state.employees[index].status = .resting
-      state.employees[index].currentTaskID = nil
-    }
+    organization.restAIEmployees()
   }
 
   private static func productBrief(profile: OrganizationProfile, outcome: String) -> String {

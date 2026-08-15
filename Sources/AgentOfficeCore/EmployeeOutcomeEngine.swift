@@ -102,7 +102,7 @@ public struct EmployeeOutcomeEngine: Sendable {
 
         state.tasks[taskIndex].status = .doing
         state.tasks[taskIndex].updatedAt = now
-        setEmployee(employee.id, status: .working, taskID: taskID, state: &state)
+        state.setEmployee(employee.id, status: .working, taskID: taskID)
         _ = state.updateEmployeeOutcome(outcomeID, now: now) { $0.status = .working }
         state.activity.append(
           Activity(
@@ -122,7 +122,7 @@ public struct EmployeeOutcomeEngine: Sendable {
           outcome: outcome.outcome,
           productBrief: state.productBrief,
           context: await context(for: outcome, in: state, store: store),
-          memory: memoryContext(for: employee.id, in: state),
+          memory: state.recentMemoryContext(for: employee.id),
           skills: state.assignedSkills(employeeID: employee.id).filter {
             outcome.selectedSkillIDs.contains($0.id)
           },
@@ -208,7 +208,7 @@ public struct EmployeeOutcomeEngine: Sendable {
           ]
         value.outcomeRevision = value.effectiveRevision + 1
       }
-      setEmployee(employee.id, status: .resting, taskID: nil, state: &state)
+      state.setEmployee(employee.id, status: .resting, taskID: nil)
       state.knowledge?.memoryEntries.append(
         EmployeeMemoryEntry(
           id: UUID().uuidString,
@@ -274,7 +274,7 @@ public struct EmployeeOutcomeEngine: Sendable {
         outcome: outcome.outcome,
         productBrief: state.productBrief,
         context: outcome.context,
-        memory: memoryContext(for: employee.id, in: state),
+        memory: state.recentMemoryContext(for: employee.id),
         skills: state.assignedSkills(employeeID: employee.id),
         capabilityGrants: authorizedCapabilities.map { Array($0).sorted() }
           ?? employee.capabilityGrants,
@@ -379,7 +379,7 @@ public struct EmployeeOutcomeEngine: Sendable {
       value.status = .waiting
       value.helpRequest = request
     }
-    setEmployee(employeeID, status: .blocked, taskID: taskID, state: &state)
+    state.setEmployee(employeeID, status: .blocked, taskID: taskID)
     let blockerID = "\(outcomeID)-help"
     if let blockerIndex = state.blockers.firstIndex(where: { $0.id == blockerID }) {
       state.blockers[blockerIndex].detail = request
@@ -432,9 +432,8 @@ public struct EmployeeOutcomeEngine: Sendable {
       state.tasks[taskIndex].status = .blocked
       state.tasks[taskIndex].updatedAt = now
     }
-    setEmployee(
-      employeeID, status: .blocked, taskID: state.employee(employeeID)?.currentTaskID, state: &state
-    )
+    state.setEmployee(
+      employeeID, status: .blocked, taskID: state.employee(employeeID)?.currentTaskID)
     state.activity.append(
       Activity(
         id: UUID().uuidString,
@@ -461,15 +460,6 @@ public struct EmployeeOutcomeEngine: Sendable {
     return sections.joined(separator: "\n\n")
   }
 
-  private func memoryContext(for employeeID: String, in state: OrganizationState) -> String {
-    state.knowledge?.memoryEntries
-      .filter { $0.employeeID == employeeID }
-      .sorted { $0.createdAt < $1.createdAt }
-      .suffix(6)
-      .map(\.summary)
-      .joined(separator: "\n") ?? ""
-  }
-
   private func operation(for kind: TaskKind) -> WorkOperation {
     switch kind {
     case .research: .research
@@ -488,14 +478,4 @@ public struct EmployeeOutcomeEngine: Sendable {
     }
   }
 
-  private func setEmployee(
-    _ employeeID: String,
-    status: EmployeeStatus,
-    taskID: String?,
-    state: inout OrganizationState
-  ) {
-    guard let index = state.employees.firstIndex(where: { $0.id == employeeID }) else { return }
-    state.employees[index].status = status
-    state.employees[index].currentTaskID = taskID
-  }
 }
