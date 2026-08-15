@@ -388,3 +388,126 @@ final class OrganizationJournalMigrationTests: XCTestCase {
     XCTAssertNotNil(reloaded.employeeOutcome(applied.result.commitmentID ?? ""))
   }
 }
+
+/// Owner decisions are consequential, so they travel the same boundary and
+/// reconstruct the same way.
+final class SupervisionCommandTests: XCTestCase {
+  private var directory = URL(fileURLWithPath: "/tmp")
+  private let now = Date(timeIntervalSince1970: 5_000)
+
+  override func setUpWithError() throws {
+    try super.setUpWithError()
+    directory = URL(fileURLWithPath: NSTemporaryDirectory())
+      .appendingPathComponent("agent-office-supervision-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  }
+
+  override func tearDownWithError() throws {
+    try? FileManager.default.removeItem(at: directory)
+    try super.tearDownWithError()
+  }
+
+  private func journal() -> OrganizationJournal {
+    OrganizationJournal(fileURL: directory.appendingPathComponent("journal.jsonl"))
+  }
+
+  private func waitingCommitment() throws -> (state: OrganizationState, commitmentID: String) {
+    var state = LocalOrganizationStore.migrated(
+      .seeded(now: Date(timeIntervalSince1970: 1_000)), now: Date(timeIntervalSince1970: 1_000))
+    for index in state.employees.indices where state.employees[index].kind == .ai {
+      state.employees[index].employmentState = .hired
+    }
+    let commitmentID = try state.createEmployeeOutcome(
+      employeeID: "theo", outcome: "Draft the launch note", context: "",
+      now: Date(timeIntervalSince1970: 1_000))
+    _ = state.updateEmployeeOutcome(commitmentID, now: Date(timeIntervalSince1970: 1_000)) {
+      $0.status = .waiting
+      $0.helpRequest = "I need a source."
+    }
+    return (state, commitmentID)
+  }
+
+  private func replyCommand(_ commitmentID: String, id: String = "command-reply")
+    -> OrganizationCommand
+  {
+    OrganizationCommand(
+      id: id,
+      actor: .owner(id: "owner"),
+      payload: .superviseCommitment(
+        .replyToHelp(commitmentID: commitmentID, message: "Use the internal archive.")),
+      idempotencyKey: "supervision-\(id)",
+      issuedAt: now
+    )
+  }
+
+  func testAnOwnerDecisionIsJournalledWithItsEntities() throws {
+    var fixture = try waitingCommitment()
+    let processor = OrganizationCommandProcessor(journal: journal())
+
+    _ = try processor.submit(replyCommand(fixture.commitmentID), to: &fixture.state)
+
+    let events = try journal().events()
+    XCTAssertEqual(events.map(\.type), ["commitment.help-answered"])
+    XCTAssertEqual(events[0].actor, .owner(id: "owner"))
+    XCTAssertTrue(events[0].references(.commitment(fixture.commitmentID)))
+    XCTAssertTrue(events[0].references(.employee("theo")))
+  }
+
+  func testARuntimeCannotSuperviseItsOwnCommitment() throws {
+    var fixture = try waitingCommitment()
+    let processor = OrganizationCommandProcessor(journal: journal())
+    let command = OrganizationCommand(
+      actor: .employeeRuntime(employeeID: "theo", sessionID: "session-1"),
+      payload: .superviseCommitment(
+        .acceptDelivery(commitmentID: fixture.commitmentID, note: "Looks great to me.")),
+      idempotencyKey: "self-accept"
+    )
+
+    XCTAssertThrowsError(try processor.submit(command, to: &fixture.state)) { error in
+      XCTAssertEqual(
+        error as? OrganizationCommandError,
+        .unauthorizedActor(actor: "theo", commandType: "commitment.delivery-accepted"))
+    }
+    XCTAssertEqual(try journal().events().count, 0)
+  }
+
+  func testADecisionReplaysToTheSameState() throws {
+    var fixture = try waitingCommitment()
+    let snapshot = fixture.state
+    let processor = OrganizationCommandProcessor(journal: journal())
+
+    _ = try processor.submit(replyCommand(fixture.commitmentID), to: &fixture.state)
+    let replayed = try processor.replay(from: snapshot, events: journal().events())
+
+    XCTAssertEqual(replayed, fixture.state)
+  }
+
+  func testARepeatedDecisionAppliesOnce() throws {
+    var fixture = try waitingCommitment()
+    let processor = OrganizationCommandProcessor(journal: journal())
+
+    _ = try processor.submit(replyCommand(fixture.commitmentID), to: &fixture.state)
+    let messagesAfterFirst =
+      fixture.state.employeeOutcome(fixture.commitmentID)?.effectiveManagementMessages.count
+    let second = try processor.submit(
+      replyCommand(fixture.commitmentID, id: "command-reply"), to: &fixture.state)
+
+    XCTAssertTrue(second.wasAlreadyApplied)
+    XCTAssertEqual(
+      fixture.state.employeeOutcome(fixture.commitmentID)?.effectiveManagementMessages.count,
+      messagesAfterFirst)
+    XCTAssertEqual(try journal().events().count, 1)
+  }
+
+  func testARejectedDecisionLeavesNoHistory() throws {
+    var fixture = try waitingCommitment()
+    _ = fixture.state.updateEmployeeOutcome(fixture.commitmentID, now: now) { $0.status = .working }
+    let before = fixture.state
+    let processor = OrganizationCommandProcessor(journal: journal())
+
+    XCTAssertThrowsError(
+      try processor.submit(replyCommand(fixture.commitmentID), to: &fixture.state))
+    XCTAssertEqual(fixture.state, before)
+    XCTAssertEqual(try journal().events().count, 0)
+  }
+}

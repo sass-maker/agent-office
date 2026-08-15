@@ -89,7 +89,9 @@ extension OrganizationState {
       value.planStatus = .approved
       value.managementMessages =
         value.effectiveManagementMessages + [
-          OutcomeManagementMessage(actorID: actorID, message: note, createdAt: now)
+          OutcomeManagementMessage(
+            id: Self.recordID(outcomeID, "plan-approved", now), actorID: actorID, message: note,
+            createdAt: now)
         ]
       value.outcomeRevision = value.effectiveRevision + 1
     }
@@ -117,7 +119,9 @@ extension OrganizationState {
       value.helpRequest = nil
       value.managementMessages =
         value.effectiveManagementMessages + [
-          OutcomeManagementMessage(actorID: actorID, message: message, createdAt: now)
+          OutcomeManagementMessage(
+            id: Self.recordID(outcomeID, "plan-returned", now), actorID: actorID,
+            message: message, createdAt: now)
         ]
       value.outcomeRevision = value.effectiveRevision + 1
     }
@@ -141,7 +145,8 @@ extension OrganizationState {
       value.managementMessages =
         value.effectiveManagementMessages + [
           OutcomeManagementMessage(
-            actorID: actorID, message: message, taskID: blockedTaskID, createdAt: now)
+            id: Self.recordID(outcomeID, "help-answered", now), actorID: actorID,
+            message: message, taskID: blockedTaskID, createdAt: now)
         ]
       value.outcomeRevision = value.effectiveRevision + 1
     }
@@ -223,7 +228,9 @@ extension OrganizationState {
       }
       value.managementMessages =
         value.effectiveManagementMessages + [
-          OutcomeManagementMessage(actorID: actorID, message: reason, createdAt: now)
+          OutcomeManagementMessage(
+            id: Self.recordID(outcomeID, "redirected", now), actorID: actorID, message: reason,
+            createdAt: now)
         ]
       value.outcomeRevision = value.effectiveRevision + 1
     }
@@ -301,12 +308,14 @@ extension OrganizationState {
       value.revisions =
         value.effectiveRevisions + [
           OutcomeRevision(
-            feedback: feedback, requestedByActorID: actorID, taskID: taskID, createdAt: now)
+            id: Self.recordID(outcomeID, "revision", now), feedback: feedback,
+            requestedByActorID: actorID, taskID: taskID, createdAt: now)
         ]
       value.managementMessages =
         value.effectiveManagementMessages + [
           OutcomeManagementMessage(
-            actorID: actorID, message: feedback, taskID: taskID, createdAt: now)
+            id: Self.recordID(outcomeID, "revision-requested", now), actorID: actorID,
+            message: feedback, taskID: taskID, createdAt: now)
         ]
       value.outcomeRevision = value.effectiveRevision + 1
     }
@@ -357,18 +366,33 @@ extension OrganizationState {
     else { throw EmployeeOutcomeError.ineligibleDelegate }
   }
 
+  /// A stable identifier for an owner-authored record.
+  ///
+  /// Derived from what the record is about rather than randomly, so replaying a
+  /// journalled decision reproduces the same record instead of a new one.
+  static func recordID(_ outcomeID: String, _ kind: String, _ now: Date) -> String {
+    "\(outcomeID)-\(kind)-\(Int(now.timeIntervalSince1970))"
+  }
+
   private mutating func appendSupervision(
     _ kind: SupervisionEventKind, actorID: String, employeeID: String, outcomeID: String? = nil,
     taskID: String? = nil, message: String, priorValue: String? = nil, now: Date
   ) {
     if knowledge == nil { knowledge = OrganizationKnowledge(productBrief: "") }
+    // Derived from what the record is about rather than randomly, so replaying
+    // a journalled decision recreates the same supervision event and activity
+    // instead of inventing new identifiers for the same fact.
+    let basis =
+      "\(outcomeID ?? employeeID)-\(kind.rawValue)-\(Int(now.timeIntervalSince1970))"
     knowledge?.supervisionEvents.append(
       SupervisionEvent(
-        kind: kind, actorID: actorID, employeeID: employeeID, outcomeID: outcomeID, taskID: taskID,
+        id: "\(basis)-supervision", kind: kind, actorID: actorID, employeeID: employeeID,
+        outcomeID: outcomeID, taskID: taskID,
         message: message, priorValue: priorValue, createdAt: now))
     activity.append(
       Activity(
-        id: UUID().uuidString, actorID: actorID, kind: kind == .accepted ? .approved : .progress,
+        id: "\(basis)-activity", actorID: actorID,
+        kind: kind == .accepted ? .approved : .progress,
         message: message, createdAt: now))
   }
 }
