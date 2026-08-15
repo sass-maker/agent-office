@@ -86,6 +86,24 @@ durable people-like collaborators whose execution remains bounded software.
   timestamps, honest terminal states, and structured run receipts that keep a
   quiet successful run distinct from a failure and from a run that never
   started.
+- 2026-08-15 — The runtime permission broker became live: employee work receives
+  only the capabilities authorized for its commitment, every allow and deny is
+  organization history, and Mission surfaces what a paused runtime is waiting on.
+- 2026-08-15 — Runtime presence became durable state, so a session that dies
+  blocks its commitment with a reason instead of leaving an employee looking
+  busy forever, and reopening stops what could not have survived.
+- 2026-08-15 — Scheduled work became real work: open windows start through the
+  existing employee pipeline, defer with a stated reason when capacity is short,
+  and close with what the run actually amounted to.
+- 2026-08-15 — Employees can claim the commitments, artifacts, records and
+  connections they are working on through expiring leases that refuse conflicts
+  rather than preempting them.
+- 2026-08-15 — Company knowledge became searchable within each employee's own
+  authority, with mandatory provenance, retained-event history, and flow timing
+  that reports unknown rather than zero.
+- 2026-08-15 — Owner decisions — plan review, help answers, delivery acceptance,
+  revisions, hiring, pausing, resuming, retiring — travel the journalled command
+  boundary and replay to the same state.
 
 ## Products
 
@@ -122,6 +140,21 @@ durable people-like collaborators whose execution remains bounded software.
   actual execution, and run receipts that record what ran, for how long, on
   which runtime, with what evidence, and whether usage was observed, unknown,
   or not applicable.
+- A Calendar destination with day and week views over scheduled work, showing
+  expected and actual work distinctly, stating status in text rather than colour
+  alone, and offering skip without rewriting completed history.
+- Capacity-aware dispatch that defers work with a stated reason when the runtime
+  is unreachable, the employee is already working, the organization is at its
+  concurrency limit, a plan awaits review, or a required connection is missing.
+- Durable runtime presence with heartbeats, stale-session reconciliation, and
+  crash recovery that blocks affected work without touching employment or
+  fabricating a delivery.
+- Expiring leases over commitments, artifacts, records, connections and shared
+  workspaces, allowing shared reads, refusing conflicting writes by naming their
+  holder, and never preempting a live claim.
+- Permission-aware knowledge retrieval with mandatory provenance, entity history
+  read from retained events, and derived flow timing that reports unknown where
+  nothing supports a figure.
 
 - A native SwiftUI and SpriteKit organization home with a cosy, authored
   monochrome editorial office, a human owner, a paired executive assistant,
