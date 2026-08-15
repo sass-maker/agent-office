@@ -210,122 +210,11 @@ public actor LocalOrganizationStore {
     let priorSchemaVersion = organization.schemaVersion
     organization.schemaVersion = max(organization.schemaVersion, 9)
 
-    if organization.knowledge == nil {
-      organization.knowledge = OrganizationKnowledge(
-        productBrief: starterProductBrief(for: organization),
-        profile: starterProfile(for: organization)
-      )
-    } else if organization.productBrief.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      let starterBrief = starterProductBrief(for: organization)
-      organization.knowledge?.productBrief = starterBrief
-    }
-    if organization.knowledge?.profile.isEmpty != false {
-      let profile = starterProfile(for: organization)
-      organization.knowledge?.profile = profile
-    }
-
-    if organization.employee("owner") == nil {
-      organization.employees.insert(
-        Employee(
-          id: "owner",
-          name: "Founder",
-          kind: .human,
-          role: "Owner",
-          responsibility:
-            "Set the company's outcomes, make judgment calls, and approve new access.",
-          avatarColor: "D9B18E"
-        ), at: 0)
-    }
-
-    let humans = organization.employees.filter { $0.kind == .human }
-    for human in humans where organization.assistant(for: human.id) == nil {
-      let assistantID = human.id == "owner" ? "mira" : "assistant-\(safePathComponent(human.id))"
-      guard organization.employee(assistantID) == nil else { continue }
-      organization.employees.insert(
-        Employee(
-          id: assistantID,
-          name: human.id == "owner" ? "Mira" : "Avery",
-          role: "Executive Assistant",
-          responsibility:
-            "Keep \(human.name) oriented, surface decisions, and prepare clear daily handoffs.",
-          managerID: human.id,
-          assistantForHumanID: human.id,
-          avatarColor: "B7A5D8"
-        ), at: min(1, organization.employees.count))
-      organization.activity.append(
-        Activity(
-          id: UUID().uuidString,
-          actorID: assistantID,
-          kind: .joined,
-          message:
-            "\(human.id == "owner" ? "Mira" : "Avery") joined as \(human.name)'s executive assistant.",
-          createdAt: now
-        ))
-    }
-
-    if organization.employee("iris") == nil {
-      organization.employees.append(
-        Employee(
-          id: "iris",
-          name: "Iris",
-          role: "Customer Voice Analyst",
-          responsibility:
-            "Turn deliberately supplied customer feedback into one cited owner decision each week.",
-          managerID: "mira",
-          avatarColor: "6E8B62"
-        ))
-      organization.activity.append(
-        Activity(
-          id: UUID().uuidString,
-          actorID: "iris",
-          kind: .joined,
-          message: "Iris joined as the Customer Voice Analyst.",
-          createdAt: now
-        ))
-    }
-
-    let builtInSkills = OrganizationKnowledge.builtInSkills(now: now)
-    for skill in builtInSkills where organization.skill(skill.id) == nil {
-      organization.knowledge?.skillDefinitions.append(skill)
-    }
-
-    let builtInAssignments = OrganizationKnowledge.builtInAssignments(now: now)
-    for assignment in builtInAssignments {
-      guard organization.employee(assignment.employeeID) != nil,
-        organization.skill(assignment.skillID) != nil,
-        organization.knowledge?.skillAssignments.contains(where: {
-          $0.employeeID == assignment.employeeID && $0.skillID == assignment.skillID
-        }) != true
-      else { continue }
-      organization.knowledge?.skillAssignments.append(assignment)
-    }
-
-    for employee in organization.employees where employee.kind == .ai {
-      let assignmentID = "\(employee.id):communication"
-      guard organization.skill("communication") != nil,
-        organization.knowledge?.skillAssignments.contains(where: {
-          $0.employeeID == employee.id && $0.skillID == "communication"
-        }) != true
-      else { continue }
-      organization.knowledge?.skillAssignments.append(
-        EmployeeSkillAssignment(
-          id: assignmentID,
-          skillID: "communication",
-          employeeID: employee.id,
-          assignedByActorID: "agent-office",
-          assignedAt: now
-        ))
-    }
-
-    for connection in OrganizationKnowledge.builtInConnections()
-    where organization.knowledge?.connectionDefinitions.contains(where: { $0.id == connection.id })
-      != true
-    {
-      organization.knowledge?.connectionDefinitions.append(connection)
-    }
-    if organization.employeeDuty("customer-voice-weekly") == nil {
-      organization.knowledge?.employeeDuties.append(.customerVoiceWeekly(now: now))
-    }
+    migrateOrganizationContext(&organization)
+    migrateOwnerAndAssistants(&organization, now: now)
+    migrateBuiltInEmployees(&organization, now: now)
+    migrateBuiltInSkillsAndAssignments(&organization, now: now)
+    migrateBuiltInConnectionsAndDuties(&organization, now: now)
     if priorSchemaVersion < 9 {
       for index in organization.employees.indices
       where organization.employees[index].employmentState == nil {
@@ -795,6 +684,143 @@ public actor LocalOrganizationStore {
     This projection records identifiers and availability only. It never contains credential values.
     """.write(
       to: home.appendingPathComponent("WORKING_CONTRACT.md"), atomically: true, encoding: .utf8)
+  }
+
+  private nonisolated static func migrateOrganizationContext(
+    _ organization: inout OrganizationState
+  ) {
+    if organization.knowledge == nil {
+      organization.knowledge = OrganizationKnowledge(
+        productBrief: starterProductBrief(for: organization),
+        profile: starterProfile(for: organization)
+      )
+    } else if organization.productBrief.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      let starterBrief = starterProductBrief(for: organization)
+      organization.knowledge?.productBrief = starterBrief
+    }
+    if organization.knowledge?.profile.isEmpty != false {
+      let profile = starterProfile(for: organization)
+      organization.knowledge?.profile = profile
+    }
+  }
+
+  private nonisolated static func migrateOwnerAndAssistants(
+    _ organization: inout OrganizationState, now: Date
+  ) {
+    if organization.employee("owner") == nil {
+      organization.employees.insert(
+        Employee(
+          id: "owner",
+          name: "Founder",
+          kind: .human,
+          role: "Owner",
+          responsibility:
+            "Set the company's outcomes, make judgment calls, and approve new access.",
+          avatarColor: "D9B18E"
+        ), at: 0)
+    }
+
+    let humans = organization.employees.filter { $0.kind == .human }
+    for human in humans where organization.assistant(for: human.id) == nil {
+      let assistantID = human.id == "owner" ? "mira" : "assistant-\(safePathComponent(human.id))"
+      guard organization.employee(assistantID) == nil else { continue }
+      organization.employees.insert(
+        Employee(
+          id: assistantID,
+          name: human.id == "owner" ? "Mira" : "Avery",
+          role: "Executive Assistant",
+          responsibility:
+            "Keep \(human.name) oriented, surface decisions, and prepare clear daily handoffs.",
+          managerID: human.id,
+          assistantForHumanID: human.id,
+          avatarColor: "B7A5D8"
+        ), at: min(1, organization.employees.count))
+      organization.activity.append(
+        Activity(
+          id: UUID().uuidString,
+          actorID: assistantID,
+          kind: .joined,
+          message:
+            "\(human.id == "owner" ? "Mira" : "Avery") joined as \(human.name)'s executive assistant.",
+          createdAt: now
+        ))
+    }
+  }
+
+  private nonisolated static func migrateBuiltInEmployees(
+    _ organization: inout OrganizationState, now: Date
+  ) {
+    if organization.employee("iris") == nil {
+      organization.employees.append(
+        Employee(
+          id: "iris",
+          name: "Iris",
+          role: "Customer Voice Analyst",
+          responsibility:
+            "Turn deliberately supplied customer feedback into one cited owner decision each week.",
+          managerID: "mira",
+          avatarColor: "6E8B62"
+        ))
+      organization.activity.append(
+        Activity(
+          id: UUID().uuidString,
+          actorID: "iris",
+          kind: .joined,
+          message: "Iris joined as the Customer Voice Analyst.",
+          createdAt: now
+        ))
+    }
+  }
+
+  private nonisolated static func migrateBuiltInSkillsAndAssignments(
+    _ organization: inout OrganizationState, now: Date
+  ) {
+    let builtInSkills = OrganizationKnowledge.builtInSkills(now: now)
+    for skill in builtInSkills where organization.skill(skill.id) == nil {
+      organization.knowledge?.skillDefinitions.append(skill)
+    }
+
+    let builtInAssignments = OrganizationKnowledge.builtInAssignments(now: now)
+    for assignment in builtInAssignments {
+      guard organization.employee(assignment.employeeID) != nil,
+        organization.skill(assignment.skillID) != nil,
+        organization.knowledge?.skillAssignments.contains(where: {
+          $0.employeeID == assignment.employeeID && $0.skillID == assignment.skillID
+        }) != true
+      else { continue }
+      organization.knowledge?.skillAssignments.append(assignment)
+    }
+
+    for employee in organization.employees where employee.kind == .ai {
+      let assignmentID = "\(employee.id):communication"
+      guard organization.skill("communication") != nil,
+        organization.knowledge?.skillAssignments.contains(where: {
+          $0.employeeID == employee.id && $0.skillID == "communication"
+        }) != true
+      else { continue }
+      organization.knowledge?.skillAssignments.append(
+        EmployeeSkillAssignment(
+          id: assignmentID,
+          skillID: "communication",
+          employeeID: employee.id,
+          assignedByActorID: "agent-office",
+          assignedAt: now
+        ))
+    }
+  }
+
+  private nonisolated static func migrateBuiltInConnectionsAndDuties(
+    _ organization: inout OrganizationState, now: Date
+  ) {
+    for connection in OrganizationKnowledge.builtInConnections()
+    where organization.knowledge?.connectionDefinitions.contains(where: { $0.id == connection.id })
+      != true
+    {
+      organization.knowledge?.connectionDefinitions.append(connection)
+    }
+    if organization.employeeDuty("customer-voice-weekly") == nil {
+      organization.knowledge?.employeeDuties.append(.customerVoiceWeekly(now: now))
+    }
   }
 
   private nonisolated static func starterProductBrief(for organization: OrganizationState) -> String

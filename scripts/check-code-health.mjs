@@ -185,7 +185,7 @@ function checkComplexity() {
   );
   // Ratcheted legacy debt: https://github.com/sass-maker/agent-office/issues/21
   failRegressions("Complexity", observed, {
-    violations: 40,
+    violations: 39,
     maxCcn: 25,
     maxLength: 293,
     maxParams: 28,
@@ -229,7 +229,7 @@ function checkDuplication() {
     duplicatedLines: 31,
     // Rounded slightly above the observed 0.72101% because jscpd's percentage
     // varies in its last digits between runs.
-    percentage: 0.1458,
+    percentage: 0.1456,
   });
 }
 
