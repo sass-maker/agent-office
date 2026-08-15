@@ -37,13 +37,19 @@ public struct EmployeeOutcomeEngine: Sendable {
     return state
   }
 
+  /// Runs a commitment.
+  ///
+  /// `authorizedCapabilities` is what the permission broker allows right now.
+  /// When it is nil the employee's own grants are used, which is what callers
+  /// that predate the broker expect.
   public func run(
     _ input: OrganizationState,
     outcomeID: String,
     runner: any EmployeeRunner,
     store: LocalOrganizationStore,
     now: Date = Date(),
-    persistsTransitions: Bool = true
+    persistsTransitions: Bool = true,
+    authorizedCapabilities: Set<String>? = nil
   ) async -> OrganizationState {
     var state = input
     guard var outcome = state.employeeOutcome(outcomeID),
@@ -61,7 +67,8 @@ public struct EmployeeOutcomeEngine: Sendable {
           state: state,
           runner: runner,
           store: store,
-          now: now
+          now: now,
+          authorizedCapabilities: authorizedCapabilities
         )
         try apply(plan: plan, to: outcomeID, state: &state, now: now)
         outcome = state.employeeOutcome(outcomeID) ?? outcome
@@ -119,7 +126,8 @@ public struct EmployeeOutcomeEngine: Sendable {
           skills: state.assignedSkills(employeeID: employee.id).filter {
             outcome.selectedSkillIDs.contains($0.id)
           },
-          capabilityGrants: employee.capabilityGrants,
+          capabilityGrants: authorizedCapabilities.map { Array($0).sorted() }
+            ?? employee.capabilityGrants,
           workspaceURL: store.employeeHomeURL(employeeID: employee.id)
         )
         try FileManager.default.createDirectory(
@@ -240,7 +248,8 @@ public struct EmployeeOutcomeEngine: Sendable {
     state: OrganizationState,
     runner: any EmployeeRunner,
     store: LocalOrganizationStore,
-    now: Date
+    now: Date,
+    authorizedCapabilities: Set<String>?
   ) async throws -> EmployeeWorkOutput {
     let planTask = WorkTask(
       id: "\(outcome.id)-plan",
@@ -267,7 +276,8 @@ public struct EmployeeOutcomeEngine: Sendable {
         context: outcome.context,
         memory: memoryContext(for: employee.id, in: state),
         skills: state.assignedSkills(employeeID: employee.id),
-        capabilityGrants: employee.capabilityGrants,
+        capabilityGrants: authorizedCapabilities.map { Array($0).sorted() }
+          ?? employee.capabilityGrants,
         workspaceURL: store.employeeHomeURL(employeeID: employee.id)
       ))
   }
