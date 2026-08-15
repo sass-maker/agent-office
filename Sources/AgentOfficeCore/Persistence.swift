@@ -115,6 +115,9 @@ public actor LocalOrganizationStore {
     _ = organization.resetInterruptedResearch()
     _ = organization.resetInterruptedDuty()
     _ = organization.resetInterruptedEmployeeOutcome()
+    // A runtime process cannot outlive the app that hosted it, so anything
+    // still marked alive here stopped without finishing.
+    _ = organization.stopOrphanedRuntimeSessions(now: Date())
     if fileManager.fileExists(atPath: productBriefFileURL.path),
       let brief = try? String(contentsOf: productBriefFileURL, encoding: .utf8),
       !brief.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
