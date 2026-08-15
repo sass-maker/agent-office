@@ -4,6 +4,7 @@ import SwiftUI
 enum OrganizationDestination: String, CaseIterable, Identifiable {
   case office = "Office"
   case mission = "Mission"
+  case calendar = "Calendar"
   case company = "Company"
 
   var id: String { rawValue }
@@ -12,6 +13,7 @@ enum OrganizationDestination: String, CaseIterable, Identifiable {
     switch self {
     case .office: "building.2"
     case .mission: "scope"
+    case .calendar: "calendar"
     case .company: "person.2"
     }
   }
@@ -20,7 +22,8 @@ enum OrganizationDestination: String, CaseIterable, Identifiable {
     switch self {
     case .office: "1"
     case .mission: "2"
-    case .company: "3"
+    case .calendar: "3"
+    case .company: "4"
     }
   }
 
@@ -28,7 +31,8 @@ enum OrganizationDestination: String, CaseIterable, Identifiable {
     switch self {
     case .office: "1"
     case .mission: "2"
-    case .company: "3"
+    case .calendar: "3"
+    case .company: "4"
     }
   }
 }
@@ -61,6 +65,8 @@ struct OrganizationShellView: View {
               onOpenEmployeeProfile: openEmployeeProfile,
               onDirtyChange: { hasUnsavedChanges = $0 }
             )
+          case .calendar:
+            WorkCalendarView()
           case .company:
             CompanyView(
               onDirtyChange: { hasUnsavedChanges = $0 },

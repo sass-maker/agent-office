@@ -389,3 +389,146 @@ final class EmployeeScheduleTests: XCTestCase {
     XCTAssertTrue(state.runReceipts.isEmpty)
   }
 }
+
+final class WorkCalendarTests: XCTestCase {
+  private let start = Date(timeIntervalSince1970: 1_000_000)
+
+  private func organization() -> OrganizationState {
+    LocalOrganizationStore.migrated(.seeded(now: start), now: start)
+  }
+
+  private func policy(
+    id: String = "policy-1", catchUp: ScheduleCatchUpPolicy = .leaveMissed
+  ) -> SchedulePolicy {
+    SchedulePolicy(
+      id: id,
+      employeeID: "iris",
+      subject: .recurringResponsibility("customer-voice-weekly"),
+      plan: SchedulePlan(
+        recurrence: .everyDays(7), firstStart: start, expectedDuration: 900, flexibility: 600,
+        timeZoneIdentifier: "UTC"),
+      createdAt: start,
+      catchUp: catchUp
+    )
+  }
+
+  // MARK: - Projection
+
+  func testDaysProjectOccurrencesWithStatusAndActualRun() throws {
+    var state = organization()
+    state.addSchedulePolicy(policy())
+    let created = try state.generateOccurrences(
+      forPolicy: "policy-1", from: start, through: start.addingTimeInterval(60 * 60 * 24 * 8))
+    let first = try XCTUnwrap(created.first)
+    try state.startOccurrence(
+      first.id, at: start.addingTimeInterval(60), runtimeKind: "office.demo")
+    _ = try state.finishOccurrence(
+      first.id,
+      result: ReceiptResult(kind: .quiet, summary: "No new notes."),
+      reason: "Weekly customer voice",
+      endedAt: start.addingTimeInterval(300)
+    )
+
+    let days = state.calendarDays(
+      from: start.addingTimeInterval(-60), through: start.addingTimeInterval(60 * 60 * 24 * 9),
+      timeZoneIdentifier: "UTC")
+
+    XCTAssertEqual(days.count, 2, "one block on day 0 and one on day 7")
+    let block = try XCTUnwrap(days.first?.blocks.first)
+    XCTAssertEqual(block.employeeName, "Iris")
+    XCTAssertEqual(block.status, .quiet)
+    XCTAssertEqual(block.statusLabel, "Ran, nothing to change")
+    XCTAssertTrue(block.didActuallyRun)
+    XCTAssertEqual(block.receiptHeadline, "Ran and found nothing to change.")
+  }
+
+  func testProjectionInventsNothingWhenNoPolicyExists() {
+    let state = organization()
+
+    let days = state.calendarDays(
+      from: start, through: start.addingTimeInterval(60 * 60 * 24 * 30))
+
+    XCTAssertTrue(days.isEmpty)
+  }
+
+  func testAScheduledBlockIsNotReportedAsHavingRun() throws {
+    var state = organization()
+    state.addSchedulePolicy(policy())
+    _ = try state.generateOccurrences(
+      forPolicy: "policy-1", from: start, through: start.addingTimeInterval(60))
+
+    let days = state.calendarDays(
+      from: start.addingTimeInterval(-60), through: start.addingTimeInterval(60),
+      timeZoneIdentifier: "UTC")
+
+    let block = try XCTUnwrap(days.first?.blocks.first)
+    XCTAssertFalse(block.didActuallyRun)
+    XCTAssertNil(block.receiptHeadline)
+    XCTAssertEqual(block.statusLabel, "Scheduled")
+  }
+
+  // MARK: - Catch-up
+
+  func testLeaveMissedCreatesNoReplacement() throws {
+    var state = organization()
+    state.addSchedulePolicy(policy(catchUp: .leaveMissed))
+    _ = try state.generateOccurrences(
+      forPolicy: "policy-1", from: start, through: start.addingTimeInterval(60))
+    let before = state.scheduledOccurrences.count
+
+    let rescheduled = state.applyCatchUpPolicies(now: start.addingTimeInterval(10_000))
+
+    XCTAssertTrue(rescheduled.isEmpty)
+    XCTAssertEqual(state.scheduledOccurrences.count, before)
+    XCTAssertEqual(state.scheduledOccurrences.first?.status, .missed)
+  }
+
+  func testRescheduleMovesTheWindowWithoutRunningAnything() throws {
+    var state = organization()
+    state.addSchedulePolicy(policy(catchUp: .rescheduleToNextWindow))
+    let created = try state.generateOccurrences(
+      forPolicy: "policy-1", from: start, through: start.addingTimeInterval(60))
+    let missedID = try XCTUnwrap(created.first).id
+    let now = start.addingTimeInterval(10_000)
+
+    let rescheduled = state.applyCatchUpPolicies(now: now)
+
+    XCTAssertEqual(rescheduled, ["\(missedID)-catchup"])
+    XCTAssertEqual(state.scheduledOccurrence(missedID)?.status, .missed)
+    let replacement = try XCTUnwrap(state.scheduledOccurrence("\(missedID)-catchup"))
+    XCTAssertEqual(replacement.status, .scheduled)
+    XCTAssertGreaterThanOrEqual(replacement.window.start, now)
+    XCTAssertNil(replacement.actual, "nothing may run as part of catching up")
+    XCTAssertTrue(state.runReceipts.isEmpty)
+  }
+
+  func testRepeatedReconciliationCreatesNoSecondReplacement() throws {
+    var state = organization()
+    state.addSchedulePolicy(policy(catchUp: .rescheduleToNextWindow))
+    _ = try state.generateOccurrences(
+      forPolicy: "policy-1", from: start, through: start.addingTimeInterval(60))
+
+    let first = state.applyCatchUpPolicies(now: start.addingTimeInterval(10_000))
+    let second = state.applyCatchUpPolicies(now: start.addingTimeInterval(20_000))
+
+    XCTAssertEqual(first.count, 1)
+    XCTAssertTrue(second.isEmpty, "a replacement is never itself rescheduled")
+    XCTAssertEqual(state.scheduledOccurrences.filter { $0.replacesOccurrenceID != nil }.count, 1)
+  }
+
+  func testPolicyWrittenBeforeCatchUpExistedDefaultsToLeavingMissed() throws {
+    let legacy = """
+      {"id":"policy-legacy","employeeID":"iris",
+      "subject":{"recurringResponsibility":{"_0":"customer-voice-weekly"}},
+      "plan":{"recurrence":{"everyDays":{"_0":7}},"firstStart":"2026-08-15T00:00:00Z",
+      "expectedDuration":900,"flexibility":600,"timeZoneIdentifier":"UTC"},
+      "authoredByActorID":"owner","createdAt":"2026-08-15T00:00:00Z","isPaused":false}
+      """
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+
+    let policy = try decoder.decode(SchedulePolicy.self, from: Data(legacy.utf8))
+
+    XCTAssertEqual(policy.catchUp, .leaveMissed)
+  }
+}
