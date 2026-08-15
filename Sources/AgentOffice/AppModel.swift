@@ -697,9 +697,14 @@ final class AppModel: ObservableObject {
     for occurrence in organization.dueOccurrences(now: now) {
       let sessionID = "scheduled-\(occurrence.id)"
       let binding = organization.effectiveRuntimeBinding(for: occurrence.origin.employeeID)
+      let resolution = await runtimeRegistry.resolve(binding)
+      let capacity = DispatchCapacity(
+        runtimeIsAvailable: resolution.driver != nil,
+        runtimeUnavailableReason: resolution.shadow?.reason
+      )
       switch organization.beginScheduledWork(
         occurrence.id, now: now, sessionID: sessionID,
-        runtimeKind: binding.driverKind.rawValue)
+        runtimeKind: binding.driverKind.rawValue, capacity: capacity)
       {
       case .dispatched(_, let commitmentID):
         organization.registerRuntimeSession(
@@ -714,6 +719,9 @@ final class AppModel: ObservableObject {
         beginEmployeeOutcome(commitmentID)
       case .skippedNotReady(let occurrenceID, let reason):
         _ = try? organization.skipOccurrence(occurrenceID, reason: reason)
+      case .waiting:
+        // A capacity condition, not a refusal: it stays due for the next pass.
+        continue
       case .notDue:
         continue
       }

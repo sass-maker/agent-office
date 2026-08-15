@@ -181,3 +181,85 @@ final class ScheduledWorkDispatchTests: XCTestCase {
     XCTAssertEqual(context.state.runReceipt(forOccurrence: context.occurrenceID), first)
   }
 }
+
+extension ScheduledWorkDispatchTests {
+  // MARK: - Capacity
+
+  func testAnUnavailableRuntimeMakesTheOccurrenceWaitRatherThanSkip() throws {
+    var context = try fixture()
+
+    let outcome = context.state.beginScheduledWork(
+      context.occurrenceID, now: start.addingTimeInterval(30),
+      capacity: DispatchCapacity(
+        runtimeIsAvailable: false, runtimeUnavailableReason: "Codex was not found on this Mac."))
+
+    XCTAssertEqual(
+      outcome,
+      .waiting(
+        occurrenceID: context.occurrenceID, reason: "Codex was not found on this Mac."))
+    XCTAssertEqual(context.state.scheduledOccurrence(context.occurrenceID)?.status, .waiting)
+    XCTAssertNil(
+      context.state.scheduledOccurrence(context.occurrenceID)?.actual,
+      "waiting is not running")
+  }
+
+  func testAnEmployeeAlreadyWorkingElsewhereWaits() throws {
+    var context = try fixture()
+    let other = try context.state.createEmployeeOutcome(
+      employeeID: "theo", outcome: "Something else", context: "", now: start)
+    _ = context.state.updateEmployeeOutcome(other, now: start) { $0.status = .working }
+
+    let outcome = context.state.beginScheduledWork(
+      context.occurrenceID, now: start.addingTimeInterval(30))
+
+    guard case .waiting(_, let reason) = outcome else {
+      return XCTFail("a busy employee should wait, got \(outcome)")
+    }
+    XCTAssertTrue(reason.contains("already working"))
+  }
+
+  func testTheConcurrencyLimitIsRespected() throws {
+    var context = try fixture()
+    context.state.organizationConcurrencyLimit = 1
+    let other = try context.state.createEmployeeOutcome(
+      employeeID: "nia", outcome: "Research", context: "", now: start)
+    _ = context.state.updateEmployeeOutcome(other, now: start) { $0.status = .working }
+
+    let outcome = context.state.beginScheduledWork(
+      context.occurrenceID, now: start.addingTimeInterval(30))
+
+    guard case .waiting(_, let reason) = outcome else {
+      return XCTFail("a full organization should wait, got \(outcome)")
+    }
+    XCTAssertTrue(reason.contains("1 of 1"))
+  }
+
+  func testAPlanAwaitingReviewWaits() throws {
+    var context = try fixture()
+    _ = context.state.updateEmployeeOutcome(context.commitmentID, now: start) {
+      $0.planStatus = .proposed
+    }
+
+    let outcome = context.state.beginScheduledWork(
+      context.occurrenceID, now: start.addingTimeInterval(30))
+
+    guard case .waiting(_, let reason) = outcome else {
+      return XCTFail("an unreviewed plan should wait, got \(outcome)")
+    }
+    XCTAssertEqual(reason, "This plan is waiting for your review.")
+  }
+
+  func testWaitingWorkCanStartOnceCapacityReturns() throws {
+    var context = try fixture()
+    _ = context.state.beginScheduledWork(
+      context.occurrenceID, now: start.addingTimeInterval(30),
+      capacity: DispatchCapacity(runtimeIsAvailable: false))
+
+    let second = context.state.beginScheduledWork(
+      context.occurrenceID, now: start.addingTimeInterval(60), capacity: .available)
+
+    XCTAssertEqual(
+      second, .dispatched(occurrenceID: context.occurrenceID, commitmentID: context.commitmentID))
+    XCTAssertEqual(context.state.scheduledOccurrence(context.occurrenceID)?.status, .running)
+  }
+}
