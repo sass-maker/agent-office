@@ -300,6 +300,7 @@ struct MissionView: View {
       if let help = outcome.helpRequest {
         Text(help).font(.caption).foregroundStyle(EditorialOfficeTheme.attention)
       }
+      collaborationTrail(outcome)
       if let delivery = outcome.effectiveDeliveries.last {
         Text("Delivery · \(delivery.summary)").font(.caption).foregroundStyle(
           EditorialOfficeTheme.ink.opacity(0.72))
@@ -345,6 +346,28 @@ struct MissionView: View {
         case .accepted, .closed, .cancelled: EmptyView()
         }
       }
+    }
+  }
+
+  /// Cross-employee work, shown where the commitment it belongs to is
+  /// supervised rather than in a separate place.
+  @ViewBuilder
+  private func collaborationTrail(_ outcome: EmployeeOutcome) -> some View {
+    let records = model.organization.collaborationRecords(forCommitment: outcome.id)
+    if !records.isEmpty {
+      VStack(alignment: .leading, spacing: 5) {
+        Text("COWORKER HELP")
+          .font(.caption2.weight(.semibold))
+          .tracking(0.8)
+          .foregroundStyle(EditorialOfficeTheme.graphite)
+        ForEach(records) { record in
+          Text(record.summary)
+            .font(.caption)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel("\(record.respondingEmployeeName): \(record.summary)")
+        }
+      }
+      .padding(.top, 4)
     }
   }
 
