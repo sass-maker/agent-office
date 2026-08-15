@@ -52,7 +52,6 @@ struct OrganizationShellView: View {
           switch destination {
           case .office:
             OrganizationHomeView(
-              showsCommandShelf: false,
               onOpenEmployeeProfile: openEmployeeProfile,
               onOpenMission: { open(.mission) }
             )
@@ -64,7 +63,6 @@ struct OrganizationShellView: View {
             )
           case .company:
             CompanyView(
-              onOpenOffice: { open(.office) },
               onDirtyChange: { hasUnsavedChanges = $0 },
               initialEmployeeID: requestedEmployeeID
             )

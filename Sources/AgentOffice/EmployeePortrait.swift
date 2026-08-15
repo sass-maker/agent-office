@@ -2,17 +2,11 @@ import AgentOfficeCore
 import AppKit
 import SwiftUI
 
-enum EmployeePortraitFraming {
-  case face
-  case fullBody
-}
-
 struct EmployeePortrait: View {
   private static let portraitCache = NSCache<NSString, NSImage>()
 
   let employee: Employee
   var size = CGSize(width: 52, height: 62)
-  var framing: EmployeePortraitFraming = .face
 
   var body: some View {
     ZStack(alignment: .bottom) {
@@ -25,11 +19,10 @@ struct EmployeePortrait: View {
           )
         )
 
-      if let portrait = Self.portrait(for: employee.id, framing: framing) {
+      if let portrait = Self.portrait(for: employee.id) {
         Image(nsImage: portrait)
           .resizable()
-          .aspectRatio(contentMode: framing == .face ? .fill : .fit)
-          .padding(framing == .face ? 0 : 2)
+          .aspectRatio(contentMode: .fill)
           .saturation(0)
           .contrast(1.12)
       } else {
@@ -49,19 +42,14 @@ struct EmployeePortrait: View {
     .accessibilityHidden(true)
   }
 
-  private static func portrait(
-    for employeeID: String,
-    framing: EmployeePortraitFraming
-  ) -> NSImage? {
-    let framingKey = framing == .face ? "face" : "full"
-    let cacheKey = "\(employeeID)-\(framingKey)" as NSString
+  private static func portrait(for employeeID: String) -> NSImage? {
+    let cacheKey = "\(employeeID)-face" as NSString
     if let cached = portraitCache.object(forKey: cacheKey) {
       return cached
     }
 
     guard let portrait = fullPortrait(for: employeeID) else { return nil }
-    guard framing == .face,
-      let source = portrait.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    guard let source = portrait.cgImage(forProposedRect: nil, context: nil, hints: nil)
     else {
       portraitCache.setObject(portrait, forKey: cacheKey)
       return portrait

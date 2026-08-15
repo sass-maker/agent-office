@@ -194,7 +194,6 @@ struct ResearchDeskCard: View {
   private let ink = EditorialOfficeTheme.ink
   private let spruce = EditorialOfficeTheme.controlInk
   private let paper = EditorialOfficeTheme.paper
-  private let apricot = EditorialOfficeTheme.graphite
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
