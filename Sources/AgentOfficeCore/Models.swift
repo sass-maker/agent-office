@@ -441,6 +441,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
   public var workingContracts: [WorkingContract]
   public var contractChanges: [ContractChange]
   public var supervisionEvents: [SupervisionEvent]
+  public var runtimeBindings: [RuntimeBinding]
 
   public init(
     productBrief: String,
@@ -458,7 +459,8 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     employeePackages: [EmployeePackage] = [],
     workingContracts: [WorkingContract] = [],
     contractChanges: [ContractChange] = [],
-    supervisionEvents: [SupervisionEvent] = []
+    supervisionEvents: [SupervisionEvent] = [],
+    runtimeBindings: [RuntimeBinding] = []
   ) {
     self.productBrief = productBrief
     self.profile = profile
@@ -476,6 +478,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     self.workingContracts = workingContracts
     self.contractChanges = contractChanges
     self.supervisionEvents = supervisionEvents
+    self.runtimeBindings = runtimeBindings
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -495,6 +498,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     case workingContracts
     case contractChanges
     case supervisionEvents
+    case runtimeBindings
   }
 
   public init(from decoder: Decoder) throws {
@@ -530,6 +534,8 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
       try container.decodeIfPresent([ContractChange].self, forKey: .contractChanges) ?? []
     supervisionEvents =
       try container.decodeIfPresent([SupervisionEvent].self, forKey: .supervisionEvents) ?? []
+    runtimeBindings =
+      try container.decodeIfPresent([RuntimeBinding].self, forKey: .runtimeBindings) ?? []
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -550,6 +556,7 @@ public struct OrganizationKnowledge: Codable, Sendable, Equatable {
     try container.encode(workingContracts, forKey: .workingContracts)
     try container.encode(contractChanges, forKey: .contractChanges)
     try container.encode(supervisionEvents, forKey: .supervisionEvents)
+    try container.encode(runtimeBindings, forKey: .runtimeBindings)
   }
 }
 

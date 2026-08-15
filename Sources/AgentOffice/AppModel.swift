@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
 
   private var store: LocalOrganizationStore
   private let employeeOutcomeEngine = EmployeeOutcomeEngine()
+  private let runtimeRegistry = RuntimeDriverRegistry.builtIn()
   private let employeeWorkCoordinator = EmployeeWorkCoordinator(concurrencyLimit: 2)
   private var workTask: Task<Void, Never>?
 
@@ -1102,18 +1103,31 @@ final class AppModel: ObservableObject {
     }
     let store = self.store
     let outcomeEngine = self.employeeOutcomeEngine
+    let registry = self.runtimeRegistry
+    let binding = organization.effectiveRuntimeBinding(for: request.employeeID)
     let submitted = await employeeWorkCoordinator.submit(
       request,
       operation: { request in
-        let provider = request.organization.workingContract(for: request.employeeID)?
-          .executionProvider
-        let runner: any EmployeeRunner
-        if provider == .localCodex, let codex = CodexEmployeeRunner.discover() {
-          runner = codex
-        } else {
-          runner = DeterministicEmployeeRunner()
+        // The runtime an employee works through is resolved from its binding.
+        // A missing or unhealthy runtime surfaces its reason instead of
+        // silently substituting a different one.
+        switch await registry.resolve(binding) {
+        case .unavailable(let shadow):
+          throw RuntimeUnavailableError(shadow)
+        case .resolved(let driver):
+          let session = try await driver.openSession(
+            employeeID: request.employeeID,
+            bindingID: binding.id,
+            sessionID: UUID().uuidString
+          )
+          let runner = RuntimeSessionRunner(
+            session: session,
+            employeeID: request.employeeID,
+            commitmentID: request.outcomeID,
+            correlationID: request.outcomeID
+          )
+          return try await outcomeEngine.execute(request, runner: runner, store: store)
         }
-        return try await outcomeEngine.execute(request, runner: runner, store: store)
       },
       completion: { [weak self] result in
         await self?.handleEmployeeRunResult(result, request: request)
