@@ -24,7 +24,7 @@ public struct EmployeeOutcomeRunRequest: Sendable {
   }
 }
 
-public struct EmployeeOutcomeRunResult: Sendable {
+public struct EmployeeOutcomeRunResult: Codable, Sendable, Equatable {
   public var outcomeID: String
   public var employeeID: String
   public var contractRevision: Int

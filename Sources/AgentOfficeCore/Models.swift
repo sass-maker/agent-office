@@ -740,6 +740,9 @@ public struct OrganizationState: Codable, Sendable, Equatable {
   public var knowledge: OrganizationKnowledge?
   public var lastSavedAt: Date
   public var organizationConcurrencyLimit: Int?
+  /// The journal sequence this snapshot reflects, so replay knows where to
+  /// resume. Absent for organizations written before the journal existed.
+  public var journalSequence: Int?
 
   public static func seeded(now: Date = Date(), hiredStarterTeam: Bool = true) -> OrganizationState
   {

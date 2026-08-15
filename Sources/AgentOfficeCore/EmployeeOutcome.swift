@@ -320,7 +320,8 @@ extension OrganizationState {
     priority: EmployeeOutcomePriority = .normal,
     source: EmployeeOutcomeSource = .owner,
     sourceID: String? = nil,
-    now: Date = Date()
+    now: Date = Date(),
+    identifierSeed: String? = nil
   ) throws -> String {
     let trimmedOutcome = outcome.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedOutcome.isEmpty else { throw EmployeeOutcomeError.emptyOutcome }
@@ -337,7 +338,11 @@ extension OrganizationState {
     }
 
     if knowledge == nil { knowledge = OrganizationKnowledge(productBrief: "") }
-    let id = "employee-outcome-\(UUID().uuidString.lowercased().prefix(8))"
+    // A seed makes creation reproducible so replaying recorded history cannot
+    // invent different identifiers than the ones it wrote.
+    let identifierBasis = identifierSeed ?? UUID().uuidString
+    let id =
+      "employee-outcome-\(identifierBasis.lowercased().replacingOccurrences(of: "-", with: "").prefix(8))"
     let nextQueuePosition =
       (employeeOutcomes.filter { $0.assigneeID == employeeID && !$0.status.isTerminal }.map(
         \.effectiveQueuePosition
@@ -360,7 +365,7 @@ extension OrganizationState {
       ))
     activity.append(
       Activity(
-        id: UUID().uuidString,
+        id: "\(identifierBasis)-assignment",
         actorID: "owner",
         kind: .started,
         message: "You asked \(employee.name) to own: \(trimmedOutcome)",
@@ -368,7 +373,7 @@ extension OrganizationState {
       ))
     activity.append(
       Activity(
-        id: UUID().uuidString,
+        id: "\(identifierBasis)-acceptance",
         actorID: employeeID,
         kind: .handoff,
         message:

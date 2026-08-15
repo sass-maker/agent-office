@@ -666,7 +666,7 @@ final class AppModel: ObservableObject {
   }
 
   @discardableResult
-  func submitEmployeeOutcome(employeeID: String, outcome: String, context: String) -> Bool {
+  func submitEmployeeOutcome(employeeID: String, outcome: String, context: String) async -> Bool {
     guard canCreateEmployeeOutcome else {
       lastError = "Finish the fixed local workflow before assigning an employee outcome."
       return false
@@ -676,14 +676,17 @@ final class AppModel: ObservableObject {
         "Local Codex is unavailable. Reconnect it or choose Demo for a synthetic rehearsal."
       return false
     }
+    let command = OrganizationCommand(
+      actor: .owner(id: "owner"),
+      payload: .assignEmployeeOutcome(
+        .init(employeeID: employeeID, outcome: outcome, context: context)),
+      idempotencyKey: "assign-outcome:\(employeeID):\(UUID().uuidString)"
+    )
     do {
-      let outcomeID = try organization.createEmployeeOutcome(
-        employeeID: employeeID,
-        outcome: outcome,
-        context: context
-      )
+      let applied = try await store.submit(command, to: organization)
+      organization = applied.state
       lastError = nil
-      beginEmployeeOutcome(outcomeID)
+      if let outcomeID = applied.result.commitmentID { beginEmployeeOutcome(outcomeID) }
       return true
     } catch {
       lastError = error.localizedDescription
@@ -1132,7 +1135,15 @@ final class AppModel: ObservableObject {
     do {
       switch result {
       case .success(let runResult):
-        try organization.apply(runResult)
+        // The runtime hands work back through the same command boundary the
+        // owner uses, so a retried result cannot apply twice.
+        let command = OrganizationCommand(
+          actor: .employeeRuntime(employeeID: request.employeeID, sessionID: nil),
+          payload: .applyEmployeeRunResult(runResult),
+          idempotencyKey:
+            "run-result:\(runResult.outcomeID):\(runResult.expectedOutcomeRevision)"
+        )
+        organization = try await store.submit(command, to: organization).state
         organization.synchronizeLegacyAdapters(outcomeID: request.outcomeID)
       case .failure(let error):
         _ = organization.updateEmployeeOutcome(request.outcomeID) { value in

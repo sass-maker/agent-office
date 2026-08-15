@@ -218,13 +218,17 @@ struct EmployeeOutcomeAssignmentSheet: View {
 
   private func submit() {
     submissionError = nil
-    guard model.submitEmployeeOutcome(employeeID: employee.id, outcome: outcome, context: context)
-    else {
-      submissionError = model.lastError ?? "This outcome could not be assigned."
-      model.lastError = nil
-      return
+    Task {
+      guard
+        await model.submitEmployeeOutcome(
+          employeeID: employee.id, outcome: outcome, context: context)
+      else {
+        submissionError = model.lastError ?? "This outcome could not be assigned."
+        model.lastError = nil
+        return
+      }
+      dismiss()
     }
-    dismiss()
   }
 
   private enum Field {
