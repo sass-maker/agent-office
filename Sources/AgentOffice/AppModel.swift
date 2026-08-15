@@ -685,6 +685,19 @@ final class AppModel: ObservableObject {
     }
   }
 
+  // MARK: - Scheduled work
+
+  /// Skips an upcoming occurrence. Completed history is never touched.
+  func skipScheduledOccurrence(_ occurrenceID: String) async {
+    do {
+      try organization.skipOccurrence(occurrenceID, reason: "You skipped this occurrence.")
+      lastError = nil
+      persistSoon()
+    } catch {
+      lastError = error.localizedDescription
+    }
+  }
+
   // MARK: - Runtime authority
 
   /// Refreshes what the runtime broker is waiting on, expiring anything past

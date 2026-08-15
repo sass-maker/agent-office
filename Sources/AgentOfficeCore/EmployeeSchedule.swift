@@ -87,24 +87,30 @@ public struct SchedulePolicy: Codable, Sendable, Equatable, Identifiable {
   public var authoredByActorID: String
   public var createdAt: Date
   public var isPaused: Bool
+  /// What the owner decided happens to a window that passes unexecuted.
+  /// Optional so policies written before catch-up existed still decode.
+  public var catchUpPolicy: ScheduleCatchUpPolicy?
 
   public init(
     id: String = UUID().uuidString,
     employeeID: String,
     subject: ScheduleSubject,
     plan: SchedulePlan,
-    authoredByActorID: String = "owner",
     createdAt: Date = Date(),
-    isPaused: Bool = false
+    isPaused: Bool = false,
+    catchUp: ScheduleCatchUpPolicy = .leaveMissed
   ) {
+    self.authoredByActorID = "owner"
     self.id = id
     self.employeeID = employeeID
     self.subject = subject
     self.plan = plan
-    self.authoredByActorID = authoredByActorID
     self.createdAt = createdAt
     self.isPaused = isPaused
+    self.catchUpPolicy = catchUp
   }
+
+  public var catchUp: ScheduleCatchUpPolicy { catchUpPolicy ?? .leaveMissed }
 
   /// Scheduled instants inside a horizon.
   ///
@@ -208,6 +214,9 @@ public struct ScheduledOccurrence: Codable, Sendable, Equatable, Identifiable {
   public var status: OccurrenceStatus
   public var actual: OccurrenceActual?
   public var note: String?
+  /// Set when this occurrence exists because an earlier window was missed. A
+  /// replacement is never itself rescheduled, so catching up cannot chain.
+  public var replacesOccurrenceID: String?
 
   public init(
     id: String,
@@ -215,7 +224,8 @@ public struct ScheduledOccurrence: Codable, Sendable, Equatable, Identifiable {
     window: OccurrenceWindow,
     status: OccurrenceStatus = .scheduled,
     actual: OccurrenceActual? = nil,
-    note: String? = nil
+    note: String? = nil,
+    replacesOccurrenceID: String? = nil
   ) {
     self.id = id
     self.origin = origin
@@ -223,6 +233,7 @@ public struct ScheduledOccurrence: Codable, Sendable, Equatable, Identifiable {
     self.status = status
     self.actual = actual
     self.note = note
+    self.replacesOccurrenceID = replacesOccurrenceID
   }
 
   /// Derived from policy and instant, so regenerating cannot create a second
