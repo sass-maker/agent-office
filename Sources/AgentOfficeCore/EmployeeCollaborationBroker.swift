@@ -129,33 +129,61 @@ public actor EmployeeCollaborationBroker {
     organization: inout OrganizationState,
     now: Date = Date()
   ) throws -> CollaborationOutcome {
+    guard case .delegationProposal(let commitmentID, let reason) = request.operation else {
+      throw CollaborationRejection.missingCommitment
+    }
+    return try recordWithoutRunning(request, organization: &organization, now: now) {
+      source, target in
+      "\(source) proposed moving \(commitmentID) to \(target): \(reason). This needs your decision; nothing has moved."
+    }
+  }
+
+  /// Sends a structured note to a coworker through the existing communication
+  /// path. It moves nothing and starts no runtime.
+  @discardableResult
+  public func sendHandoffMessage(
+    _ request: CollaborationRequest,
+    organization: inout OrganizationState,
+    now: Date = Date()
+  ) throws -> CollaborationOutcome {
+    guard case .handoffMessage(let note) = request.operation else {
+      throw CollaborationRejection.missingCommitment
+    }
+    return try recordWithoutRunning(request, organization: &organization, now: now) {
+      source, target in
+      "\(source) sent \(target) a handoff note: \(note)"
+    }
+  }
+
+  /// The shared path for collaboration that records something without running
+  /// anyone's runtime: same containment, same idempotency, same records.
+  private func recordWithoutRunning(
+    _ request: CollaborationRequest,
+    organization: inout OrganizationState,
+    now: Date,
+    summary: (_ sourceName: String, _ targetName: String) -> String
+  ) throws -> CollaborationOutcome {
     if let existing = completed[request.correlationID] {
       var replayed = existing
       replayed.wasAlreadyCompleted = true
       return replayed
-    }
-    guard case .delegationProposal(let commitmentID, let reason) = request.operation else {
-      throw CollaborationRejection.missingCommitment
     }
     if let rejection = guardRequest(request, organization: organization, now: now) {
       throw rejection
     }
 
     let sourceName =
-      organization.employee(request.sourceEmployeeID)?.name
-      ?? request.sourceEmployeeID
+      organization.employee(request.sourceEmployeeID)?.name ?? request.sourceEmployeeID
     let targetName =
-      organization.employee(request.targetEmployeeID)?.name
-      ?? request.targetEmployeeID
-    let summary =
-      "\(sourceName) proposed moving \(commitmentID) to \(targetName): \(reason). This needs your decision; nothing has moved."
-    try record(message: summary, request: request, organization: &organization, now: now)
+      organization.employee(request.targetEmployeeID)?.name ?? request.targetEmployeeID
+    let message = summary(sourceName, targetName)
+    try record(message: message, request: request, organization: &organization, now: now)
 
     let outcome = CollaborationOutcome(
       requestID: request.id,
       correlationID: request.correlationID,
       respondingEmployeeID: request.targetEmployeeID,
-      summary: summary,
+      summary: message,
       wasAlreadyCompleted: false
     )
     completed[request.correlationID] = outcome

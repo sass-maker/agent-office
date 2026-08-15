@@ -229,7 +229,7 @@ function checkDuplication() {
     duplicatedLines: 31,
     // Rounded slightly above the observed 0.72101% because jscpd's percentage
     // varies in its last digits between runs.
-    percentage: 0.1528,
+    percentage: 0.1522,
   });
 }
 

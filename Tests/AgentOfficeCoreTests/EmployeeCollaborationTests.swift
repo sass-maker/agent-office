@@ -375,3 +375,63 @@ final class EmployeeCollaborationTests: XCTestCase {
     }
   }
 }
+
+extension EmployeeCollaborationTests {
+  func testHandoffMessageIsRecordedAndRunsNothing() async throws {
+    var fixture = try organization()
+    let broker = EmployeeCollaborationBroker(registry: registry())
+
+    let outcome = try await broker.sendHandoffMessage(
+      request(
+        commitmentID: fixture.commitmentID,
+        operation: .handoffMessage("The sources are in the shared folder.")),
+      organization: &fixture.state, now: now)
+
+    XCTAssertTrue(outcome.summary.contains("handoff note"))
+    let sessions = await SessionLedger.shared.recorded()
+    XCTAssertTrue(sessions.isEmpty, "a note must not run anyone's runtime")
+    XCTAssertEqual(fixture.state.employeeOutcome(fixture.commitmentID)?.assigneeID, "theo")
+  }
+
+  func testHandoffMessageIsContainedLikeEveryOtherOperation() async throws {
+    var fixture = try organization()
+    let broker = EmployeeCollaborationBroker(registry: registry())
+
+    do {
+      _ = try await broker.sendHandoffMessage(
+        request(
+          commitmentID: fixture.commitmentID, operation: .handoffMessage("hello"), target: "theo"),
+        organization: &fixture.state, now: now)
+      XCTFail("an employee must not send itself a handoff")
+    } catch {
+      XCTAssertEqual(error as? CollaborationRejection, .selfCall)
+    }
+  }
+
+  func testCollaborationIsReadableAsATrailOnTheCommitment() async throws {
+    var fixture = try organization()
+    let broker = EmployeeCollaborationBroker(registry: registry())
+
+    _ = try await broker.consult(
+      request(commitmentID: fixture.commitmentID), organization: &fixture.state, now: now)
+    _ = try await broker.sendHandoffMessage(
+      request(
+        commitmentID: fixture.commitmentID,
+        operation: .handoffMessage("Sources are filed."),
+        correlationID: "collaboration-2"),
+      organization: &fixture.state, now: now)
+
+    let records = fixture.state.collaborationRecords(forCommitment: fixture.commitmentID)
+
+    XCTAssertEqual(records.count, 2)
+    XCTAssertEqual(records.first?.respondingEmployeeName, "Nia")
+    XCTAssertTrue(records.contains { $0.summary.contains("Three sources agree") })
+    XCTAssertTrue(records.contains { $0.summary.contains("handoff note") })
+  }
+
+  func testACommitmentWithoutCollaborationHasAnEmptyTrail() throws {
+    let fixture = try organization()
+    XCTAssertTrue(
+      fixture.state.collaborationRecords(forCommitment: fixture.commitmentID).isEmpty)
+  }
+}

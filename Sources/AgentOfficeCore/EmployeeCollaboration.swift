@@ -181,3 +181,37 @@ extension OrganizationState {
       }
   }
 }
+
+/// One collaboration as the owner reads it back: who asked, of whom, why, and
+/// what came of it.
+public struct CollaborationRecord: Sendable, Equatable, Identifiable {
+  public var id: String
+  public var commitmentID: String
+  public var respondingEmployeeID: String
+  public var respondingEmployeeName: String
+  public var summary: String
+  public var occurredAt: Date
+}
+
+extension OrganizationState {
+  /// Collaboration exchanges recorded against a commitment.
+  ///
+  /// Read back out of the existing management messages rather than a parallel
+  /// log, so there is exactly one place cross-employee work lives.
+  public func collaborationRecords(forCommitment commitmentID: String) -> [CollaborationRecord] {
+    guard let outcome = employeeOutcome(commitmentID) else { return [] }
+    return outcome.effectiveManagementMessages
+      .filter { $0.id.hasPrefix("collaboration-") }
+      .map { message in
+        CollaborationRecord(
+          id: message.id,
+          commitmentID: commitmentID,
+          respondingEmployeeID: message.actorID,
+          respondingEmployeeName: employee(message.actorID)?.name ?? message.actorID,
+          summary: message.message,
+          occurredAt: message.createdAt
+        )
+      }
+      .sorted { $0.occurredAt < $1.occurredAt }
+  }
+}
