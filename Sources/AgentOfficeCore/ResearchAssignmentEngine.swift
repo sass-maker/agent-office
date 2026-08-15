@@ -93,8 +93,8 @@ public struct ResearchAssignmentEngine: Sendable {
       value.attemptCount += 1
     }
     state.workdayStatus = .active
-    setEmployee(researcher.id, status: .working, taskID: assignmentID, state: &state)
-    setEmployee(assistant.id, status: .planning, taskID: assignmentID, state: &state)
+    state.setEmployee(researcher.id, status: .working, taskID: assignmentID)
+    state.setEmployee(assistant.id, status: .planning, taskID: assignmentID)
     state.activity.append(
       Activity(
         id: UUID().uuidString,
@@ -163,7 +163,7 @@ public struct ResearchAssignmentEngine: Sendable {
       outcome: assignment.outcome,
       productBrief: state.productBrief,
       context: assignment.context,
-      memory: memoryContext(for: researcher.id, in: state),
+      memory: state.recentMemoryContext(for: researcher.id),
       skills: state.assignedSkills(employeeID: researcher.id),
       capabilityGrants: researcher.capabilityGrants,
       workspaceURL: store.employeeHomeURL(employeeID: researcher.id)
@@ -293,7 +293,7 @@ public struct ResearchAssignmentEngine: Sendable {
           now: completedAt
         )
       }
-      restEmployees(state: &state)
+      state.restAIEmployees()
       state.workdayStatus = .resting
       return state
     } catch is CancellationError {
@@ -310,7 +310,7 @@ public struct ResearchAssignmentEngine: Sendable {
           message: "Mira kept Nia's interrupted research ready to resume.",
           createdAt: stoppedAt
         ))
-      restEmployees(state: &state)
+      state.restAIEmployees()
       state.workdayStatus = .resting
       return state
     } catch {
@@ -343,7 +343,7 @@ public struct ResearchAssignmentEngine: Sendable {
           message: "Nia could not deliver the research: \(error.localizedDescription)",
           createdAt: failedAt
         ))
-      restEmployees(state: &state)
+      state.restAIEmployees()
       state.workdayStatus = .resting
       return state
     }
@@ -367,32 +367,6 @@ public struct ResearchAssignmentEngine: Sendable {
         message: reason,
         createdAt: now
       ))
-  }
-
-  private func setEmployee(
-    _ employeeID: String,
-    status: EmployeeStatus,
-    taskID: String?,
-    state: inout OrganizationState
-  ) {
-    guard let index = state.employees.firstIndex(where: { $0.id == employeeID }) else { return }
-    state.employees[index].status = status
-    state.employees[index].currentTaskID = taskID
-  }
-
-  private func restEmployees(state: inout OrganizationState) {
-    for index in state.employees.indices where state.employees[index].kind == .ai {
-      state.employees[index].status = .resting
-      state.employees[index].currentTaskID = nil
-    }
-  }
-
-  private func memoryContext(for employeeID: String, in state: OrganizationState) -> String {
-    let entries =
-      state.knowledge?.memoryEntries
-      .filter { $0.employeeID == employeeID }
-      .suffix(5) ?? []
-    return entries.map { "Day \($0.dayNumber): \($0.summary)" }.joined(separator: "\n")
   }
 
   private func appendCapabilityEvent(

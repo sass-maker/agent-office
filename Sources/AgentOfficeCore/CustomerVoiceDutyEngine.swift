@@ -231,7 +231,7 @@ public struct CustomerVoiceDutyEngine: Sendable {
         outcome: duty.responsibility,
         productBrief: state.productBrief,
         context: snapshot.promptContext,
-        memory: memoryContext(for: analyst.id, in: state),
+        memory: state.recentMemoryContext(for: analyst.id),
         skills: state.assignedSkills(employeeID: analyst.id),
         capabilityGrants: analyst.capabilityGrants,
         workspaceURL: store.employeeHomeURL(employeeID: analyst.id)
@@ -370,14 +370,6 @@ public struct CustomerVoiceDutyEngine: Sendable {
       restEmployees(occurrence, state: &state)
       return state
     }
-  }
-
-  private func memoryContext(for employeeID: String, in state: OrganizationState) -> String {
-    let entries =
-      state.knowledge?.memoryEntries
-      .filter { $0.employeeID == employeeID }
-      .suffix(5) ?? []
-    return entries.map { "Day \($0.dayNumber): \($0.summary)" }.joined(separator: "\n")
   }
 
   private func restEmployees(_ occurrence: DutyOccurrence, state: inout OrganizationState) {

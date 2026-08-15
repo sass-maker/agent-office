@@ -96,24 +96,7 @@ struct OrganizationHomeView: View {
       EmployeeOutcomeAssignmentSheet(employee: employee)
         .environmentObject(model)
     }
-    .confirmationDialog(
-      "Stop this employee outcome?",
-      isPresented: Binding(
-        get: { pendingStopOutcomeID != nil },
-        set: { if !$0 { pendingStopOutcomeID = nil } }
-      ),
-      titleVisibility: .visible
-    ) {
-      Button("Stop outcome", role: .destructive) {
-        if let outcomeID = pendingStopOutcomeID { model.stopEmployeeOutcome(outcomeID) }
-        pendingStopOutcomeID = nil
-      }
-      Button("Keep working", role: .cancel) { pendingStopOutcomeID = nil }
-    } message: {
-      Text(
-        "The employee's plan, completed tickets, deliveries, and activity will remain in the organization history."
-      )
-    }
+    .stopOutcomeConfirmation($pendingStopOutcomeID)
   }
 
   private func missionNote(compact: Bool) -> some View {
@@ -201,16 +184,7 @@ struct OrganizationHomeView: View {
           }
         }
       }
-      .foregroundStyle(EditorialOfficeTheme.ink)
-      .padding(.horizontal, compact ? 5 : 8)
-      .frame(minWidth: compact ? 54 : 82, minHeight: 44, alignment: .leading)
-      .background(selected ? EditorialOfficeTheme.softGrey.opacity(0.76) : Color.clear)
-      .overlay(alignment: .bottom) {
-        Rectangle()
-          .fill(selected ? EditorialOfficeTheme.ink : Color.clear)
-          .frame(height: 2)
-      }
-      .contentShape(Rectangle())
+      .deskBarButtonChrome(selected: selected, compact: compact, minWidth: compact ? 54 : 82)
     }
     .buttonStyle(.plain)
     .keyboardShortcut(
@@ -244,16 +218,7 @@ struct OrganizationHomeView: View {
           .font(.caption2.monospacedDigit().weight(.semibold))
           .foregroundStyle(EditorialOfficeTheme.graphite)
       }
-      .foregroundStyle(EditorialOfficeTheme.ink)
-      .padding(.horizontal, compact ? 5 : 8)
-      .frame(minHeight: 44)
-      .background(selected ? EditorialOfficeTheme.softGrey.opacity(0.76) : Color.clear)
-      .overlay(alignment: .bottom) {
-        Rectangle()
-          .fill(selected ? EditorialOfficeTheme.ink : Color.clear)
-          .frame(height: 2)
-      }
-      .contentShape(Rectangle())
+      .deskBarButtonChrome(selected: selected, compact: compact)
     }
     .buttonStyle(.plain)
     .keyboardShortcut(selection.shortcut, modifiers: [.command, .shift])
@@ -432,6 +397,13 @@ struct OrganizationHomeView: View {
       }
     }
 
+    otherOutcomeSection(employee)
+  }
+
+  /// A specialist's general-outcome section, shown beneath whatever bespoke
+  /// duty or assignment card that specialist has.
+  @ViewBuilder
+  private func otherOutcomeSection(_ employee: Employee) -> some View {
     if model.latestEmployeeOutcome(for: employee.id) != nil {
       Text("OTHER OUTCOME")
         .font(.caption2.weight(.semibold))
@@ -443,12 +415,12 @@ struct OrganizationHomeView: View {
       Button {
         outcomeEmployee = employee
       } label: {
-        Label("Give Nia a general outcome", systemImage: "arrow.up.right")
+        Label("Give \(employee.name) a general outcome", systemImage: "arrow.up.right")
           .frame(maxWidth: .infinity)
       }
       .buttonStyle(EditorialSecondaryButtonStyle())
       .disabled(!model.canCreateEmployeeOutcome)
-      .accessibilityLabel("Give Nia a general outcome")
+      .accessibilityLabel("Give \(employee.name) a general outcome")
     }
   }
 
@@ -464,24 +436,7 @@ struct OrganizationHomeView: View {
         .environmentObject(model)
     }
 
-    if model.latestEmployeeOutcome(for: employee.id) != nil {
-      Text("OTHER OUTCOME")
-        .font(.caption2.weight(.semibold))
-        .tracking(0.8)
-        .foregroundStyle(EditorialOfficeTheme.graphite)
-        .padding(.top, 2)
-      employeeOutcomeFolio(employee)
-    } else {
-      Button {
-        outcomeEmployee = employee
-      } label: {
-        Label("Give Iris a general outcome", systemImage: "arrow.up.right")
-          .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(EditorialSecondaryButtonStyle())
-      .disabled(!model.canCreateEmployeeOutcome)
-      .accessibilityLabel("Give Iris a general outcome")
-    }
+    otherOutcomeSection(employee)
   }
 
   @ViewBuilder

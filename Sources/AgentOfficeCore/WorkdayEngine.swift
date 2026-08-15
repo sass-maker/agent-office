@@ -15,7 +15,7 @@ public struct WorkdayEngine: Sendable {
 
     guard let task = nextTask(in: state) else {
       state.workdayStatus = .complete
-      restEmployees(in: &state)
+      state.restAIEmployees()
       state.activity.append(
         Activity(
           id: UUID().uuidString,
@@ -93,7 +93,7 @@ public struct WorkdayEngine: Sendable {
       let taskIndex = state.tasks.firstIndex(where: { $0.id == task.id })
     else { return }
 
-    setEmployee(employee.id, status: .working, taskID: task.id, in: &state)
+    state.setEmployee(employee.id, status: .working, taskID: task.id)
     state.tasks[taskIndex].status = .doing
     state.tasks[taskIndex].updatedAt = now
     state.activity.append(
@@ -115,7 +115,7 @@ public struct WorkdayEngine: Sendable {
       outcome: state.outcome,
       productBrief: state.productBrief,
       context: context,
-      memory: memoryContext(for: employee.id, in: state),
+      memory: state.recentMemoryContext(for: employee.id),
       skills: state.assignedSkills(employeeID: employee.id),
       capabilityGrants: employee.capabilityGrants,
       workspaceURL: store.rootURL.appendingPathComponent(
@@ -202,11 +202,11 @@ public struct WorkdayEngine: Sendable {
     switch operation {
     case .plan, .analysis:
       state.tasks[taskIndex].status = .done
-      setEmployee(employee.id, status: .waiting, taskID: nil, in: &state)
+      state.setEmployee(employee.id, status: .waiting, taskID: nil)
     case .research:
       state.tasks[taskIndex].status = .done
       setGoalProgress(0.25, in: &state)
-      setEmployee(employee.id, status: .waiting, taskID: nil, in: &state)
+      state.setEmployee(employee.id, status: .waiting, taskID: nil)
       appendMemory(
         employeeID: employee.id,
         authorID: employee.id,
@@ -229,15 +229,15 @@ public struct WorkdayEngine: Sendable {
       }
     case .draft, .revise:
       state.tasks[taskIndex].status = .review
-      setEmployee(employee.id, status: .waiting, taskID: nil, in: &state)
+      state.setEmployee(employee.id, status: .waiting, taskID: nil)
       if let reviewer = task.reviewerID {
-        setEmployee(reviewer, status: .reviewing, taskID: task.id, in: &state)
+        state.setEmployee(reviewer, status: .reviewing, taskID: task.id)
       }
     case .report:
       state.tasks[taskIndex].status = .done
       setGoalProgress(1, in: &state)
       state.workdayStatus = .complete
-      restEmployees(in: &state)
+      state.restAIEmployees()
       appendMemory(
         employeeID: employee.id,
         authorID: employee.id,
@@ -251,7 +251,7 @@ public struct WorkdayEngine: Sendable {
       break
     case .customerVoice:
       state.tasks[taskIndex].status = .done
-      setEmployee(employee.id, status: .resting, taskID: nil, in: &state)
+      state.setEmployee(employee.id, status: .resting, taskID: nil)
     }
 
     state.activity.append(
@@ -276,7 +276,7 @@ public struct WorkdayEngine: Sendable {
       let taskIndex = state.tasks.firstIndex(where: { $0.id == task.id })
     else { return }
 
-    setEmployee(reviewerID, status: .reviewing, taskID: task.id, in: &state)
+    state.setEmployee(reviewerID, status: .reviewing, taskID: task.id)
     let request = await reviewRequest(
       for: task, reviewer: reviewer, taskIndex: taskIndex, state: state, store: store)
     try FileManager.default.createDirectory(
@@ -310,7 +310,7 @@ public struct WorkdayEngine: Sendable {
     if output.verdict == .approve {
       state.tasks[taskIndex].status = .done
       setGoalProgress(0.8, in: &state)
-      setEmployee(reviewerID, status: .waiting, taskID: nil, in: &state)
+      state.setEmployee(reviewerID, status: .waiting, taskID: nil)
       state.activity.append(
         Activity(
           id: UUID().uuidString,
@@ -334,8 +334,8 @@ public struct WorkdayEngine: Sendable {
     } else if state.tasks[taskIndex].revisionCount < state.tasks[taskIndex].maxRevisions {
       state.tasks[taskIndex].revisionCount += 1
       state.tasks[taskIndex].status = .revision
-      setEmployee(reviewerID, status: .waiting, taskID: nil, in: &state)
-      setEmployee(task.assigneeID, status: .working, taskID: task.id, in: &state)
+      state.setEmployee(reviewerID, status: .waiting, taskID: nil)
+      state.setEmployee(task.assigneeID, status: .working, taskID: task.id)
       state.activity.append(
         Activity(
           id: UUID().uuidString,
@@ -372,7 +372,7 @@ public struct WorkdayEngine: Sendable {
       outcome: state.outcome,
       productBrief: state.productBrief,
       context: context,
-      memory: memoryContext(for: reviewer.id, in: state),
+      memory: state.recentMemoryContext(for: reviewer.id),
       skills: state.assignedSkills(employeeID: reviewer.id),
       capabilityGrants: reviewer.capabilityGrants,
       workspaceURL: store.rootURL.appendingPathComponent(
@@ -394,14 +394,6 @@ public struct WorkdayEngine: Sendable {
       }
     }
     return sections.joined(separator: "\n\n")
-  }
-
-  private func memoryContext(for employeeID: String, in state: OrganizationState) -> String {
-    state.knowledge?.memoryEntries
-      .filter { $0.employeeID == employeeID }
-      .suffix(8)
-      .map { "- Day \($0.dayNumber): \($0.summary)" }
-      .joined(separator: "\n") ?? ""
   }
 
   private func ensureKnowledge(in state: inout OrganizationState) {
@@ -473,25 +465,14 @@ public struct WorkdayEngine: Sendable {
         $0.assistantID == assistant.id && $0.dayNumber == state.dayNumber && $0.kind == kind
       }) != true
     else { return }
-    state.knowledge?.assistantHandoffs.append(
-      AssistantHandoff(
-        id: UUID().uuidString,
-        assistantID: assistant.id,
-        humanID: "owner",
-        dayNumber: state.dayNumber,
-        kind: kind,
-        summary: summary,
-        artifactIDs: Array(state.artifacts.suffix(6).map(\.id)),
-        createdAt: now
-      ))
-    state.activity.append(
-      Activity(
-        id: UUID().uuidString,
-        actorID: assistant.id,
-        kind: .handoff,
-        message: "Your day-end handoff is ready.",
-        createdAt: now
-      ))
+    state.appendAssistantHandoff(
+      assistantID: assistant.id,
+      humanID: "owner",
+      kind: kind,
+      summary: summary,
+      activityMessage: "Your day-end handoff is ready.",
+      now: now
+    )
   }
 
   private func activeEmployeeID(for task: WorkTask) -> String {
@@ -525,7 +506,7 @@ public struct WorkdayEngine: Sendable {
       state.tasks[index].status = .blocked
       state.tasks[index].updatedAt = now
     }
-    setEmployee(employeeID, status: .blocked, taskID: taskID, in: &state)
+    state.setEmployee(employeeID, status: .blocked, taskID: taskID)
     state.blockers.append(
       Blocker(
         id: UUID().uuidString,
@@ -544,24 +525,6 @@ public struct WorkdayEngine: Sendable {
         message: detail,
         createdAt: now
       ))
-  }
-
-  private func setEmployee(
-    _ id: String,
-    status: EmployeeStatus,
-    taskID: String?,
-    in state: inout OrganizationState
-  ) {
-    guard let index = state.employees.firstIndex(where: { $0.id == id }) else { return }
-    state.employees[index].status = status
-    state.employees[index].currentTaskID = taskID
-  }
-
-  private func restEmployees(in state: inout OrganizationState) {
-    for index in state.employees.indices {
-      state.employees[index].status = .resting
-      state.employees[index].currentTaskID = nil
-    }
   }
 
   private func setGoalProgress(_ progress: Double, in state: inout OrganizationState) {

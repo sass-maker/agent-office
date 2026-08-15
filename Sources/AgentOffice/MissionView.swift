@@ -119,24 +119,7 @@ struct MissionView: View {
         .frame(minWidth: 360, idealWidth: 500, minHeight: 520, idealHeight: 620)
       }
     }
-    .confirmationDialog(
-      "Stop this employee outcome?",
-      isPresented: Binding(
-        get: { pendingStopOutcomeID != nil },
-        set: { if !$0 { pendingStopOutcomeID = nil } }
-      ),
-      titleVisibility: .visible
-    ) {
-      Button("Stop outcome", role: .destructive) {
-        if let outcomeID = pendingStopOutcomeID { model.stopEmployeeOutcome(outcomeID) }
-        pendingStopOutcomeID = nil
-      }
-      Button("Keep working", role: .cancel) { pendingStopOutcomeID = nil }
-    } message: {
-      Text(
-        "The employee's plan, completed tickets, deliveries, and activity will remain in the organization history."
-      )
-    }
+    .stopOutcomeConfirmation($pendingStopOutcomeID)
   }
 
   /// Runtime requests waiting on the owner.

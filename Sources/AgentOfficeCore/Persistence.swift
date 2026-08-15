@@ -361,6 +361,18 @@ public actor LocalOrganizationStore {
       encoding: .utf8
     )
 
+    try materializeCompanyProfile(organization)
+    try materializeSkillCatalogue(organization)
+    try materializeConnectionCatalogue(organization)
+    try materializeResearchHistory(organization)
+    try materializeDutyHistory(organization)
+    try materializeOutcomeHistory(organization)
+    try materializePackageCatalogue(organization)
+    try materializeSupervisionHistory(organization)
+    try materializeEmployeeHomes(for: organization)
+  }
+
+  private func materializeCompanyProfile(_ organization: OrganizationState) throws {
     let profile = organization.knowledge?.profile ?? .empty
     let members = organization.employees.map { employee in
       let manager = employee.managerID.flatMap { organization.employee($0)?.name } ?? "Independent"
@@ -407,6 +419,9 @@ public actor LocalOrganizationStore {
     \(members)
     """.write(to: companyProfileFileURL, atomically: true, encoding: .utf8)
 
+  }
+
+  private func materializeSkillCatalogue(_ organization: OrganizationState) throws {
     let skillCatalogue = (organization.knowledge?.skillDefinitions ?? [])
       .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
       .map { skill in
@@ -438,6 +453,9 @@ public actor LocalOrganizationStore {
         encoding: .utf8
       )
 
+  }
+
+  private func materializeConnectionCatalogue(_ organization: OrganizationState) throws {
     let connectionCatalogue = (organization.knowledge?.connectionDefinitions ?? [])
       .map { connection in
         let grants =
@@ -456,6 +474,9 @@ public actor LocalOrganizationStore {
         encoding: .utf8
       )
 
+  }
+
+  private func materializeResearchHistory(_ organization: OrganizationState) throws {
     let assignmentHistory = organization.researchAssignments
       .sorted { $0.createdAt > $1.createdAt }
       .map { assignment in
@@ -489,6 +510,9 @@ public actor LocalOrganizationStore {
         encoding: .utf8
       )
 
+  }
+
+  private func materializeDutyHistory(_ organization: OrganizationState) throws {
     let dutyHistory = organization.employeeDuties.map { duty in
       let assignee = organization.employee(duty.assigneeID)?.name ?? duty.assigneeID
       let reviewer = organization.employee(duty.reviewerID)?.name ?? duty.reviewerID
@@ -533,6 +557,9 @@ public actor LocalOrganizationStore {
         encoding: .utf8
       )
 
+  }
+
+  private func materializeOutcomeHistory(_ organization: OrganizationState) throws {
     let outcomeHistory = organization.employeeOutcomes
       .sorted { $0.createdAt > $1.createdAt }
       .map { outcome in
@@ -575,6 +602,9 @@ public actor LocalOrganizationStore {
         encoding: .utf8
       )
 
+  }
+
+  private func materializePackageCatalogue(_ organization: OrganizationState) throws {
     let packageCatalogue = organization.employeePackages
       .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
       .map { package in
@@ -604,6 +634,9 @@ public actor LocalOrganizationStore {
         encoding: .utf8
       )
 
+  }
+
+  private func materializeSupervisionHistory(_ organization: OrganizationState) throws {
     let supervisionHistory = organization.supervisionEvents
       .sorted { $0.createdAt > $1.createdAt }
       .map { event in
@@ -617,7 +650,6 @@ public actor LocalOrganizationStore {
         encoding: .utf8
       )
 
-    try materializeEmployeeHomes(for: organization)
   }
 
   private func materializeEmployeeHomes(for organization: OrganizationState) throws {
