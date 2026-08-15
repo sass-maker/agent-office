@@ -871,43 +871,49 @@ final class AppModel: ObservableObject {
 
   @discardableResult
   func hireEmployee(packageID: String, version: String? = nil) -> Bool {
-    do {
-      let employeeID = try organization.hireEmployee(packageID: packageID, version: version)
-      selectedEmployeeID = employeeID
-      lastError = nil
-      persistSoon()
-      return true
-    } catch {
-      lastError = error.localizedDescription
-      return false
+    decideEmployment(.hire(packageID: packageID, version: version)) { [weak self] produced in
+      if let employeeID = produced.first { self?.selectedEmployeeID = employeeID }
     }
+    return true
   }
 
   func pauseEmployee(_ employeeID: String) {
     runningEmployeeIDs.remove(employeeID)
     Task { await employeeWorkCoordinator.cancel(employeeID: employeeID) }
-    do {
-      try organization.pauseEmployee(employeeID)
-      lastError = nil
-      persistSoon()
-    } catch { lastError = error.localizedDescription }
+    decideEmployment(.pause(employeeID: employeeID))
   }
 
   func resumeEmployee(_ employeeID: String) {
-    do {
-      try organization.resumeEmployee(employeeID)
-      lastError = nil
-      persistSoon()
-      dispatchEmployeeWork()
-    } catch { lastError = error.localizedDescription }
+    decideEmployment(.resume(employeeID: employeeID)) { [weak self] _ in
+      self?.dispatchEmployeeWork()
+    }
   }
 
   func retireEmployee(_ employeeID: String) {
-    do {
-      try organization.retireEmployee(employeeID)
-      lastError = nil
-      persistSoon()
-    } catch { lastError = error.localizedDescription }
+    decideEmployment(.retire(employeeID: employeeID))
+  }
+
+  /// Who works here is as consequential as what they are working on, so these
+  /// decisions travel the same journalled boundary.
+  private func decideEmployment(
+    _ decision: EmploymentDecision,
+    then follow: @escaping @MainActor ([String]) -> Void = { _ in }
+  ) {
+    Task {
+      do {
+        let command = OrganizationCommand(
+          actor: .owner(id: "owner"),
+          payload: .decideEmployment(decision),
+          idempotencyKey: "employment:\(decision.eventType):\(UUID().uuidString)"
+        )
+        let applied = try await store.submit(command, to: organization)
+        organization = applied.state
+        lastError = nil
+        follow(applied.result.producedIDs)
+      } catch {
+        lastError = error.localizedDescription
+      }
+    }
   }
 
   func importEmployeePackage() {

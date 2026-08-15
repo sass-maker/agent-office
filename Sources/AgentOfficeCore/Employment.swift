@@ -867,12 +867,16 @@ extension OrganizationState {
   private mutating func recordEmployment(
     kind: SupervisionEventKind, employeeID: String, actorID: String, message: String, now: Date
   ) {
+    // Derived rather than random, so a journalled employment decision replays to
+    // the same records instead of writing new ones for the same fact.
+    let basis = Self.recordID(employeeID, kind.rawValue, now)
     knowledge?.supervisionEvents.append(
       SupervisionEvent(
-        kind: kind, actorID: actorID, employeeID: employeeID, message: message, createdAt: now))
+        id: "\(basis)-supervision", kind: kind, actorID: actorID, employeeID: employeeID,
+        message: message, createdAt: now))
     activity.append(
       Activity(
-        id: UUID().uuidString, actorID: actorID, kind: kind == .hire ? .joined : .progress,
+        id: "\(basis)-activity", actorID: actorID, kind: kind == .hire ? .joined : .progress,
         message: message, createdAt: now))
   }
 
@@ -902,6 +906,7 @@ extension OrganizationState {
     for (field, previous, next) in values where previous != next {
       knowledge?.contractChanges.append(
         ContractChange(
+          id: Self.recordID(new.employeeID, "contract-\(field)", now),
           employeeID: new.employeeID, field: field, previousValue: previous, newValue: next,
           actorID: actorID, reason: reason, createdAt: now))
     }
