@@ -756,48 +756,56 @@ final class AppModel: ObservableObject {
   }
 
   func approveEmployeeOutcomePlan(_ outcomeID: String) {
-    do {
-      try organization.approveOutcomePlan(outcomeID)
-      lastError = nil
-      persistSoon()
-      beginEmployeeOutcome(outcomeID)
-    } catch { lastError = error.localizedDescription }
+    superviseCommitment(.approvePlan(commitmentID: outcomeID, note: "Approved as proposed.")) {
+      [weak self] in self?.beginEmployeeOutcome(outcomeID)
+    }
   }
 
   func replyToEmployeeOutcome(_ outcomeID: String, message: String) {
-    do {
-      try organization.replyToOutcome(outcomeID, message: message)
-      lastError = nil
-      persistSoon()
-      beginEmployeeOutcome(outcomeID)
-    } catch { lastError = error.localizedDescription }
+    superviseCommitment(.replyToHelp(commitmentID: outcomeID, message: message)) {
+      [weak self] in self?.beginEmployeeOutcome(outcomeID)
+    }
   }
 
   func acceptEmployeeOutcome(_ outcomeID: String, note: String = "") {
-    do {
-      try organization.acceptOutcome(outcomeID, note: note)
-      lastError = nil
-      persistSoon()
-      dispatchEmployeeWork()
-    } catch { lastError = error.localizedDescription }
+    superviseCommitment(.acceptDelivery(commitmentID: outcomeID, note: note)) {
+      [weak self] in self?.dispatchEmployeeWork()
+    }
   }
 
   func requestEmployeeOutcomeRevision(_ outcomeID: String, feedback: String) {
-    do {
-      try organization.requestOutcomeRevision(outcomeID, feedback: feedback)
-      lastError = nil
-      persistSoon()
-      beginEmployeeOutcome(outcomeID)
-    } catch { lastError = error.localizedDescription }
+    superviseCommitment(.requestRevision(commitmentID: outcomeID, feedback: feedback)) {
+      [weak self] in self?.beginEmployeeOutcome(outcomeID)
+    }
   }
 
   func returnEmployeeOutcomePlan(_ outcomeID: String, instruction: String) {
-    do {
-      try organization.returnOutcomePlan(outcomeID, instruction: instruction)
-      lastError = nil
-      persistSoon()
-      beginEmployeeOutcome(outcomeID)
-    } catch { lastError = error.localizedDescription }
+    superviseCommitment(.returnPlan(commitmentID: outcomeID, instruction: instruction)) {
+      [weak self] in self?.beginEmployeeOutcome(outcomeID)
+    }
+  }
+
+  /// Owner decisions travel the same journalled boundary as everything else
+  /// consequential, so what the owner decided and when is retained history
+  /// rather than a mutation nobody recorded.
+  private func superviseCommitment(
+    _ decision: SupervisionDecision, then follow: @escaping @MainActor () -> Void
+  ) {
+    Task {
+      do {
+        let command = OrganizationCommand(
+          actor: .owner(id: "owner"),
+          payload: .superviseCommitment(decision),
+          idempotencyKey:
+            "supervision:\(decision.eventType):\(decision.commitmentID):\(UUID().uuidString)"
+        )
+        organization = try await store.submit(command, to: organization).state
+        lastError = nil
+        follow()
+      } catch {
+        lastError = error.localizedDescription
+      }
+    }
   }
 
   func reorderEmployeeOutcome(_ outcomeID: String, offset: Int) {

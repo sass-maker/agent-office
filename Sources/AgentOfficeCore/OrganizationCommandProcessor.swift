@@ -130,8 +130,9 @@ public struct OrganizationCommandProcessor: Sendable {
         throw OrganizationCommandError.actorMismatch(
           claimed: employeeID, actual: result.employeeID)
       }
-    case .recordRuntimeDecision:
-      // Only the owner settles authority. A runtime cannot approve itself.
+    case .recordRuntimeDecision, .superviseCommitment:
+      // Supervision and authority are the owner's. A runtime cannot approve
+      // itself, accept its own delivery, or answer its own help request.
       guard command.actor.isOwner else {
         throw OrganizationCommandError.unauthorizedActor(
           actor: command.actor.id, commandType: command.payload.eventType)
@@ -192,6 +193,13 @@ public struct OrganizationCommandProcessor: Sendable {
         producedIDs: [],
         entities: [.employee(receipt.employeeID), .commitment(receipt.commitmentID)]
       )
+
+    case .superviseCommitment(let decision):
+      let assigneeID = state.employeeOutcome(decision.commitmentID)?.assigneeID
+      try state.apply(decision, now: now)
+      var entities: [OrganizationEntityReference] = [.commitment(decision.commitmentID)]
+      if let assigneeID { entities.append(.employee(assigneeID)) }
+      return Application(producedIDs: [], entities: entities)
     }
   }
 }

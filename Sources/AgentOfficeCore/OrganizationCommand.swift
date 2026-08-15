@@ -29,6 +29,8 @@ public enum OrganizationCommandPayload: Codable, Sendable, Equatable {
   case applyEmployeeRunResult(EmployeeOutcomeRunResult)
   /// The owner settles a runtime's request for authority.
   case recordRuntimeDecision(RuntimeDecisionReceipt)
+  /// The owner decides something about a commitment.
+  case superviseCommitment(SupervisionDecision)
 
   public struct AssignEmployeeOutcome: Codable, Sendable, Equatable {
     public var employeeID: String
@@ -58,6 +60,7 @@ public enum OrganizationCommandPayload: Codable, Sendable, Equatable {
     case .assignEmployeeOutcome: "employee-outcome.assigned"
     case .applyEmployeeRunResult: "employee-outcome.run-result-applied"
     case .recordRuntimeDecision: "runtime.decision-recorded"
+    case .superviseCommitment(let decision): decision.eventType
     }
   }
 }
