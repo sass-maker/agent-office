@@ -1309,7 +1309,17 @@ public struct OrganizationState: Codable, Sendable, Equatable {
 }
 
 extension OrganizationKnowledge {
+  /// Every skill the app ships, in a stable order.
+  ///
+  /// Split into two lists only so each stays readable as the catalogue grows;
+  /// the order they concatenate in is the order organizations have always seen,
+  /// so splitting them changes nothing on disk.
   public static func builtInSkills(now: Date = Date()) -> [SkillDefinition] {
+    coreTeamSkills(now: now) + specialistSkills(now: now)
+  }
+
+  /// The original content-team abilities every organization starts with.
+  private static func coreTeamSkills(now: Date) -> [SkillDefinition] {
     [
       SkillDefinition(
         id: "executive-briefing", name: "Executive briefing", category: "Coordination",
@@ -1360,6 +1370,13 @@ extension OrganizationKnowledge {
         successCriteria:
           "The report matches persisted state and lets the owner resume without reading the full activity timeline.",
         source: .builtIn, authorID: "agent-office", createdAt: now, updatedAt: now),
+    ]
+  }
+
+  /// Abilities that arrive with a specialist package, plus the `communication`
+  /// skill every employee is assigned.
+  private static func specialistSkills(now: Date) -> [SkillDefinition] {
+    [
       SkillDefinition(
         id: "customer-voice-analysis", name: "Customer voice analysis", category: "Research",
         purpose:
@@ -1368,6 +1385,36 @@ extension OrganizationKnowledge {
           "Account for every included source, group repeated themes without overstating prevalence, cite source labels for each claim, state uncertainty, and recommend exactly one owner decision.",
         successCriteria:
           "The brief reports coverage, traces themes to supplied files, distinguishes single observations from repeated evidence, and recommends one bounded decision.",
+        source: .builtIn, authorID: "agent-office", createdAt: now, updatedAt: now),
+      SkillDefinition(
+        id: "job-fit-research", name: "Verified job fit research", category: "Research",
+        purpose:
+          "Establish whether a role is real, open, and actually a fit for the candidate's verified facts.",
+        instructions:
+          "Work only from the owner's supplied profile and resume facts and from the posting itself. When web research is granted, read the posting at its own source, record whether it is still open and when it was last updated, and cite the URL you read. Mark the posting unclear rather than assuming it is open. Classify every stated must-have as met, partial, missing, or unclear, and say which supplied fact settles it. Flag duplicates of roles already recorded locally. Never invent a qualification, a year of experience, a degree, a work authorization, a location, a compensation figure, a clearance, or any demographic or identity fact — when one of those is needed and not supplied, leave a precise owner question instead. Without granted research, label the work owner-context-only and use only the postings and facts the owner supplied.",
+        successCriteria:
+          "Every requirement is labelled met, partial, missing, or unclear against a named supplied fact; posting status is cited or explicitly unclear; and the outcome is one recommendation of apply, review, ask, skip, or exclude.",
+        source: .builtIn, requiredConnectionIDs: ["web-research"], authorID: "agent-office",
+        createdAt: now, updatedAt: now),
+      SkillDefinition(
+        id: "truthful-application-writing", name: "Truthful application writing",
+        category: "Content",
+        purpose:
+          "Prepare application material that is grounded in the candidate's own resume and nothing else.",
+        instructions:
+          "Write from the supplied resume and profile. You may re-order, re-word, and choose which true facts to emphasize for a role; you may not add, upgrade, or soften a fact, invent an employer, a date, a metric, a tool, a language, or a reference, or answer a screening question the owner has not answered. Address each must-have with the closest true evidence, and name any gap plainly instead of writing around it. State in the artifact that nothing was submitted and no file was uploaded, and never use submitted, applied, uploaded, or sent to describe your own work. End with the exact review or browser step that remains for the owner.",
+        successCriteria:
+          "Every claim traces to a supplied candidate fact, gaps are named rather than papered over, and the packet ends by stating that nothing was submitted and naming the owner's next step.",
+        source: .builtIn, authorID: "agent-office", createdAt: now, updatedAt: now),
+      SkillDefinition(
+        id: "application-outcome-review", name: "Application outcome review",
+        category: "Coordination",
+        purpose:
+          "Keep a local record of what was applied to and what came back, and propose one targeting change.",
+        instructions:
+          "Maintain the local application record: role, employer, the date the owner says they applied, the packet used, and the outcome the owner recorded. Treat every status as owner-supplied — silence is not a rejection, and an unrecorded application is not a submitted one. Report counts and stages honestly, keep what the numbers show separate from why, and do not claim a cause from a handful of applications or an uncontrolled comparison. Propose exactly one bounded targeting change for owner approval, and state what evidence would change it.",
+        successCriteria:
+          "The record accounts for every owner-recorded application and outcome, no status is inferred from silence, causal claims are absent or explicitly hedged, and one bounded change waits for owner approval.",
         source: .builtIn, authorID: "agent-office", createdAt: now, updatedAt: now),
       SkillDefinition(
         id: "reddit-community-research", name: "Reddit community research", category: "Research",
