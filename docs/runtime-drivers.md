@@ -161,3 +161,34 @@ cannot be laundered into an automatic choice by passing it in.
 Running out of real runtimes is therefore a refusal, not a rehearsal: an
 employee blocks with a readable reason. A rehearsal presented as work is worse
 than no work.
+
+### Where the policy is applied
+
+The resolver is a pure function, so something has to call it. Exactly two
+production paths do, and both go through
+`OrganizationState.resolveRuntime(for:health:commitmentID:)`:
+
+- **`EmployeeOutcomeEngine.run`** resolves before any runner is invoked. A
+  refusal leaves the commitment `waiting` with the reason as its help request
+  and never calls the runner. On success it pins `runtimeKind`,
+  `runtimeModelName`, and `runtimeSelectionRule` onto the commitment — this pin
+  *is* rule 6, and once written it is never rewritten, so a later contract edit
+  cannot move work that is already open.
+- **`WorkdayEngine.advance`** resolves per employee before producing or
+  reviewing. A refusal blocks the ticket with the reason instead of producing an
+  artifact.
+
+`AppModel` probes the machine once (`runtimeHealth`) and hands the result down.
+It also resolves *before* binding, and `bindResolvedRuntime` points the binding
+at whatever resolution chose. Reading the binding first is what used to make
+`Auto` mean "Codex, healthy or not".
+
+Whether a run is real is a property of the resolved runtime, not of the
+organization-wide `executionMode`. Web research is permitted only when
+`ResolvedRuntimeSelection.isRehearsal` is false, so an employee whose contract
+names a real runtime does real research even in an organization whose legacy
+mode still says Practice.
+
+Engines default `runtimeHealth` to `.practiceOnly`, which reports no real
+runtime. That fails closed: a caller that forgets to probe gets a refusal, never
+a silent rehearsal.

@@ -1,5 +1,23 @@
 import Foundation
 
+/// The parts of a run the host decides rather than the engine.
+///
+/// Grouped because they answer the same question — what the surrounding app has
+/// already settled — and neither is something the engine may invent for itself.
+public struct EmployeeOutcomeRunOptions: Sendable {
+  /// Whether the engine writes intermediate state to disk. `false` when the
+  /// caller applies the whole result through the command boundary instead.
+  public var persistsTransitions: Bool
+  /// What the permission broker allows right now. `nil` uses the employee's own
+  /// grants, which is what callers that predate the broker expect.
+  public var authorizedCapabilities: Set<String>?
+
+  public init(persistsTransitions: Bool = true, authorizedCapabilities: Set<String>? = nil) {
+    self.persistsTransitions = persistsTransitions
+    self.authorizedCapabilities = authorizedCapabilities
+  }
+}
+
 public struct EmployeeOutcomeEngine: Sendable {
   public static let maximumTickets = 4
 
@@ -11,6 +29,9 @@ public struct EmployeeOutcomeEngine: Sendable {
     let now: Date
     let persistsTransitions: Bool
     let authorizedCapabilities: Set<String>?
+    /// The runtime this commitment resolved to, decided once per run and then
+    /// read everywhere instead of being re-derived from organization-wide state.
+    let selection: ResolvedRuntimeSelection
   }
 
   public func start(
@@ -56,8 +77,8 @@ public struct EmployeeOutcomeEngine: Sendable {
     runner: any EmployeeRunner,
     store: LocalOrganizationStore,
     now: Date = Date(),
-    persistsTransitions: Bool = true,
-    authorizedCapabilities: Set<String>? = nil
+    runtimeHealth: RuntimeHealthSnapshot = .practiceOnly,
+    options: EmployeeOutcomeRunOptions = .init()
   ) async -> OrganizationState {
     var state = input
     guard var outcome = state.employeeOutcome(outcomeID),
@@ -67,10 +88,26 @@ public struct EmployeeOutcomeEngine: Sendable {
       let employee = state.employee(outcome.assigneeID)
     else { return input }
 
+    // Which runtime this employee runs on is decided by the seven-rule policy
+    // before any work is attempted. A refusal is a real outcome: the commitment
+    // waits with the reason on it, and no runner is invoked, because handing the
+    // work to whatever runner happened to be passed in is exactly the silent
+    // substitution rule 7 forbids.
+    let resolution = state.resolveRuntime(
+      for: employee.id, health: runtimeHealth, commitmentID: outcomeID)
+    guard let selection = resolution.selection else {
+      return blockForRuntime(
+        state, outcomeID: outcomeID, employeeID: employee.id,
+        refusal: resolution.refusal, now: now)
+    }
+    pinRuntime(selection, to: outcomeID, state: &state, now: now)
+    outcome = state.employeeOutcome(outcomeID) ?? outcome
+
     let ctx = RunContext(
       runner: runner, store: store, now: now,
-      persistsTransitions: persistsTransitions,
-      authorizedCapabilities: authorizedCapabilities
+      persistsTransitions: options.persistsTransitions,
+      authorizedCapabilities: options.authorizedCapabilities,
+      selection: selection
     )
 
     do {
@@ -141,8 +178,11 @@ public struct EmployeeOutcomeEngine: Sendable {
     }
     guard dependenciesComplete else { return nil }
 
+    // Real web research needs real permission. Whether the work is real is a
+    // property of the resolved runtime, not of an organization-wide mode: a
+    // rehearsal reaches no network, and every non-rehearsal does.
     if state.tasks[taskIndex].kind == .research,
-      state.executionMode == .localCodex,
+      !ctx.selection.isRehearsal,
       !employee.capabilityGrants.contains("web-research")
     {
       return blockForHelp(
@@ -408,6 +448,81 @@ public struct EmployeeOutcomeEngine: Sendable {
           "I created \(taskIDs.count) tickets and selected \(selected.compactMap { state.skill($0)?.name }.sorted().joined(separator: ", ")).",
         createdAt: now
       ))
+  }
+
+  /// Pins the resolved runtime to the commitment and records the model and the
+  /// rule that chose it. Rules 5 and 6.
+  ///
+  /// A commitment that is already pinned keeps its pin: the resolver has already
+  /// preserved it, and rewriting it here would let a later contract edit move
+  /// work that is mid-flight.
+  private func pinRuntime(
+    _ selection: ResolvedRuntimeSelection,
+    to outcomeID: String,
+    state: inout OrganizationState,
+    now: Date
+  ) {
+    guard state.employeeOutcome(outcomeID)?.runtime == nil else { return }
+    _ = state.updateEmployeeOutcome(outcomeID, now: now) { value in
+      value.runtime = CommitmentRuntime(
+        kind: selection.driverKind.rawValue,
+        modelName: selection.model.recordedName,
+        selectionRule: selection.rule.rawValue
+      )
+    }
+  }
+
+  /// Stops a commitment because it has no runtime to run on.
+  ///
+  /// Waiting rather than failing, because nothing went wrong with the work: the
+  /// owner can install a runtime, name a different one, or deliberately choose a
+  /// rehearsal, and the commitment resumes.
+  private func blockForRuntime(
+    _ input: OrganizationState,
+    outcomeID: String,
+    employeeID: String,
+    refusal: RuntimeSelectionRefusal?,
+    now: Date
+  ) -> OrganizationState {
+    var state = input
+    let reason =
+      refusal?.reason
+      ?? "No runtime could be selected for this employee, so nothing was run."
+    _ = state.updateEmployeeOutcome(outcomeID, now: now) { value in
+      value.status = .waiting
+      value.helpRequest = reason
+      value.outcomeRevision = value.effectiveRevision + 1
+    }
+    // A blocker is attached to a ticket, so one is raised only when the
+    // commitment has a ticket to attach it to. When it does not, the
+    // commitment's own help request is the honest surface and inventing a
+    // ticket id to hang a blocker on would be worse than not having one.
+    let blockerID = "\(outcomeID)-runtime"
+    if let index = state.blockers.firstIndex(where: { $0.id == blockerID }) {
+      state.blockers[index].detail = reason
+      state.blockers[index].resolved = false
+    } else if let taskID = state.employeeOutcome(outcomeID)?.taskIDs.first {
+      state.blockers.append(
+        Blocker(
+          id: blockerID,
+          title: "\(state.employee(employeeID)?.name ?? "This employee") has no runtime",
+          detail: reason,
+          employeeID: employeeID,
+          taskID: taskID,
+          createdAt: now,
+          resolved: false
+        ))
+    }
+    state.setEmployee(employeeID, status: .blocked, taskID: nil)
+    state.activity.append(
+      Activity(
+        id: UUID().uuidString,
+        actorID: employeeID,
+        kind: .blocked,
+        message: reason,
+        createdAt: now
+      ))
+    return state
   }
 
   private func blockForHelp(

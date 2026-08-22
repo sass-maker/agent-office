@@ -16,7 +16,8 @@ final class WorkforceSupervisionTests: XCTestCase {
 
     state = await engine.run(
       state, outcomeID: outcomeID, runner: DeterministicEmployeeRunner(), store: store,
-      now: Date(timeIntervalSince1970: 300), persistsTransitions: false)
+      now: Date(timeIntervalSince1970: 300),
+      options: EmployeeOutcomeRunOptions(persistsTransitions: false))
     XCTAssertEqual(state.employeeOutcome(outcomeID)?.status, .proposed)
     XCTAssertEqual(state.managementInbox.first { $0.outcomeID == outcomeID }?.kind, .plan)
 
@@ -25,7 +26,8 @@ final class WorkforceSupervisionTests: XCTestCase {
     state = engine.start(state, outcomeID: outcomeID, now: Date(timeIntervalSince1970: 320))
     state = await engine.run(
       state, outcomeID: outcomeID, runner: DeterministicEmployeeRunner(), store: store,
-      now: Date(timeIntervalSince1970: 400), persistsTransitions: false)
+      now: Date(timeIntervalSince1970: 400),
+      options: EmployeeOutcomeRunOptions(persistsTransitions: false))
 
     XCTAssertEqual(state.employeeOutcome(outcomeID)?.status, .delivered)
     XCTAssertEqual(state.employeeOutcome(outcomeID)?.effectiveDeliveries.count, 1)

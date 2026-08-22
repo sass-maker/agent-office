@@ -65,6 +65,17 @@ final class AppModel: ObservableObject {
 
   var codexAvailable: Bool { agentDiscovery.locate(.codex) != nil }
 
+  /// What this Mac can actually run right now, in the form the runtime policy
+  /// reads. Probed here and handed to the work engines so the engines never
+  /// guess.
+  var runtimeHealth: RuntimeHealthSnapshot {
+    let discovery = agentDiscovery
+    return .localAgents(
+      codex: discovery.availability(of: .codex),
+      claudeCode: discovery.availability(of: .claudeCode)
+    )
+  }
+
   var claudeCodeAvailable: Bool { agentDiscovery.locate(.claudeCode) != nil }
 
   /// Whether an agent choice can be used right now. Auto is offerable whenever
@@ -735,7 +746,19 @@ final class AppModel: ObservableObject {
     _ = organization.applyCatchUpPolicies(now: now)
     for occurrence in organization.dueOccurrences(now: now) {
       let sessionID = "scheduled-\(occurrence.id)"
-      let binding = organization.effectiveRuntimeBinding(for: occurrence.origin.employeeID)
+      // The seven-rule policy decides the runtime; the binding follows it. Going
+      // straight to the binding is what used to make Auto mean "Codex, healthy
+      // or not".
+      let employeeID = occurrence.origin.employeeID
+      let selection = organization.resolveRuntime(for: employeeID, health: runtimeHealth)
+      guard let resolved = selection.selection else {
+        _ = try? organization.skipOccurrence(
+          occurrence.id,
+          reason: selection.refusal?.reason
+            ?? "No runtime could be selected for this employee, so nothing was run.")
+        continue
+      }
+      let binding = organization.bindResolvedRuntime(resolved, for: employeeID, now: now)
       let resolution = await runtimeRegistry.resolve(binding)
       let capacity = DispatchCapacity(
         runtimeIsAvailable: resolution.driver != nil,
@@ -749,7 +772,7 @@ final class AppModel: ObservableObject {
         organization.registerRuntimeSession(
           RuntimeSessionPresence(
             id: sessionID,
-            employeeID: occurrence.origin.employeeID,
+            employeeID: employeeID,
             bindingID: binding.id,
             commitmentID: commitmentID,
             startedAt: now,
@@ -1214,7 +1237,27 @@ final class AppModel: ObservableObject {
     let outcomeEngine = self.employeeOutcomeEngine
     let registry = self.runtimeRegistry
     let broker = self.runtimeBroker
-    let binding = organization.effectiveRuntimeBinding(for: request.employeeID)
+    // Resolve first, then bind what was resolved: the engine applies the same
+    // policy again over the same state, so the driver it opens and the runtime
+    // it records cannot disagree.
+    let selection = organization.resolveRuntime(
+      for: request.employeeID, health: runtimeHealth, commitmentID: outcomeID)
+    guard let resolved = selection.selection else {
+      lastError = selection.refusal?.reason
+      _ = organization.updateEmployeeOutcome(outcomeID) { value in
+        value.status = .waiting
+        value.helpRequest = selection.refusal?.reason
+        value.outcomeRevision = value.effectiveRevision + 1
+      }
+      if let index = organization.employees.firstIndex(where: { $0.id == request.employeeID }) {
+        organization.employees[index].status = .blocked
+        organization.employees[index].currentTaskID = nil
+      }
+      persistSoon()
+      return
+    }
+    let binding = organization.bindResolvedRuntime(resolved, for: request.employeeID)
+    let health = runtimeHealth
     let submitted = await employeeWorkCoordinator.submit(
       request,
       operation: { request in
@@ -1244,7 +1287,8 @@ final class AppModel: ObservableObject {
             organization: request.organization
           )
           return try await outcomeEngine.execute(
-            request, runner: runner, store: store, authorizedCapabilities: authorized)
+            request, runner: runner, store: store, authorizedCapabilities: authorized,
+            runtimeHealth: health)
         }
       },
       completion: { [weak self] result in

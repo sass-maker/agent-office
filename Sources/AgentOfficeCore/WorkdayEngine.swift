@@ -9,13 +9,16 @@ public struct WorkdayEngine: Sendable {
     let employee: Employee
     let store: LocalOrganizationStore
     let now: Date
+    /// The runtime the employee doing this piece of work resolved to.
+    let selection: ResolvedRuntimeSelection
   }
 
   public func advance(
     _ input: OrganizationState,
     runner: any EmployeeRunner,
     store: LocalOrganizationStore,
-    now: Date = Date()
+    now: Date = Date(),
+    runtimeHealth: RuntimeHealthSnapshot = .practiceOnly
   ) async -> OrganizationState {
     guard input.workdayStatus == .active else { return input }
     var state = input
@@ -39,10 +42,13 @@ public struct WorkdayEngine: Sendable {
     do {
       switch task.status {
       case .review:
-        try await review(task, state: &state, runner: runner, store: store, now: now)
+        try await review(
+          task, state: &state, runner: runner, store: store, now: now,
+          runtimeHealth: runtimeHealth)
       case .revision:
         try await produce(
-          task, operation: .revise, state: &state, runner: runner, store: store, now: now)
+          task, operation: .revise, state: &state, runner: runner, store: store, now: now,
+          runtimeHealth: runtimeHealth)
       case .ready:
         let operation: WorkOperation =
           switch task.kind {
@@ -52,7 +58,8 @@ public struct WorkdayEngine: Sendable {
           case .analysis: .customerVoice
           }
         try await produce(
-          task, operation: operation, state: &state, runner: runner, store: store, now: now)
+          task, operation: operation, state: &state, runner: runner, store: store, now: now,
+          runtimeHealth: runtimeHealth)
       default:
         break
       }
@@ -95,14 +102,22 @@ public struct WorkdayEngine: Sendable {
     state: inout OrganizationState,
     runner: any EmployeeRunner,
     store: LocalOrganizationStore,
-    now: Date
+    now: Date,
+    runtimeHealth: RuntimeHealthSnapshot
   ) async throws {
     guard let employee = state.employee(task.assigneeID),
       let taskIndex = state.tasks.firstIndex(where: { $0.id == task.id })
     else { return }
 
+    guard
+      let selection = resolveRuntimeOrBlock(
+        employeeID: employee.id, taskID: task.id, state: &state, now: now,
+        runtimeHealth: runtimeHealth)
+    else { return }
+
     let ctx = ProduceContext(
-      task: task, taskIndex: taskIndex, employee: employee, store: store, now: now
+      task: task, taskIndex: taskIndex, employee: employee, store: store, now: now,
+      selection: selection
     )
 
     state.setEmployee(employee.id, status: .working, taskID: task.id)
@@ -135,19 +150,11 @@ public struct WorkdayEngine: Sendable {
     )
     try FileManager.default.createDirectory(
       at: request.workspaceURL, withIntermediateDirectories: true)
-    let usesWebResearch = state.executionMode == .localCodex && request.canUseWebResearch
+    // Real research is decided by the resolved runtime, not by an
+    // organization-wide mode: a rehearsal reaches no network at all.
+    let usesWebResearch = !ctx.selection.isRehearsal && request.canUseWebResearch
     if usesWebResearch {
-      appendCapabilityEvent(
-        capability: "web-research",
-        employeeID: employee.id,
-        taskID: task.id,
-        actorID: employee.id,
-        kind: .started,
-        detail: "\(employee.name) started permitted web research.",
-        state: &state,
-        now: now
-      )
-      try await store.save(state)
+      try await announceWebResearch(ctx: ctx, state: &state)
     }
 
     let output: EmployeeWorkOutput
@@ -182,6 +189,48 @@ public struct WorkdayEngine: Sendable {
         message: output.summary,
         createdAt: now
       ))
+  }
+
+  /// Resolves the runtime for one participant in a ticket, or blocks the ticket.
+  ///
+  /// Nothing starts before the runtime policy has agreed there is something real
+  /// to start on. Running out of runtimes blocks with the reason; it never falls
+  /// through to a rehearsal.
+  private func resolveRuntimeOrBlock(
+    employeeID: String,
+    taskID: String,
+    state: inout OrganizationState,
+    now: Date,
+    runtimeHealth: RuntimeHealthSnapshot
+  ) -> ResolvedRuntimeSelection? {
+    let resolution = state.resolveRuntime(for: employeeID, health: runtimeHealth)
+    if let selection = resolution.selection { return selection }
+    block(
+      taskID: taskID, employeeID: employeeID,
+      detail: resolution.refusal?.reason
+        ?? "No runtime could be selected for this employee, so nothing was run.",
+      state: &state, now: now)
+    return nil
+  }
+
+  /// Records that permitted web research is starting, before it starts.
+  ///
+  /// Written and saved up front so an interrupted run still shows that the
+  /// capability was exercised, rather than only appearing once it succeeded.
+  private func announceWebResearch(
+    ctx: ProduceContext, state: inout OrganizationState
+  ) async throws {
+    appendCapabilityEvent(
+      capability: "web-research",
+      employeeID: ctx.employee.id,
+      taskID: ctx.task.id,
+      actorID: ctx.employee.id,
+      kind: .started,
+      detail: "\(ctx.employee.name) started permitted web research.",
+      state: &state,
+      now: ctx.now
+    )
+    try await ctx.store.save(state)
   }
 
   private func applyOperationResult(
@@ -319,11 +368,20 @@ public struct WorkdayEngine: Sendable {
     state: inout OrganizationState,
     runner: any EmployeeRunner,
     store: LocalOrganizationStore,
-    now: Date
+    now: Date,
+    runtimeHealth: RuntimeHealthSnapshot
   ) async throws {
     guard let reviewerID = task.reviewerID,
       let reviewer = state.employee(reviewerID),
       let taskIndex = state.tasks.firstIndex(where: { $0.id == task.id })
+    else { return }
+
+    // A reviewer needs its own runtime. Reviewing on a runtime nobody resolved
+    // would make the verdict evidence of nothing.
+    guard
+      resolveRuntimeOrBlock(
+        employeeID: reviewerID, taskID: task.id, state: &state, now: now,
+        runtimeHealth: runtimeHealth) != nil
     else { return }
 
     state.setEmployee(reviewerID, status: .reviewing, taskID: task.id)
