@@ -613,11 +613,10 @@ final class EmployeeSpriteNode: SKNode {
 
     let atlas = SKTexture(image: image)
     let index: CGFloat
-    switch employeeID {
+    switch Self.figureID(for: employeeID) {
     case "maya": index = 0
     case "nia": index = 1
-    case "theo": index = 2
-    default: return nil
+    default: index = 2
     }
     return SKTexture(
       rect: CGRect(x: index / 3, y: 0, width: 1 / 3, height: 1),
@@ -625,18 +624,29 @@ final class EmployeeSpriteNode: SKNode {
     )
   }
 
+  /// The drawn figure an employee borrows when the app ships no art for them.
+  ///
+  /// Employees hired from any other package — built in or imported — used to
+  /// stand in the office with no body at all. They share one of the neutral
+  /// atlas figures instead, chosen from the identifier's own bytes so the same
+  /// employee always looks the same across launches.
+  private static func figureID(for employeeID: String) -> String {
+    let figures = ["maya", "nia", "theo"]
+    if figures.contains(employeeID) { return employeeID }
+    return figures[employeeID.utf8.reduce(0) { ($0 + Int($1)) % figures.count }]
+  }
+
   private static func displayScale(for employeeID: String) -> CGFloat {
     switch employeeID {
-    case "maya", "theo": 0.94
-    case "nia": 0.97
     case "mira", "iris": 1
-    default: 1
+    case "nia": 0.97
+    default: Self.figureID(for: employeeID) == "nia" ? 0.97 : 0.94
     }
   }
 
   private static func walkTextures(for employeeID: String) -> [SKTexture] {
-    guard ["mira", "maya", "nia", "theo", "iris"].contains(employeeID),
-      let url = Bundle.module.url(forResource: "walk-\(employeeID)", withExtension: "png"),
+    let sheetID = ["mira", "iris"].contains(employeeID) ? employeeID : figureID(for: employeeID)
+    guard let url = Bundle.module.url(forResource: "walk-\(sheetID)", withExtension: "png"),
       let image = NSImage(contentsOf: url)
     else { return [] }
 

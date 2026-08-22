@@ -128,6 +128,13 @@ public struct EmployeePackage: Identifiable, Codable, Sendable, Equatable {
   public var defaultModelName: String?
   public var boundaries: AutonomyBoundaries
   public var reducedModeDescription: String?
+  /// What this employee may never do in an external account, in the owner's
+  /// words.
+  ///
+  /// Optional and additive: `boundaries` decides what the broker permits, and
+  /// this says plainly which external actions stay with the owner even after a
+  /// grant. Packages written before it decode with nothing to say here.
+  public var externalActionBoundary: String?
   public var builtIn: Bool
 
   public init(
@@ -146,6 +153,7 @@ public struct EmployeePackage: Identifiable, Codable, Sendable, Equatable {
     defaultModelName: String? = nil,
     boundaries: AutonomyBoundaries = AutonomyBoundaries(),
     reducedModeDescription: String? = nil,
+    externalActionBoundary: String? = nil,
     builtIn: Bool = false
   ) {
     self.id = id
@@ -163,6 +171,7 @@ public struct EmployeePackage: Identifiable, Codable, Sendable, Equatable {
     self.defaultModelName = defaultModelName
     self.boundaries = boundaries
     self.reducedModeDescription = reducedModeDescription
+    self.externalActionBoundary = externalActionBoundary
     self.builtIn = builtIn
   }
 
@@ -431,6 +440,25 @@ public enum EmployeePackageCatalogue {
         managerRole: "Executive Assistant", avatarColor: "6E8B62",
         skills: selected(["customer-voice-analysis", "communication"]),
         reducedModeDescription: "Works only from feedback deliberately placed in the local inbox.",
+        builtIn: true),
+      EmployeePackage(
+        id: "starter.rowan", version: "1.0.0", creator: "Agent Office", name: "Rowan",
+        role: "Reddit Growth Strategist",
+        responsibility:
+          "Turn the product and current community evidence into a rule-aware community map, a bounded daily plan, and owner-ready drafts.",
+        managerRole: "Executive Assistant", avatarColor: "A8626F",
+        skills: selected([
+          "reddit-community-research", "rule-aware-reddit-writing", "reddit-growth-review",
+          "communication",
+        ]),
+        requiredConnectionIDs: ["web-research"],
+        boundaries: AutonomyBoundaries(
+          mayReadOrganizationFiles: true, mayWriteEmployeeHome: true, mayDelegate: false,
+          mayUseExternalTools: true, mayPublish: false, maximumRevisions: 2),
+        reducedModeDescription:
+          "Without granted web research, works only from community context you supplied and labels the result owner-context-only or synthetic practice. It may not state current rules, rankings, or whether anything was posted.",
+        externalActionBoundary:
+          "Never posts, comments, messages, signs in, delegates, or controls a Reddit account. Every authenticated action stays your handoff, and each draft ends by asking you to re-check that community's current rules before posting.",
         builtIn: true),
     ]
   }

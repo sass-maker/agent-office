@@ -44,7 +44,7 @@ final class EmploymentTests: XCTestCase {
     XCTAssertTrue(migrated.employees.allSatisfy { $0.effectiveEmploymentState == .hired })
     XCTAssertEqual(migrated.workingContracts.count, 5)
     XCTAssertEqual(migratedAgain.workingContracts.count, 5)
-    XCTAssertEqual(migratedAgain.employeePackages.count, 5)
+    XCTAssertEqual(migratedAgain.employeePackages.count, 6)
     XCTAssertEqual(migratedAgain.employee("mira")?.id, "mira")
   }
 

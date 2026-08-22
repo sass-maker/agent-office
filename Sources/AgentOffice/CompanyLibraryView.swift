@@ -342,7 +342,24 @@ struct CompanyLibraryView: View {
           )
           .font(.callout).foregroundStyle(ink.opacity(0.72))
         }
-        if let reduced = package.reducedModeDescription { coverageGap(reduced) }
+        librarySection("How they work", icon: "dial.medium") {
+          VStack(alignment: .leading, spacing: 8) {
+            Text(
+              package.requiredConnectionIDs.isEmpty
+                ? "Normally: from local company context alone."
+                : "Normally: with \(package.requiredConnectionIDs.joined(separator: ", ")), which hiring does not grant."
+            )
+            .font(.callout).foregroundStyle(ink.opacity(0.72))
+            if let reduced = package.reducedModeDescription {
+              Text("Reduced: \(reduced)").font(.callout).foregroundStyle(ink.opacity(0.72))
+            }
+          }
+        }
+        if let boundary = package.externalActionBoundary {
+          librarySection("What stays with you", icon: "hand.raised.fill") {
+            Text(boundary).font(.callout).foregroundStyle(ink.opacity(0.72))
+          }
+        }
         Button(isEmployed ? "Already employed" : "Hire \(package.name)") {
           if model.hireEmployee(packageID: package.id, version: package.version) {
             selectedEmployeeID = model.selectedEmployeeID ?? selectedEmployeeID

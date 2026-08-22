@@ -1370,6 +1370,33 @@ extension OrganizationKnowledge {
           "The brief reports coverage, traces themes to supplied files, distinguishes single observations from repeated evidence, and recommends one bounded decision.",
         source: .builtIn, authorID: "agent-office", createdAt: now, updatedAt: now),
       SkillDefinition(
+        id: "reddit-community-research", name: "Reddit community research", category: "Research",
+        purpose:
+          "Find the communities worth entering and establish what each one currently permits.",
+        instructions:
+          "Start from the product brief and the requested outcome. Name each candidate community, why it fits the product and audience, and the evidence for that fit. When web research is granted, verify current rules, promotion limits and posting requirements from the community's own current text and cite the URL you read. Mark a community unclear when its current rules cannot be verified, and never carry a rule over from another community or from memory. Without granted research, label the work owner-context-only and use only the communities and rules the owner supplied.",
+        successCriteria:
+          "Every listed community carries a fit reason, either a cited rule finding or an explicit unclear label, and a source the owner can re-check.",
+        source: .builtIn, requiredConnectionIDs: ["web-research"], authorID: "agent-office",
+        createdAt: now, updatedAt: now),
+      SkillDefinition(
+        id: "rule-aware-reddit-writing", name: "Rule-aware Reddit writing", category: "Content",
+        purpose: "Prepare community-specific posts and replies the owner can read, edit and post.",
+        instructions:
+          "Write each draft for one named community and against that community's verified rules, and say which rule shaped each choice. Keep every product claim inside what the brief supports. Never invent participation, karma, comment history, testimonials or other social proof, and never write as though you already belong to the community. Include the promotion disclosure the community requires. State plainly that nothing has been posted, and end each draft with the instruction to re-check that community's current rules immediately before posting.",
+        successCriteria:
+          "Each draft names its community, traces its choices to verified rules, invents no participation or social proof, and ends with the owner's re-check-then-post step.",
+        source: .builtIn, authorID: "agent-office", createdAt: now, updatedAt: now),
+      SkillDefinition(
+        id: "reddit-growth-review", name: "Reddit growth review", category: "Quality",
+        purpose:
+          "Turn today's priorities and the owner's recorded results into an honest next step.",
+        instructions:
+          "Produce a bounded daily plan: a short ordered list of actions, the community each belongs to, timing considerations, the risk of each, and the next owner action. Review only the traffic, engagement, removals and mentions the owner supplied, name the period they cover, and keep what the numbers show separate from what caused it. Do not claim causality from one post, one week, or an uncontrolled comparison. Recommend revisions for owner approval and state what evidence would change the recommendation.",
+        successCriteria:
+          "The plan is bounded, ordered and risk-labelled, the review names its supplied period, causal claims are absent or explicitly hedged, and one recommendation waits for owner approval.",
+        source: .builtIn, authorID: "agent-office", createdAt: now, updatedAt: now),
+      SkillDefinition(
         id: "communication", name: "Communication", category: "Coordination",
         purpose:
           "Keep work supervisable through concise, attributable updates and precise requests for help.",

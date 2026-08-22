@@ -104,6 +104,10 @@ durable people-like collaborators whose execution remains bounded software.
 - 2026-08-15 — Owner decisions — plan review, help answers, delivery acceptance,
   revisions, hiring, pausing, resuming, retiring — travel the journalled command
   boundary and replay to the same state.
+- 2026-08-22 — Rowan joined the Company Library as a hireable Reddit Growth
+  Strategist package with four reusable skills, a declared but ungranted
+  read-only research dependency, and a folio that states the normal mode, the
+  reduced mode, and the external actions that stay with the owner.
 - 2026-08-22 — Working-contract revisions travel the same boundary: role,
   responsibility, manager, skills, connections, grants, provider, model,
   boundaries and review policy move as one attributable event that replays to
@@ -183,8 +187,10 @@ durable people-like collaborators whose execution remains bounded software.
   execution within an organization-wide capacity limit, local Markdown
   delivery, stop/retry/reopen recovery, and precise help requests without
   self-granted tools or external writes.
-- Five versioned built-in employee packages whose declarative metadata can be
-  inspected before hiring. Package import rejects secret-shaped fields,
+- Six versioned built-in employee packages whose declarative metadata can be
+  inspected before hiring, including Rowan, a Reddit Growth Strategist who
+  prepares rule-aware community research, bounded daily plans and owner-ready
+  drafts and never posts, comments, messages, signs in or controls an account. Package import rejects secret-shaped fields,
   executable paths, invalid identifiers, and duplicate skill declarations.
 - Explicit employment lifecycle for AI employees: fresh organizations start
   with candidates; hiring creates a durable identity and working contract;

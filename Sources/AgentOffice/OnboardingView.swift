@@ -498,8 +498,12 @@ struct OnboardingView: View {
         "Review", "Plans are reviewed before execution; authority changes always return to you."
       )
       candidateContractFact("Package", "Version \(package.version) by \(package.creator)")
+      candidateContractFact("Normal mode", candidateNormalMode(package))
       candidateContractFact(
         "Reduced mode", package.reducedModeDescription ?? "No reduced mode is declared.")
+      if let boundary = package.externalActionBoundary {
+        candidateContractFact("External actions", boundary)
+      }
 
       Label(
         "Hiring grants no connection, publishing right, spending authority, or access outside this company folder.",
@@ -512,6 +516,14 @@ struct OnboardingView: View {
     .padding(.leading, 34)
     .padding(.bottom, 15)
     .transition(reduceMotion ? .identity : .opacity.combined(with: .move(edge: .top)))
+  }
+
+  /// How the candidate works when everything it declares is available, so the
+  /// reduced mode below it reads as the fallback rather than the offer.
+  private func candidateNormalMode(_ package: EmployeePackage) -> String {
+    package.requiredConnectionIDs.isEmpty
+      ? "Works from the local company context alone; nothing outside this folder is needed."
+      : "Depends on \(candidateConnectionNames(package)), which stays unavailable until you grant it."
   }
 
   private func candidateContractFact(_ label: String, _ value: String) -> some View {

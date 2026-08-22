@@ -90,6 +90,14 @@ target still needs direct coverage; the current coverage floor applies to
   capabilities, and artifact index.
 - Open the **Company Library** to inspect the employee catalogue, exact skill
   coverage, coverage gaps, and recognized local connections.
+- Hire Rowan, a Reddit Growth Strategist, from the candidate catalogue. She maps
+  communities, verifies their current rules or marks them unclear, plans a
+  bounded day, and drafts posts and replies as local Markdown. Read-only web
+  research is declared but never granted by hiring, and she cannot post,
+  comment, message, sign in, delegate, or control an account: every
+  authenticated Reddit action stays a handoff to you, ending with a reminder to
+  re-check that community's current rules first. Without a research grant her
+  work is labelled owner-context-only or synthetic practice.
 - Teach an organizational skill to one employee, or assign an existing skill
   to another employee. Taught skills are versioned local operating guidance
   included in that employee's future Local Codex work; they do not fine-tune
