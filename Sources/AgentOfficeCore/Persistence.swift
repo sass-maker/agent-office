@@ -510,6 +510,8 @@ public actor LocalOrganizationStore {
           - Skills: \(skills)
           - Required connections: \(connections)
           - Preferred execution: `\(package.preferredProvider.rawValue)`
+          - Reduced mode: \(package.reducedModeDescription ?? "Not declared.")
+          - External actions: \(package.externalActionBoundary ?? "No external write authority is declared.")
           - Built in: \(package.builtIn ? "Yes" : "No")
 
           \(package.responsibility)

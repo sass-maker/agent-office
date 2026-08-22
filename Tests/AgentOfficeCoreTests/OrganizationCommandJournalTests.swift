@@ -621,3 +621,161 @@ final class EmploymentCommandTests: XCTestCase {
     XCTAssertEqual(try journal().events().count, 0)
   }
 }
+
+/// What a hired employee's contract permits is the widest owner decision in the
+/// product, so it travels the boundary and reconstructs the same way.
+final class WorkingContractCommandTests: XCTestCase {
+  private var directory = URL(fileURLWithPath: "/tmp")
+  private let seeded = Date(timeIntervalSince1970: 1_000)
+  private let now = Date(timeIntervalSince1970: 5_000)
+
+  override func setUpWithError() throws {
+    try super.setUpWithError()
+    directory = URL(fileURLWithPath: NSTemporaryDirectory())
+      .appendingPathComponent("agent-office-contract-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  }
+
+  override func tearDownWithError() throws {
+    try? FileManager.default.removeItem(at: directory)
+    try super.tearDownWithError()
+  }
+
+  private func journal() -> OrganizationJournal {
+    OrganizationJournal(fileURL: directory.appendingPathComponent("journal.jsonl"))
+  }
+
+  private func hiredOrganization() -> OrganizationState {
+    LocalOrganizationStore.migrated(.seeded(now: seeded), now: seeded)
+  }
+
+  /// The owner widens Theo's contract: a new role, an extra skill, a declared
+  /// connection, a grant, a different provider and tighter boundaries.
+  private func revision(
+    of state: OrganizationState,
+    employeeID: String = "theo",
+    role: String = "Senior Content Writer",
+    grants: [String] = ["web-research"]
+  ) throws -> WorkingContractRevision {
+    let contract = try XCTUnwrap(state.workingContract(for: employeeID))
+    var revision = WorkingContractRevision(
+      revising: contract, reason: "Expanded authority for launch season.")
+    revision.role = role
+    revision.assignedSkillIDs = ["evidence-writing", "communication", "audience-research"]
+    revision.declaredConnectionIDs = ["web-research"]
+    revision.capabilityGrants = grants
+    revision.executionProvider = .localCodex
+    revision.modelName = "test-model"
+    revision.reviewPolicy = .whenAuthorityChanges
+    return revision
+  }
+
+  private func command(_ revision: WorkingContractRevision, id: String = "command-1")
+    -> OrganizationCommand
+  {
+    OrganizationCommand(
+      id: id,
+      actor: .owner(id: "owner"),
+      payload: .reviseWorkingContract(revision),
+      idempotencyKey: revision.idempotencyKey,
+      issuedAt: now
+    )
+  }
+
+  func testARevisionIsJournalledAgainstTheEmployeeAndItsConnections() throws {
+    var state = hiredOrganization()
+    let processor = OrganizationCommandProcessor(journal: journal())
+
+    _ = try processor.submit(command(try revision(of: state)), to: &state)
+
+    XCTAssertEqual(state.workingContract(for: "theo")?.role, "Senior Content Writer")
+    XCTAssertEqual(state.workingContract(for: "theo")?.revision, 2)
+    XCTAssertEqual(state.employee("theo")?.capabilityGrants, ["web-research"])
+
+    let events = try journal().events()
+    XCTAssertEqual(events.map(\.type), ["employment.contract-revised"])
+    XCTAssertEqual(events[0].actor, .owner(id: "owner"))
+    XCTAssertEqual(events[0].schemaVersion, OrganizationJournal.schemaVersion)
+    XCTAssertTrue(events[0].references(.employee("theo")))
+    XCTAssertTrue(events[0].references(.connection("web-research")))
+  }
+
+  func testARuntimeCannotReviseItsOwnContract() throws {
+    var state = hiredOrganization()
+    let before = state
+    let processor = OrganizationCommandProcessor(journal: journal())
+    let escalation = OrganizationCommand(
+      actor: .employeeRuntime(employeeID: "theo", sessionID: "session-1"),
+      payload: .reviseWorkingContract(try revision(of: state)),
+      idempotencyKey: "self-grant-1",
+      issuedAt: now
+    )
+
+    XCTAssertThrowsError(try processor.submit(escalation, to: &state)) { error in
+      XCTAssertEqual(
+        error as? OrganizationCommandError,
+        .unauthorizedActor(actor: "theo", commandType: "employment.contract-revised"))
+    }
+    XCTAssertEqual(state, before)
+    XCTAssertEqual(try journal().events().count, 0)
+  }
+
+  func testARevisionReplaysToTheSameContractGrantsAndProjections() throws {
+    var state = hiredOrganization()
+    let snapshot = state
+    let processor = OrganizationCommandProcessor(journal: journal())
+
+    _ = try processor.submit(command(try revision(of: state)), to: &state)
+    var narrowed = try revision(of: state, role: "Content Writer", grants: [])
+    narrowed.reason = "Narrowed again after the launch."
+    _ = try processor.submit(command(narrowed, id: "command-2"), to: &state)
+
+    let replayed = try processor.replay(from: snapshot, events: journal().events())
+
+    XCTAssertEqual(replayed, state)
+    XCTAssertEqual(replayed.workingContract(for: "theo"), state.workingContract(for: "theo"))
+    XCTAssertEqual(replayed.workingContract(for: "theo")?.revision, 3)
+    XCTAssertEqual(replayed.employee("theo")?.capabilityGrants, [])
+    XCTAssertEqual(
+      replayed.assignedSkills(employeeID: "theo").map(\.id),
+      state.assignedSkills(employeeID: "theo").map(\.id))
+    XCTAssertEqual(replayed.contractChanges.count, state.contractChanges.count)
+  }
+
+  func testARepeatedRevisionAppliesOnce() throws {
+    var state = hiredOrganization()
+    let processor = OrganizationCommandProcessor(journal: journal())
+    let revision = try revision(of: state)
+
+    let first = try processor.submit(command(revision), to: &state)
+    let applied = state
+
+    // The same edit, resubmitted: same employee, same base revision, so the
+    // second submission derives the same key and applies nothing.
+    let second = try processor.submit(command(revision, id: "command-2"), to: &state)
+
+    XCTAssertFalse(first.wasAlreadyApplied)
+    XCTAssertTrue(second.wasAlreadyApplied)
+    XCTAssertEqual(second.eventID, first.eventID)
+    XCTAssertEqual(state, applied)
+    XCTAssertEqual(state.workingContract(for: "theo")?.revision, 2)
+    XCTAssertEqual(try journal().events().count, 1)
+  }
+
+  func testARejectedRevisionLeavesNoHistoryAndAllowsRetry() throws {
+    var state = hiredOrganization()
+    let processor = OrganizationCommandProcessor(journal: journal())
+    var unemployed = try revision(of: state)
+    unemployed.employeeID = "nobody"
+    let before = state
+
+    XCTAssertThrowsError(try processor.submit(command(unemployed), to: &state)) { error in
+      XCTAssertEqual(error as? EmploymentError, .missingEmployee)
+    }
+    XCTAssertEqual(state, before)
+    XCTAssertEqual(try journal().events().count, 0)
+
+    let retry = try processor.submit(command(try revision(of: state)), to: &state)
+    XCTAssertFalse(retry.wasAlreadyApplied)
+  }
+}

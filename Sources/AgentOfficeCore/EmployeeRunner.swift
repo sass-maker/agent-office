@@ -111,296 +111,314 @@ public struct DeterministicEmployeeRunner: EmployeeRunner {
 
   public func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
     switch request.operation {
-    case .plan:
-      let communication = request.skills.first { $0.id == "communication" }?.id
-      let specialist = request.skills.first { $0.id != "communication" }?.id
-      let selected = [communication, specialist].compactMap { $0 }
-      let deliveryKind: TaskKind
-      if request.skills.contains(where: { $0.id.contains("research") }) {
-        deliveryKind = .research
-      } else if request.skills.contains(where: { $0.id.contains("writing") }) {
-        deliveryKind = .draft
-      } else if request.skills.contains(where: {
-        $0.id.contains("report") || $0.id.contains("brief")
-      }) {
-        deliveryKind = .report
-      } else {
-        deliveryKind = .analysis
-      }
-      let proposals = [
-        EmployeeTaskProposal(
-          title: "Frame the outcome",
-          detail:
-            "Clarify what a useful delivery must contain using the supplied organization context.",
-          kind: .analysis,
-          skillIDs: selected
-        ),
-        EmployeeTaskProposal(
-          title: "Deliver \(request.outcome)",
-          detail: "Produce the smallest useful local artifact that fulfills the assigned outcome.",
-          kind: deliveryKind,
-          skillIDs: selected
-        ),
-      ]
-      return EmployeeWorkOutput(
-        title: "\(request.employee.name)’s plan",
-        summary: "\(request.employee.name) created a two-ticket plan using assigned skills.",
-        content: "I’ll first frame the outcome, then produce one inspectable delivery.",
-        evidenceBasis: "synthetic-demo",
-        proposedTasks: proposals,
-        selectedSkillIDs: selected
-      )
+    case .plan: return Self.planOutput(for: request)
+    case .analysis: return Self.analysisOutput(for: request)
+    case .research: return Self.researchOutput(for: request)
+    case .draft: return Self.draftOutput(for: request)
+    case .revise: return Self.reviseOutput(for: request)
+    case .review: return Self.reviewOutput(for: request)
+    case .report: return Self.reportOutput(for: request)
+    case .customerVoice: return Self.customerVoiceOutput(for: request)
+    }
+  }
 
-    case .analysis:
+  private static func planOutput(for request: EmployeeWorkRequest) -> EmployeeWorkOutput {
+    let communication = request.skills.first { $0.id == "communication" }?.id
+    let specialist = request.skills.first { $0.id != "communication" }?.id
+    let selected = [communication, specialist].compactMap { $0 }
+    let deliveryKind: TaskKind
+    if request.skills.contains(where: { $0.id.contains("research") }) {
+      deliveryKind = .research
+    } else if request.skills.contains(where: { $0.id.contains("writing") }) {
+      deliveryKind = .draft
+    } else if request.skills.contains(where: {
+      $0.id.contains("report") || $0.id.contains("brief")
+    }) {
+      deliveryKind = .report
+    } else {
+      deliveryKind = .analysis
+    }
+    let proposals = [
+      EmployeeTaskProposal(
+        title: "Frame the outcome",
+        detail:
+          "Clarify what a useful delivery must contain using the supplied organization context.",
+        kind: .analysis,
+        skillIDs: selected
+      ),
+      EmployeeTaskProposal(
+        title: "Deliver \(request.outcome)",
+        detail: "Produce the smallest useful local artifact that fulfills the assigned outcome.",
+        kind: deliveryKind,
+        skillIDs: selected
+      ),
+    ]
+    return EmployeeWorkOutput(
+      title: "\(request.employee.name)’s plan",
+      summary: "\(request.employee.name) created a two-ticket plan using assigned skills.",
+      content: "I’ll first frame the outcome, then produce one inspectable delivery.",
+      evidenceBasis: "synthetic-demo",
+      proposedTasks: proposals,
+      selectedSkillIDs: selected
+    )
+  }
+
+  private static func analysisOutput(for request: EmployeeWorkRequest) -> EmployeeWorkOutput {
+    EmployeeWorkOutput(
+      title: request.task.title,
+      summary:
+        "\(request.employee.name) clarified the outcome and the shape of a useful delivery.",
+      content: """
+        # Outcome frame
+
+        ## Outcome
+        \(request.outcome)
+
+        ## Context used
+        \(request.context.isEmpty ? "The organization brief and assigned skills only." : request.context)
+
+        ## Definition of useful
+        The delivery should be concrete, inspectable in the organization folder, grounded in supplied context, and explicit about any missing evidence or permission.
+
+        ## Working decision
+        Produce the smallest artifact that advances the outcome and leave the owner a clear next action.
+        """,
+      evidenceBasis: "synthetic-demo"
+    )
+  }
+
+  private static func researchOutput(for request: EmployeeWorkRequest) -> EmployeeWorkOutput {
+    if request.task.id.hasPrefix("employee-outcome-") {
       return EmployeeWorkOutput(
         title: request.task.title,
         summary:
-          "\(request.employee.name) clarified the outcome and the shape of a useful delivery.",
+          "\(request.employee.name) prepared a bounded research rehearsal for the assigned outcome.",
         content: """
-          # Outcome frame
+          # Research rehearsal
+
+          > Demo mode did not use the web or claim external evidence.
 
           ## Outcome
           \(request.outcome)
 
-          ## Context used
-          \(request.context.isEmpty ? "The organization brief and assigned skills only." : request.context)
+          ## Research questions
+          - What evidence would most directly change the owner’s decision?
+          - Which supplied facts are stable, and which still need verification?
 
-          ## Definition of useful
-          The delivery should be concrete, inspectable in the organization folder, grounded in supplied context, and explicit about any missing evidence or permission.
-
-          ## Working decision
-          Produce the smallest artifact that advances the outcome and leave the owner a clear next action.
-          """,
-        evidenceBasis: "synthetic-demo"
-      )
-
-    case .research:
-      if request.task.id.hasPrefix("employee-outcome-") {
-        return EmployeeWorkOutput(
-          title: request.task.title,
-          summary:
-            "\(request.employee.name) prepared a bounded research rehearsal for the assigned outcome.",
-          content: """
-            # Research rehearsal
-
-            > Demo mode did not use the web or claim external evidence.
-
-            ## Outcome
-            \(request.outcome)
-
-            ## Research questions
-            - What evidence would most directly change the owner’s decision?
-            - Which supplied facts are stable, and which still need verification?
-
-            ## Delivery
-            A real run should gather permitted evidence, cite it, state uncertainty, and recommend one next action.
-            """,
-          evidenceBasis: "synthetic-demo"
-        )
-      }
-      if request.task.id.hasPrefix("research-assignment-") {
-        return EmployeeWorkOutput(
-          title: "Research rehearsal — \(request.outcome)",
-          summary: "Nia prepared a synthetic plan for researching the owner's outcome.",
-          content: """
-            # Synthetic research rehearsal
-
-            > This Demo-mode artifact did not use the web and contains no external findings or sources.
-
-            ## Owner's outcome
-            \(request.outcome)
-
-            ## Context received
-            \(request.context.isEmpty ? "No additional context was supplied." : request.context)
-
-            ## Questions Nia would investigate
-            - What evidence would directly answer the owner's outcome?
-            - Which primary sources are closest to the underlying facts?
-            - Which claims remain uncertain or depend on interpretation?
-
-            ## Proposed research method
-            1. Locate current primary sources.
-            2. Cross-check the highest-impact claims.
-            3. Separate observed facts from inference.
-            4. Return findings, uncertainty, and next actions with source URLs.
-
-            ## Recommended next action
-            Select Local Codex and grant read-only web research to replace this rehearsal with real cited research.
-            """,
-          evidenceBasis: "synthetic-demo"
-        )
-      }
-      return EmployeeWorkOutput(
-        title: "Audience research",
-        summary: "Nia found a concrete question the article can answer.",
-        content: """
-          # Audience research
-
-          > Evidence basis: owner-provided product brief and deterministic demo context. No external web research was performed.
-
-          ## Outcome
-          \(request.outcome)
-
-          ## Useful audience question
-          How can a small product team turn a vague outcome into useful,
-          reviewable work without adding another complicated dashboard?
-
-          ## Reader intent
-          The reader wants a concrete operating pattern, an honest first
-          step, and clarity about where human judgment remains necessary.
-
-          ## Article direction
-          Explain the smallest useful loop: name an outcome, assign an
-          owner, produce one artifact, review it, and preserve the next
-          action. Avoid claims about autonomy that the product cannot yet
-          demonstrate.
-          """
-      )
-
-    case .draft:
-      if request.task.id.hasPrefix("employee-outcome-") {
-        return EmployeeWorkOutput(
-          title: request.task.title,
-          summary: "\(request.employee.name) produced a local draft for the assigned outcome.",
-          content:
-            "# \(request.task.title)\n\nThis Demo-mode draft turns the assigned outcome into one reviewable local artifact.\n\n## Outcome\n\n\(request.outcome)\n\n## Recommended next action\n\nReview this rehearsal, add real product context, and rerun with Local Codex for a grounded delivery.",
-          evidenceBasis: "synthetic-demo"
-        )
-      }
-      return EmployeeWorkOutput(
-        title: "From outcome to a useful workday",
-        summary: "Theo produced a complete first draft for Maya.",
-        content: """
-          # From an outcome to a useful workday
-
-          Most tools begin by asking you to configure a workflow. Small
-          teams rarely wake up wanting another workflow; they have an
-          outcome they need someone to own.
-
-          Start with one useful loop. Give a named teammate an outcome,
-          let them break it into visible work, and require every handoff
-          to produce an inspectable artifact. A researcher can identify
-          the audience question. A writer can turn that evidence into a
-          draft. A manager can review it against the outcome rather than
-          against a generic checklist.
-
-          The loop needs a stopping condition. Two review cycles are
-          enough for a first version: either the work is approved or the
-          owner receives a precise blocker. The goal is not simulated
-          busyness. It is a small organization that remembers where it
-          stopped and knows what should happen next.
-
-          That is already useful before integrations, elaborate
-          permissions, or autonomous infrastructure work arrive.
-          """
-      )
-
-    case .revise:
-      return EmployeeWorkOutput(
-        title: "From outcome to a useful workday — revised",
-        summary: "Theo revised the draft around a clearer practical example.",
-        content: """
-          # From an outcome to a useful workday
-
-          Imagine asking a small content team for one useful article.
-          Nia researches the question readers actually have. Theo writes
-          the first answer. Maya reviews it against the outcome and sends
-          back one concrete correction: show the operating loop, not just
-          the idea.
-
-          The team now has a visible path: outcome → research → draft →
-          review → approval. Every handoff leaves an ordinary file behind,
-          and every employee knows who owns the next move. If two revisions
-          cannot resolve the work, the loop stops and asks the owner for a
-          decision instead of quietly consuming another afternoon.
-
-          This is useful before the organization can publish, browse, or
-          operate cloud systems. Those abilities can arrive later with
-          stronger permissions and guardrails. The first proof is simpler:
-          named employees can pick up real work, coordinate, and leave the
-          company in a clearer state than they found it.
-          """
-      )
-
-    case .review:
-      let shouldApprove = request.task.revisionCount > 0
-      return EmployeeWorkOutput(
-        title: shouldApprove ? "Editorial approval" : "Editorial review",
-        summary: shouldApprove
-          ? "Maya approved the revised article."
-          : "Maya asked for one focused revision.",
-        content: shouldApprove
-          ? "# Approved\n\nThe revision now demonstrates the operating loop, its stopping condition, and the boundary between current proof and future capability."
-          : "# Revision requested\n\nOpen with a concrete researcher → writer → manager example. Make the two-cycle stopping condition explicit and separate today's useful proof from future permissions and integrations.",
-        verdict: shouldApprove ? .approve : .revise
-      )
-
-    case .report:
-      if request.task.id.hasPrefix("employee-outcome-") {
-        return EmployeeWorkOutput(
-          title: request.task.title,
-          summary: "\(request.employee.name) prepared an owner-ready local report.",
-          content:
-            "# \(request.task.title)\n\n## Outcome\n\n\(request.outcome)\n\n## What was prepared\n\nA bounded Demo-mode report using the organization brief and assigned skills.\n\n## Recommended next action\n\nReview the artifact and decide whether the employee should receive more context or permission.",
-          evidenceBasis: "synthetic-demo"
-        )
-      }
-      return EmployeeWorkOutput(
-        title: "Day \(request.task.revisionCount + 1) report",
-        summary: "Maya prepared the owner's end-of-day report.",
-        content: """
-          # Owner report
-
-          ## Completed
-          - Nia identified the audience question and article direction.
-          - Theo wrote and revised the article.
-          - Maya reviewed and approved the final draft.
-
-          ## Artifacts
-          Research, draft versions, editorial feedback, and approval are
-          stored in the organization folder.
-
-          ## Blockers
-          None.
-
-          ## Recommended next step
-          Read the approved draft and decide whether the next employee
-          should prepare a publishing package.
-          """
-      )
-    case .customerVoice:
-      let label = Self.firstFeedbackLabel(in: request.context) ?? "F1"
-      return EmployeeWorkOutput(
-        title: "Customer Voice Weekly — practice brief",
-        summary: "Iris prepared a synthetic customer-voice brief from the supplied local fixture.",
-        content: """
-          # Input coverage
-
-          Practice mode received the captured local feedback context. This output is synthetic.
-
-          # Themes
-
-          One repeated theme would be identified from the supplied fixture in a real run.
-
-          # Evidence
-
-          - [\(label)] was included in the practice analysis.
-
-          # Uncertainty
-
-          Practice mode does not claim that this theme represents real customers.
-
-          # Owner decision
-
-          Decide whether the theme is important enough to investigate with real Local Codex analysis.
-
-          # Next occurrence
-
-          Add new feedback to the local inbox before the next weekly run.
+          ## Delivery
+          A real run should gather permitted evidence, cite it, state uncertainty, and recommend one next action.
           """,
         evidenceBasis: "synthetic-demo"
       )
     }
+    if request.task.id.hasPrefix("research-assignment-") {
+      return EmployeeWorkOutput(
+        title: "Research rehearsal — \(request.outcome)",
+        summary: "Nia prepared a synthetic plan for researching the owner's outcome.",
+        content: """
+          # Synthetic research rehearsal
+
+          > This Demo-mode artifact did not use the web and contains no external findings or sources.
+
+          ## Owner's outcome
+          \(request.outcome)
+
+          ## Context received
+          \(request.context.isEmpty ? "No additional context was supplied." : request.context)
+
+          ## Questions Nia would investigate
+          - What evidence would directly answer the owner's outcome?
+          - Which primary sources are closest to the underlying facts?
+          - Which claims remain uncertain or depend on interpretation?
+
+          ## Proposed research method
+          1. Locate current primary sources.
+          2. Cross-check the highest-impact claims.
+          3. Separate observed facts from inference.
+          4. Return findings, uncertainty, and next actions with source URLs.
+
+          ## Recommended next action
+          Select Local Codex and grant read-only web research to replace this rehearsal with real cited research.
+          """,
+        evidenceBasis: "synthetic-demo"
+      )
+    }
+    return EmployeeWorkOutput(
+      title: "Audience research",
+      summary: "Nia found a concrete question the article can answer.",
+      content: """
+        # Audience research
+
+        > Evidence basis: owner-provided product brief and deterministic demo context. No external web research was performed.
+
+        ## Outcome
+        \(request.outcome)
+
+        ## Useful audience question
+        How can a small product team turn a vague outcome into useful,
+        reviewable work without adding another complicated dashboard?
+
+        ## Reader intent
+        The reader wants a concrete operating pattern, an honest first
+        step, and clarity about where human judgment remains necessary.
+
+        ## Article direction
+        Explain the smallest useful loop: name an outcome, assign an
+        owner, produce one artifact, review it, and preserve the next
+        action. Avoid claims about autonomy that the product cannot yet
+        demonstrate.
+        """
+    )
+  }
+
+  private static func draftOutput(for request: EmployeeWorkRequest) -> EmployeeWorkOutput {
+    if request.task.id.hasPrefix("employee-outcome-") {
+      return EmployeeWorkOutput(
+        title: request.task.title,
+        summary: "\(request.employee.name) produced a local draft for the assigned outcome.",
+        content:
+          "# \(request.task.title)\n\nThis Demo-mode draft turns the assigned outcome into one reviewable local artifact.\n\n## Outcome\n\n\(request.outcome)\n\n## Recommended next action\n\nReview this rehearsal, add real product context, and rerun with Local Codex for a grounded delivery.",
+        evidenceBasis: "synthetic-demo"
+      )
+    }
+    return EmployeeWorkOutput(
+      title: "From outcome to a useful workday",
+      summary: "Theo produced a complete first draft for Maya.",
+      content: """
+        # From an outcome to a useful workday
+
+        Most tools begin by asking you to configure a workflow. Small
+        teams rarely wake up wanting another workflow; they have an
+        outcome they need someone to own.
+
+        Start with one useful loop. Give a named teammate an outcome,
+        let them break it into visible work, and require every handoff
+        to produce an inspectable artifact. A researcher can identify
+        the audience question. A writer can turn that evidence into a
+        draft. A manager can review it against the outcome rather than
+        against a generic checklist.
+
+        The loop needs a stopping condition. Two review cycles are
+        enough for a first version: either the work is approved or the
+        owner receives a precise blocker. The goal is not simulated
+        busyness. It is a small organization that remembers where it
+        stopped and knows what should happen next.
+
+        That is already useful before integrations, elaborate
+        permissions, or autonomous infrastructure work arrive.
+        """
+    )
+  }
+
+  private static func reviseOutput(for _: EmployeeWorkRequest) -> EmployeeWorkOutput {
+    EmployeeWorkOutput(
+      title: "From outcome to a useful workday — revised",
+      summary: "Theo revised the draft around a clearer practical example.",
+      content: """
+        # From an outcome to a useful workday
+
+        Imagine asking a small content team for one useful article.
+        Nia researches the question readers actually have. Theo writes
+        the first answer. Maya reviews it against the outcome and sends
+        back one concrete correction: show the operating loop, not just
+        the idea.
+
+        The team now has a visible path: outcome → research → draft →
+        review → approval. Every handoff leaves an ordinary file behind,
+        and every employee knows who owns the next move. If two revisions
+        cannot resolve the work, the loop stops and asks the owner for a
+        decision instead of quietly consuming another afternoon.
+
+        This is useful before the organization can publish, browse, or
+        operate cloud systems. Those abilities can arrive later with
+        stronger permissions and guardrails. The first proof is simpler:
+        named employees can pick up real work, coordinate, and leave the
+        company in a clearer state than they found it.
+        """
+    )
+  }
+
+  private static func reviewOutput(for request: EmployeeWorkRequest) -> EmployeeWorkOutput {
+    let shouldApprove = request.task.revisionCount > 0
+    return EmployeeWorkOutput(
+      title: shouldApprove ? "Editorial approval" : "Editorial review",
+      summary: shouldApprove
+        ? "Maya approved the revised article."
+        : "Maya asked for one focused revision.",
+      content: shouldApprove
+        ? "# Approved\n\nThe revision now demonstrates the operating loop, its stopping condition, and the boundary between current proof and future capability."
+        : "# Revision requested\n\nOpen with a concrete researcher → writer → manager example. Make the two-cycle stopping condition explicit and separate today's useful proof from future permissions and integrations.",
+      verdict: shouldApprove ? .approve : .revise
+    )
+  }
+
+  private static func reportOutput(for request: EmployeeWorkRequest) -> EmployeeWorkOutput {
+    if request.task.id.hasPrefix("employee-outcome-") {
+      return EmployeeWorkOutput(
+        title: request.task.title,
+        summary: "\(request.employee.name) prepared an owner-ready local report.",
+        content:
+          "# \(request.task.title)\n\n## Outcome\n\n\(request.outcome)\n\n## What was prepared\n\nA bounded Demo-mode report using the organization brief and assigned skills.\n\n## Recommended next action\n\nReview the artifact and decide whether the employee should receive more context or permission.",
+        evidenceBasis: "synthetic-demo"
+      )
+    }
+    return EmployeeWorkOutput(
+      title: "Day \(request.task.revisionCount + 1) report",
+      summary: "Maya prepared the owner's end-of-day report.",
+      content: """
+        # Owner report
+
+        ## Completed
+        - Nia identified the audience question and article direction.
+        - Theo wrote and revised the article.
+        - Maya reviewed and approved the final draft.
+
+        ## Artifacts
+        Research, draft versions, editorial feedback, and approval are
+        stored in the organization folder.
+
+        ## Blockers
+        None.
+
+        ## Recommended next step
+        Read the approved draft and decide whether the next employee
+        should prepare a publishing package.
+        """
+    )
+  }
+
+  private static func customerVoiceOutput(for request: EmployeeWorkRequest) -> EmployeeWorkOutput {
+    let label = firstFeedbackLabel(in: request.context) ?? "F1"
+    return EmployeeWorkOutput(
+      title: "Customer Voice Weekly — practice brief",
+      summary: "Iris prepared a synthetic customer-voice brief from the supplied local fixture.",
+      content: """
+        # Input coverage
+
+        Practice mode received the captured local feedback context. This output is synthetic.
+
+        # Themes
+
+        One repeated theme would be identified from the supplied fixture in a real run.
+
+        # Evidence
+
+        - [\(label)] was included in the practice analysis.
+
+        # Uncertainty
+
+        Practice mode does not claim that this theme represents real customers.
+
+        # Owner decision
+
+        Decide whether the theme is important enough to investigate with real Local Codex analysis.
+
+        # Next occurrence
+
+        Add new feedback to the local inbox before the next weekly run.
+        """,
+      evidenceBasis: "synthetic-demo"
+    )
   }
 
   private static func firstFeedbackLabel(in context: String) -> String? {

@@ -14,7 +14,7 @@ final class WorkdayEngineTests: XCTestCase {
     XCTAssertEqual(organization.employee("theo")?.managerID, "maya")
     XCTAssertTrue(organization.employees.allSatisfy { $0.capabilityGrants.isEmpty })
     XCTAssertEqual(organization.employee("iris")?.managerID, "mira")
-    XCTAssertEqual(organization.knowledge?.skillDefinitions.count, 8)
+    XCTAssertEqual(organization.knowledge?.skillDefinitions.count, 11)
     XCTAssertEqual(organization.knowledge?.skillAssignments.count, 12)
     XCTAssertEqual(organization.knowledge?.connectionDefinitions.count, 3)
     XCTAssertEqual(organization.employeeDuty("customer-voice-weekly")?.assigneeID, "iris")
@@ -216,7 +216,7 @@ final class WorkdayEngineTests: XCTestCase {
     XCTAssertEqual(migrated.tasks, originalTasks)
     XCTAssertTrue(migrated.activity.starts(with: originalActivity))
     XCTAssertFalse(migrated.productBrief.isEmpty)
-    XCTAssertEqual(migrated.knowledge?.skillDefinitions.count, 8)
+    XCTAssertEqual(migrated.knowledge?.skillDefinitions.count, 11)
     XCTAssertEqual(migrated.knowledge?.skillAssignments.count, 12)
     XCTAssertEqual(migrated.knowledge?.connectionDefinitions.count, 3)
     XCTAssertNotNil(migrated.employee("iris"))
@@ -227,7 +227,7 @@ final class WorkdayEngineTests: XCTestCase {
     let migratedAgain = LocalOrganizationStore.migrated(
       migrated, now: Date(timeIntervalSince1970: 300))
     XCTAssertEqual(migratedAgain.employees.filter { $0.assistantForHumanID == "owner" }.count, 1)
-    XCTAssertEqual(migratedAgain.knowledge?.skillDefinitions.count, 8)
+    XCTAssertEqual(migratedAgain.knowledge?.skillDefinitions.count, 11)
     XCTAssertEqual(migratedAgain.knowledge?.skillAssignments.count, 12)
     XCTAssertEqual(migratedAgain.knowledge?.connectionDefinitions.count, 3)
     XCTAssertEqual(migratedAgain.employees.filter { $0.id == "iris" }.count, 1)
@@ -258,7 +258,7 @@ final class WorkdayEngineTests: XCTestCase {
     XCTAssertTrue(decoded.knowledge?.skillDefinitions.isEmpty == true)
     let migrated = LocalOrganizationStore.migrated(decoded, now: Date(timeIntervalSince1970: 200))
     XCTAssertEqual(migrated.schemaVersion, 9)
-    XCTAssertEqual(migrated.knowledge?.skillDefinitions.count, 8)
+    XCTAssertEqual(migrated.knowledge?.skillDefinitions.count, 11)
   }
 
   func testKnowledgeWithoutProfileMigratesAndProjectsCompanyMemory() async throws {

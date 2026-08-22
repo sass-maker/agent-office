@@ -937,33 +937,22 @@ final class AppModel: ObservableObject {
     }
   }
 
-  @discardableResult
-  func updateWorkingContract(
-    employeeID: String,
-    role: String,
-    responsibility: String,
-    managerID: String?,
-    skillIDs: [String],
-    connectionIDs: [String],
-    grants: [String],
-    provider: EmployeeExecutionProvider,
-    modelName: String?,
-    boundaries: AutonomyBoundaries,
-    reviewPolicy: PlanReviewPolicy,
-    reason: String
-  ) -> Bool {
-    do {
-      try organization.updateWorkingContract(
-        employeeID: employeeID, role: role, responsibility: responsibility, managerID: managerID,
-        assignedSkillIDs: skillIDs, declaredConnectionIDs: connectionIDs, capabilityGrants: grants,
-        executionProvider: provider, modelName: modelName, boundaries: boundaries,
-        reviewPolicy: reviewPolicy, reason: reason)
-      lastError = nil
-      persistSoon()
-      return true
-    } catch {
-      lastError = error.localizedDescription
-      return false
+  /// A revision decides an employee's role, skills, connections, grants,
+  /// provider, model and boundaries, so it travels the same journalled boundary
+  /// as hiring rather than mutating the contract in place.
+  func reviseWorkingContract(_ revision: WorkingContractRevision) {
+    Task {
+      do {
+        let command = OrganizationCommand(
+          actor: .owner(id: "owner"),
+          payload: .reviseWorkingContract(revision),
+          idempotencyKey: revision.idempotencyKey
+        )
+        organization = try await store.submit(command, to: organization).state
+        lastError = nil
+      } catch {
+        lastError = error.localizedDescription
+      }
     }
   }
 
