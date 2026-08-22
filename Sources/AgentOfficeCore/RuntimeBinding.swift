@@ -111,12 +111,18 @@ extension OrganizationState {
   public func effectiveRuntimeBinding(for employeeID: String, now: Date = Date()) -> RuntimeBinding
   {
     if let existing = runtimeBinding(for: employeeID) { return existing }
-    let provider = workingContract(for: employeeID)?.executionProvider
+    let provider = workingContract(for: employeeID)?.executionProvider ?? .demo
+    // An explicit provider maps to its own runtime. Auto has no runtime yet, so
+    // it takes the first automatic preference as a placeholder — never Demo,
+    // because a placeholder that rehearses would make Auto silently synthetic.
+    // The real choice is made by `RuntimeAutoResolver` before a session opens.
+    let kind =
+      provider.explicitDriverKind
+      ?? AutoSelectableRuntime.preferenceOrder[0].driverKind
     return RuntimeBinding(
       id: "binding-\(employeeID)",
       employeeID: employeeID,
-      driver: RuntimeDriverIdentity(
-        kind: provider == .localCodex ? .localCodex : .demo, version: 1),
+      driver: RuntimeDriverIdentity(kind: kind, version: 1),
       boundAt: now
     )
   }

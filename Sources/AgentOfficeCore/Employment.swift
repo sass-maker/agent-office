@@ -8,12 +8,45 @@ public enum EmploymentState: String, Codable, Sendable, CaseIterable {
 }
 
 public enum EmployeeExecutionProvider: String, Codable, Sendable, CaseIterable {
+  /// Leave the runtime to automatic resolution. Not "no runtime": the resolver
+  /// picks a healthy real runtime or blocks, and never rehearses instead.
+  case auto
   case demo
   case localCodex
+  case localClaudeCode
 
   public init(_ mode: ExecutionMode) {
     self = mode == .localCodex ? .localCodex : .demo
   }
+
+  /// The runtime the owner named, or `nil` when they left it on Auto.
+  ///
+  /// `nil` is what makes Auto a real option rather than a disguised default:
+  /// the resolver is given no explicit choice to preserve, so rules 2 through 4
+  /// decide.
+  public var explicitDriverKind: RuntimeDriverKind? {
+    switch self {
+    case .auto: nil
+    case .demo: .demo
+    case .localCodex: .localCodex
+    case .localClaudeCode: .localClaudeCode
+    }
+  }
+
+  /// How to name this to an owner.
+  public var displayName: String {
+    switch self {
+    case .auto: "Auto"
+    case .demo: "Practice mode"
+    case .localCodex: "Codex"
+    case .localClaudeCode: "Claude Code"
+    }
+  }
+
+  /// The agent choices offered in the interface, Auto first.
+  public static let agentChoices: [EmployeeExecutionProvider] = [
+    .auto, .localCodex, .localClaudeCode, .demo,
+  ]
 }
 
 public enum EmployeeExecutionEnvironment: String, Codable, Sendable, CaseIterable {

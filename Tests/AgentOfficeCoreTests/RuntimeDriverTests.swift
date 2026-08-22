@@ -214,7 +214,7 @@ final class RuntimeDriverTests: XCTestCase {
   }
 
   func testCodexDriverReportsUnavailableInsteadOfSubstitutingTheDemoRuntime() async {
-    let driver = LocalCodexRuntimeDriver()
+    let driver = LocalAgentRuntimeDriver(cli: .codex)
     let availability = await driver.availability()
     if CodexEmployeeRunner.discover() == nil {
       XCTAssertFalse(availability.isAvailable)

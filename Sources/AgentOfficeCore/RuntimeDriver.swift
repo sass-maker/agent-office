@@ -8,6 +8,24 @@ public struct RuntimeDriverKind: RawRepresentable, Codable, Sendable, Hashable {
 
   public static let demo = RuntimeDriverKind("office.demo")
   public static let localCodex = RuntimeDriverKind("office.local-codex")
+  public static let localClaudeCode = RuntimeDriverKind("office.local-claude-code")
+
+  /// The CLI on disk this kind runs through, or `nil` when it runs no CLI at
+  /// all. Demo has no installation to find, which is exactly why it can never
+  /// be unavailable and must never be chosen as a stand-in for one that is.
+  public var localAgentCLI: LocalAgentCLI? {
+    switch self {
+    case .localCodex: .codex
+    case .localClaudeCode: .claudeCode
+    default: nil
+    }
+  }
+
+  /// How to name this runtime to an owner.
+  public var displayName: String {
+    if let cli = localAgentCLI { return cli.displayName }
+    return self == .demo ? "Practice mode" : rawValue
+  }
 }
 
 /// Optional facilities a driver may support.

@@ -60,7 +60,46 @@ final class AppModel: ObservableObject {
 
   var organizationURL: URL { store.rootURL }
 
-  var codexAvailable: Bool { CodexEmployeeRunner.discover() != nil }
+  /// Shared so login-shell `PATH` recovery is paid for once, not once per check.
+  private var agentDiscovery: LocalAgentDiscovery { LocalAgentDiscovery() }
+
+  var codexAvailable: Bool { agentDiscovery.locate(.codex) != nil }
+
+  var claudeCodeAvailable: Bool { agentDiscovery.locate(.claudeCode) != nil }
+
+  /// Whether an agent choice can be used right now. Auto is offerable whenever
+  /// at least one real runtime is healthy — never on the strength of Demo.
+  func agentAvailable(_ provider: EmployeeExecutionProvider) -> Bool {
+    switch provider {
+    case .auto: codexAvailable || claudeCodeAvailable
+    case .demo: true
+    case .localCodex: codexAvailable
+    case .localClaudeCode: claudeCodeAvailable
+    }
+  }
+
+  /// Why an agent choice cannot be used, for showing beside a disabled option.
+  func agentUnavailableReason(_ provider: EmployeeExecutionProvider) -> String? {
+    guard !agentAvailable(provider) else { return nil }
+    switch provider {
+    case .auto:
+      return
+        "Neither Codex nor Claude Code was found, so there is nothing for Auto to choose. Practice mode is the only remaining option, and it is a rehearsal."
+    case .localCodex:
+      return agentDiscovery.availability(of: .codex).reason
+    case .localClaudeCode:
+      return agentDiscovery.availability(of: .claudeCode).reason
+    case .demo:
+      return nil
+    }
+  }
+
+  /// Forgets the recovered `PATH` so a CLI installed while the app was open can
+  /// be found without a relaunch.
+  func recheckAgentInstallations() {
+    objectWillChange.send()
+    SystemLocalAgentEnvironmentProbe.shared.forgetRecoveredPath()
+  }
 
   var webResearchGranted: Bool {
     organization.hasCapability("web-research", employeeID: "nia")

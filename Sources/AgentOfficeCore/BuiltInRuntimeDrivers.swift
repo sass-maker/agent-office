@@ -54,6 +54,19 @@ public struct RunnerBackedSession: RuntimeSession {
   public func stop() async {}
 }
 
+extension RuntimeDriver {
+  /// Presents a runner as this driver's session for one employee.
+  ///
+  /// Shared so every driver attributes a session identically; a driver that
+  /// built this itself could quietly bind a session to the wrong employee.
+  func session(
+    employeeID: String, bindingID: String, sessionID: String, runner: any EmployeeRunner
+  ) -> any RuntimeSession {
+    RunnerBackedSession(
+      sessionID: sessionID, bindingID: bindingID, employeeID: employeeID, runner: runner)
+  }
+}
+
 /// The built-in rehearsal runtime. Always available, never external.
 public struct DemoRuntimeDriver: RuntimeDriver {
   public let kind = RuntimeDriverKind.demo
@@ -67,54 +80,92 @@ public struct DemoRuntimeDriver: RuntimeDriver {
   public func openSession(employeeID: String, bindingID: String, sessionID: String) async throws
     -> any RuntimeSession
   {
-    RunnerBackedSession(
-      sessionID: sessionID,
-      bindingID: bindingID,
-      employeeID: employeeID,
-      runner: DeterministicEmployeeRunner()
-    )
+    session(
+      employeeID: employeeID, bindingID: bindingID, sessionID: sessionID,
+      runner: DeterministicEmployeeRunner())
   }
 }
 
-/// The locally installed Codex runtime.
+/// A runtime backed by a locally installed agent CLI.
 ///
-/// Reports itself unavailable when Codex is not installed rather than quietly
-/// producing synthetic work in its place: an owner who believes real research
-/// ran deserves to be told when it did not.
-public struct LocalCodexRuntimeDriver: RuntimeDriver {
-  public let kind = RuntimeDriverKind.localCodex
+/// One type serves both Codex and Claude Code because the difference between
+/// them is which CLI is invoked, not how a runtime behaves. Each reports itself
+/// unavailable when its own CLI is missing rather than quietly producing work
+/// through the other: an owner who believes Claude Code ran deserves to be told
+/// when it did not.
+public struct LocalAgentRuntimeDriver: RuntimeDriver {
+  public let cli: LocalAgentCLI
   public let version = 1
   public let declaredCapabilities: Set<RuntimeCapability> = [
     .planning, .execution, .review, .toolInvocation,
   ]
+  /// Which model this employee's binding asked for. `auto` sends no override.
+  public let model: RuntimeModelChoice
+  private let discovery: LocalAgentDiscovery
 
-  public init() {}
+  public init(
+    cli: LocalAgentCLI,
+    model: RuntimeModelChoice = .auto,
+    discovery: LocalAgentDiscovery = LocalAgentDiscovery()
+  ) {
+    self.cli = cli
+    self.model = model
+    self.discovery = discovery
+  }
+
+  public var kind: RuntimeDriverKind {
+    switch cli {
+    case .codex: .localCodex
+    case .claudeCode: .localClaudeCode
+    }
+  }
+
+  /// The same driver bound to a different model, so a per-employee model choice
+  /// does not require a second registry entry.
+  public func withModel(_ model: RuntimeModelChoice) -> LocalAgentRuntimeDriver {
+    LocalAgentRuntimeDriver(cli: cli, model: model, discovery: discovery)
+  }
 
   public func availability() async -> RuntimeAvailability {
-    guard CodexEmployeeRunner.discover() != nil else {
-      return .unavailable(
-        reason:
-          "Codex was not found on this Mac. Reconnect it, or move this employee to the demo runtime for a rehearsal."
-      )
-    }
-    return .available
+    discovery.availability(of: cli)
   }
 
   public func openSession(employeeID: String, bindingID: String, sessionID: String) async throws
     -> any RuntimeSession
   {
-    guard let runner = CodexEmployeeRunner.discover() else {
-      throw CodexRunnerError.unavailable
+    session(
+      employeeID: employeeID, bindingID: bindingID, sessionID: sessionID,
+      runner: try runner())
+  }
+
+  /// Refuses rather than returning a session that would run something else.
+  private func runner() throws -> any EmployeeRunner {
+    switch cli {
+    case .codex:
+      guard let runner = CodexEmployeeRunner.discover(discovery: discovery, model: model) else {
+        throw CodexRunnerError.unavailable
+      }
+      return runner
+    case .claudeCode:
+      guard let runner = ClaudeCodeEmployeeRunner.discover(discovery: discovery, model: model)
+      else {
+        throw ClaudeCodeRunnerError.unavailable
+      }
+      return runner
     }
-    return RunnerBackedSession(
-      sessionID: sessionID, bindingID: bindingID, employeeID: employeeID, runner: runner)
   }
 }
 
 extension RuntimeDriverRegistry {
   /// The runtimes Office OS ships with. No external provider is registered.
-  public static func builtIn() -> RuntimeDriverRegistry {
-    RuntimeDriverRegistry(drivers: [DemoRuntimeDriver(), LocalCodexRuntimeDriver()])
+  public static func builtIn(discovery: LocalAgentDiscovery = LocalAgentDiscovery())
+    -> RuntimeDriverRegistry
+  {
+    RuntimeDriverRegistry(drivers: [
+      DemoRuntimeDriver(),
+      LocalAgentRuntimeDriver(cli: .codex, discovery: discovery),
+      LocalAgentRuntimeDriver(cli: .claudeCode, discovery: discovery),
+    ])
   }
 }
 

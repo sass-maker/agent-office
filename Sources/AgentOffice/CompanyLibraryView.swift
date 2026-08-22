@@ -724,7 +724,7 @@ struct CompanyLibraryView: View {
   }
 
   private func executionProviderName(_ provider: EmployeeExecutionProvider) -> String {
-    provider == .localCodex ? "Local Codex" : "Practice mode"
+    provider.displayName
   }
 
   private func reviewPolicyName(_ policy: PlanReviewPolicy) -> String {
@@ -867,14 +867,45 @@ private struct WorkingContractEditor: View {
             .font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
         }
         Section("Execution") {
-          Picker("Provider", selection: $provider) {
-            ForEach(EmployeeExecutionProvider.allCases, id: \.self) {
-              Text(providerLabel($0)).tag($0)
+          // Agent and model are separate choices: which software does the work,
+          // and which model that software runs. Leaving either on Auto is a
+          // real answer, not an absent one.
+          Picker("Agent", selection: $provider) {
+            ForEach(EmployeeExecutionProvider.agentChoices, id: \.self) { choice in
+              Text(agentOptionLabel(choice))
+                .tag(choice)
+                .disabled(!model.agentAvailable(choice))
             }
           }
-          TextField("Model name (optional)", text: $modelName)
+          if let reason = model.agentUnavailableReason(provider) {
+            VStack(alignment: .leading, spacing: 6) {
+              Text(reason)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(EditorialOfficeTheme.attention)
+              // Installing a CLI while the app is open should not require a
+              // relaunch to be noticed.
+              Button("Check again") { model.recheckAgentInstallations() }
+                .font(.caption)
+            }
+          }
+          Picker("Model", selection: $modelName) {
+            Text("Auto — the runtime's own default").tag("")
+            ForEach(offeredModelNames, id: \.self) { Text($0).tag($0) }
+          }
+          .disabled(offeredModelNames.isEmpty)
+          if offeredModelNames.isEmpty {
+            Text(modelPickerExplanation)
+              .font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
+          }
           Picker("Plan review", selection: $reviewPolicy) {
             ForEach(PlanReviewPolicy.allCases, id: \.self) { Text(reviewPolicyLabel($0)).tag($0) }
+          }
+        }
+        .onChange(of: provider) { _, _ in
+          // A model name only means something against a named runtime, so
+          // changing the agent drops an override the new agent may not support.
+          if offeredModelNames.isEmpty || !offeredModelNames.contains(modelName) {
+            modelName = ""
           }
         }
         Section("Autonomy boundaries") {
@@ -957,10 +988,29 @@ private struct WorkingContractEditor: View {
     )
   }
 
-  private func providerLabel(_ value: EmployeeExecutionProvider) -> String {
-    switch value {
-    case .demo: "Practice mode"
-    case .localCodex: "Local Codex"
+  /// Names the agent and, when it cannot be used, says so in the option itself
+  /// so an unavailable runtime stays visible rather than disappearing.
+  private func agentOptionLabel(_ value: EmployeeExecutionProvider) -> String {
+    model.agentAvailable(value) ? value.displayName : "\(value.displayName) — unavailable"
+  }
+
+  /// Models the selected agent actually supports.
+  ///
+  /// Empty for Auto and Practice mode: an explicit model cannot be promised
+  /// before the runtime that would honour it is known.
+  private var offeredModelNames: [String] {
+    guard let kind = provider.explicitDriverKind else { return [] }
+    return RuntimeModelCatalog.offeredModels(for: kind)
+  }
+
+  private var modelPickerExplanation: String {
+    switch provider {
+    case .auto:
+      "Auto picks the runtime at run time, so the model is left to whichever runtime it chooses."
+    case .demo:
+      "Practice mode runs no model. Its output is a rehearsal, not real work."
+    default:
+      "This runtime does not offer a model choice."
     }
   }
 
