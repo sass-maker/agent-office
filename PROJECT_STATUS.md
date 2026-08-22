@@ -104,6 +104,10 @@ durable people-like collaborators whose execution remains bounded software.
 - 2026-08-15 — Owner decisions — plan review, help answers, delivery acceptance,
   revisions, hiring, pausing, resuming, retiring — travel the journalled command
   boundary and replay to the same state.
+- 2026-08-22 — Working-contract revisions travel the same boundary: role,
+  responsibility, manager, skills, connections, grants, provider, model,
+  boundaries and review policy move as one attributable event that replays to
+  the same contract, and resubmitting the same edit changes nothing twice.
 
 ## Products
 

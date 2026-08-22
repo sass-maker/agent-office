@@ -33,6 +33,8 @@ public enum OrganizationCommandPayload: Codable, Sendable, Equatable {
   case superviseCommitment(SupervisionDecision)
   /// The owner decides who works here.
   case decideEmployment(EmploymentDecision)
+  /// The owner revises what a hired employee's contract permits.
+  case reviseWorkingContract(WorkingContractRevision)
 
   public struct AssignEmployeeOutcome: Codable, Sendable, Equatable {
     public var employeeID: String
@@ -64,6 +66,7 @@ public enum OrganizationCommandPayload: Codable, Sendable, Equatable {
     case .recordRuntimeDecision: "runtime.decision-recorded"
     case .superviseCommitment(let decision): decision.eventType
     case .decideEmployment(let decision): decision.eventType
+    case .reviseWorkingContract: WorkingContractRevision.eventType
     }
   }
 }

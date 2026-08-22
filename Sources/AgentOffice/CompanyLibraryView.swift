@@ -1000,15 +1000,22 @@ private struct WorkingContractEditor: View {
     let validGrants = selectedGrantIDs.filter {
       !knownCapabilities.contains($0) || declaredCapabilities.contains($0)
     }
-    if model.updateWorkingContract(
-      employeeID: employee.id, role: role, responsibility: responsibility,
-      managerID: managerID.isEmpty ? nil : managerID, skillIDs: selectedSkillIDs.sorted(),
-      connectionIDs: selectedConnectionIDs.sorted(), grants: validGrants.sorted(),
-      provider: provider, modelName: modelName, boundaries: boundaries, reviewPolicy: reviewPolicy,
-      reason: reason)
-    {
-      dismiss()
-    }
+    // The revision starts from the contract on screen and carries only the
+    // fields this editor owns, so it travels the journalled boundary as one
+    // owner intent rather than as a wide set of loose arguments.
+    var revision = WorkingContractRevision(revising: contract, reason: reason)
+    revision.role = role
+    revision.responsibility = responsibility
+    revision.managerID = managerID.isEmpty ? nil : managerID
+    revision.assignedSkillIDs = selectedSkillIDs.sorted()
+    revision.declaredConnectionIDs = selectedConnectionIDs.sorted()
+    revision.capabilityGrants = validGrants.sorted()
+    revision.executionProvider = provider
+    revision.modelName = modelName
+    revision.boundaries = boundaries
+    revision.reviewPolicy = reviewPolicy
+    model.reviseWorkingContract(revision)
+    dismiss()
   }
 }
 

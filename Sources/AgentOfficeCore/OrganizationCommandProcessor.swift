@@ -130,9 +130,11 @@ public struct OrganizationCommandProcessor: Sendable {
         throw OrganizationCommandError.actorMismatch(
           claimed: employeeID, actual: result.employeeID)
       }
-    case .recordRuntimeDecision, .superviseCommitment, .decideEmployment:
+    case .recordRuntimeDecision, .superviseCommitment, .decideEmployment,
+      .reviseWorkingContract:
       // Supervision and authority are the owner's. A runtime cannot approve
-      // itself, accept its own delivery, or answer its own help request.
+      // itself, accept its own delivery, answer its own help request, or widen
+      // its own contract, skills, connections or grants.
       guard command.actor.isOwner else {
         throw OrganizationCommandError.unauthorizedActor(
           actor: command.actor.id, commandType: command.payload.eventType)
@@ -207,6 +209,16 @@ public struct OrganizationCommandProcessor: Sendable {
       return Application(
         producedIDs: produced,
         entities: employeeIDs.map { .employee($0) }
+      )
+
+    case .reviseWorkingContract(let revision):
+      try state.apply(revision, now: now)
+      // The connections the contract declares are named too, so the owner can
+      // read how a connection came to be part of somebody's work.
+      return Application(
+        producedIDs: [],
+        entities: [.employee(revision.employeeID)]
+          + revision.declaredConnectionIDs.map { .connection($0) }
       )
     }
   }
