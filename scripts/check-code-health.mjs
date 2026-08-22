@@ -110,9 +110,9 @@ function checkCoverage() {
   );
   // Ratcheted legacy debt: https://github.com/sass-maker/agent-office/issues/21
   checkMinimums("AgentOfficeCore coverage", observed, {
-    lines: 84,
-    functions: 72,
-    regions: 69,
+    lines: 85,
+    functions: 77,
+    regions: 72,
   });
 }
 
@@ -185,9 +185,9 @@ function checkComplexity() {
   );
   // Ratcheted legacy debt: https://github.com/sass-maker/agent-office/issues/21
   failRegressions("Complexity", observed, {
-    violations: 39,
-    maxCcn: 25,
-    maxLength: 293,
+    violations: 36,
+    maxCcn: 22,
+    maxLength: 271,
     maxParams: 28,
   });
 }
@@ -227,9 +227,9 @@ function checkDuplication() {
   failRegressions("Duplication", observed, {
     clones: 3,
     duplicatedLines: 31,
-    // Rounded slightly above the observed 0.72101% because jscpd's percentage
+    // Rounded slightly above the observed percentage because jscpd's percentage
     // varies in its last digits between runs.
-    percentage: 0.1456,
+    percentage: 0.144,
   });
 }
 

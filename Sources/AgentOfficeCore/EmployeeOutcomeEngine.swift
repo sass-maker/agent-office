@@ -5,6 +5,14 @@ public struct EmployeeOutcomeEngine: Sendable {
 
   public init() {}
 
+  private struct RunContext: Sendable {
+    let runner: any EmployeeRunner
+    let store: LocalOrganizationStore
+    let now: Date
+    let persistsTransitions: Bool
+    let authorizedCapabilities: Set<String>?
+  }
+
   public func start(
     _ input: OrganizationState,
     outcomeID: String,
@@ -59,187 +67,227 @@ public struct EmployeeOutcomeEngine: Sendable {
       let employee = state.employee(outcome.assigneeID)
     else { return input }
 
+    let ctx = RunContext(
+      runner: runner, store: store, now: now,
+      persistsTransitions: persistsTransitions,
+      authorizedCapabilities: authorizedCapabilities
+    )
+
     do {
       if outcome.taskIDs.isEmpty {
-        let plan = try await createPlan(
-          outcome: outcome,
-          employee: employee,
-          state: state,
-          runner: runner,
-          store: store,
-          now: now,
-          authorizedCapabilities: authorizedCapabilities
+        try await createAndApplyPlan(
+          outcome: &outcome, outcomeID: outcomeID, employee: employee,
+          state: &state, ctx: ctx
         )
-        try apply(plan: plan, to: outcomeID, state: &state, now: now)
-        outcome = state.employeeOutcome(outcomeID) ?? outcome
-        if persistsTransitions { try await store.save(state) }
         if outcome.status == .proposed { return state }
       }
 
       for taskID in outcome.taskIDs {
-        guard let taskIndex = state.tasks.firstIndex(where: { $0.id == taskID }) else { continue }
-        if state.tasks[taskIndex].status == .done { continue }
-
-        let dependenciesComplete = state.tasks[taskIndex].dependencyIDs.allSatisfy { dependencyID in
-          state.task(dependencyID)?.status == .done
-        }
-        guard dependenciesComplete else { continue }
-
-        if state.tasks[taskIndex].kind == .research,
-          state.executionMode == .localCodex,
-          !employee.capabilityGrants.contains("web-research")
-        {
-          return blockForHelp(
-            state,
-            outcomeID: outcomeID,
-            taskID: taskID,
-            employeeID: employee.id,
-            request:
-              "I need read-only web research permission to complete ‘\(state.tasks[taskIndex].title)’. Grant that capability or ask me to revise the plan.",
-            now: now
-          )
-        }
-
-        state.tasks[taskIndex].status = .doing
-        state.tasks[taskIndex].updatedAt = now
-        state.setEmployee(employee.id, status: .working, taskID: taskID)
-        _ = state.updateEmployeeOutcome(outcomeID, now: now) { $0.status = .working }
-        state.activity.append(
-          Activity(
-            id: UUID().uuidString,
-            actorID: employee.id,
-            kind: .started,
-            message: "I started ticket \(state.tasks[taskIndex].title).",
-            createdAt: now
-          ))
-        if persistsTransitions { try await store.save(state) }
-
-        let request = EmployeeWorkRequest(
-          operation: operation(for: state.tasks[taskIndex].kind),
-          employee: employee,
-          task: state.tasks[taskIndex],
-          organizationName: state.name,
-          outcome: outcome.outcome,
-          productBrief: state.productBrief,
-          context: await context(for: outcome, in: state, store: store),
-          memory: state.recentMemoryContext(for: employee.id),
-          skills: state.assignedSkills(employeeID: employee.id).filter {
-            outcome.selectedSkillIDs.contains($0.id)
-          },
-          capabilityGrants: authorizedCapabilities.map { Array($0).sorted() }
-            ?? employee.capabilityGrants,
-          workspaceURL: store.employeeHomeURL(employeeID: employee.id)
+        let result = try await processTask(
+          taskID: taskID, outcomeID: outcomeID, outcome: outcome,
+          employee: employee, state: &state, ctx: ctx
         )
-        try FileManager.default.createDirectory(
-          at: request.workspaceURL, withIntermediateDirectories: true)
-        let output = try await runner.perform(request)
-        let content = output.content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !content.isEmpty else { throw CodexRunnerError.emptyOutput }
-
-        let kind = artifactKind(for: state.tasks[taskIndex].kind)
-        let artifactID = "\(taskID)-artifact"
-        let relativePath = LocalOrganizationStore.artifactPath(
-          employeeID: employee.id,
-          taskID: taskID,
-          kind: kind
-        )
-        try await store.writeArtifact(relativePath: relativePath, content: content)
-        if !state.artifacts.contains(where: { $0.id == artifactID }) {
-          state.artifacts.append(
-            Artifact(
-              id: artifactID,
-              title: output.title,
-              kind: kind,
-              relativePath: relativePath,
-              authorID: employee.id,
-              taskID: taskID,
-              createdAt: now,
-              evidenceBasis: output.evidenceBasis
-            ))
-        }
-        state.tasks[taskIndex].status = .done
-        state.tasks[taskIndex].updatedAt = now
-        if !state.tasks[taskIndex].artifactIDs.contains(artifactID) {
-          state.tasks[taskIndex].artifactIDs.append(artifactID)
-        }
-        _ = state.updateEmployeeOutcome(outcomeID, now: now) { value in
-          if !value.artifactIDs.contains(artifactID) { value.artifactIDs.append(artifactID) }
-        }
-        state.activity.append(
-          Activity(
-            id: UUID().uuidString,
-            actorID: employee.id,
-            kind: .progress,
-            message: "I finished \(state.tasks[taskIndex].title) and saved \(output.title).",
-            createdAt: now
-          ))
-        if persistsTransitions { try await store.save(state) }
+        if let returnState = result { return returnState }
       }
 
       let finishedOutcome = state.employeeOutcome(outcomeID) ?? outcome
       let allDone = finishedOutcome.taskIDs.allSatisfy { state.task($0)?.status == .done }
       guard allDone else { return state }
 
-      let artifactCount = finishedOutcome.artifactIDs.count
-      let summary =
-        "Delivered \(finishedOutcome.taskIDs.count) tickets and \(artifactCount) local artifact\(artifactCount == 1 ? "" : "s"). Review the work and decide the next outcome."
-      let evidenceBasis = Array(
-        Set(
-          finishedOutcome.artifactIDs.compactMap { artifactID in
-            state.artifacts.first { $0.id == artifactID }?.evidenceBasis
-          })
-      ).sorted().joined(separator: ", ")
-      _ = state.updateEmployeeOutcome(outcomeID, now: now) { value in
-        value.status = .delivered
-        value.helpRequest = nil
-        value.deliverySummary = summary
-        value.deliveries =
-          value.effectiveDeliveries + [
-            OutcomeDelivery(
-              summary: summary,
-              artifactIDs: value.artifactIDs,
-              evidenceBasis: evidenceBasis,
-              limitations: "No external write or publishing was attempted.",
-              recommendedNextAction:
-                "Review the artifacts, then accept the delivery or request one bounded revision.",
-              deliveredByEmployeeID: employee.id,
-              createdAt: now
-            )
-          ]
-        value.outcomeRevision = value.effectiveRevision + 1
-      }
-      state.setEmployee(employee.id, status: .resting, taskID: nil)
-      state.knowledge?.memoryEntries.append(
-        EmployeeMemoryEntry(
-          id: UUID().uuidString,
-          employeeID: employee.id,
-          authorID: employee.id,
-          dayNumber: state.dayNumber,
-          summary:
-            "Owned ‘\(finishedOutcome.outcome)’ using \(finishedOutcome.selectedSkillIDs.joined(separator: ", ")) and delivered \(artifactCount) artifacts.",
-          sourceArtifactID: finishedOutcome.artifactIDs.last,
-          createdAt: now
-        ))
-      state.activity.append(
-        Activity(
-          id: UUID().uuidString,
-          actorID: employee.id,
-          kind: .completed,
-          message: "I delivered the outcome. \(summary)",
-          createdAt: now
-        ))
+      completeDelivery(
+        outcomeID: outcomeID, finishedOutcome: finishedOutcome,
+        employee: employee, state: &state, now: now
+      )
       return state
     } catch is CancellationError {
       return input
     } catch {
       return fail(
-        state,
-        outcomeID: outcomeID,
-        employeeID: employee.id,
-        error: error,
-        now: now
+        state, outcomeID: outcomeID, employeeID: employee.id, error: error, now: now
       )
     }
+  }
+
+  private func createAndApplyPlan(
+    outcome: inout EmployeeOutcome,
+    outcomeID: String,
+    employee: Employee,
+    state: inout OrganizationState,
+    ctx: RunContext
+  ) async throws {
+    let plan = try await createPlan(
+      outcome: outcome, employee: employee, state: state,
+      runner: ctx.runner, store: ctx.store, now: ctx.now,
+      authorizedCapabilities: ctx.authorizedCapabilities
+    )
+    try apply(plan: plan, to: outcomeID, state: &state, now: ctx.now)
+    outcome = state.employeeOutcome(outcomeID) ?? outcome
+    if ctx.persistsTransitions { try await ctx.store.save(state) }
+  }
+
+  private func processTask(
+    taskID: String,
+    outcomeID: String,
+    outcome: EmployeeOutcome,
+    employee: Employee,
+    state: inout OrganizationState,
+    ctx: RunContext
+  ) async throws -> OrganizationState? {
+    guard let taskIndex = state.tasks.firstIndex(where: { $0.id == taskID }) else { return nil }
+    if state.tasks[taskIndex].status == .done { return nil }
+
+    let dependenciesComplete = state.tasks[taskIndex].dependencyIDs.allSatisfy { dependencyID in
+      state.task(dependencyID)?.status == .done
+    }
+    guard dependenciesComplete else { return nil }
+
+    if state.tasks[taskIndex].kind == .research,
+      state.executionMode == .localCodex,
+      !employee.capabilityGrants.contains("web-research")
+    {
+      return blockForHelp(
+        state,
+        outcomeID: outcomeID,
+        taskID: taskID,
+        employeeID: employee.id,
+        request:
+          "I need read-only web research permission to complete ‘\(state.tasks[taskIndex].title)’. Grant that capability or ask me to revise the plan.",
+        now: ctx.now
+      )
+    }
+
+    state.tasks[taskIndex].status = .doing
+    state.tasks[taskIndex].updatedAt = ctx.now
+    state.setEmployee(employee.id, status: .working, taskID: taskID)
+    _ = state.updateEmployeeOutcome(outcomeID, now: ctx.now) { $0.status = .working }
+    state.activity.append(
+      Activity(
+        id: UUID().uuidString,
+        actorID: employee.id,
+        kind: .started,
+        message: "I started ticket \(state.tasks[taskIndex].title).",
+        createdAt: ctx.now
+      ))
+    if ctx.persistsTransitions { try await ctx.store.save(state) }
+
+    let request = EmployeeWorkRequest(
+      operation: operation(for: state.tasks[taskIndex].kind),
+      employee: employee,
+      task: state.tasks[taskIndex],
+      organizationName: state.name,
+      outcome: outcome.outcome,
+      productBrief: state.productBrief,
+      context: await context(for: outcome, in: state, store: ctx.store),
+      memory: state.recentMemoryContext(for: employee.id),
+      skills: state.assignedSkills(employeeID: employee.id).filter {
+        outcome.selectedSkillIDs.contains($0.id)
+      },
+      capabilityGrants: ctx.authorizedCapabilities.map { Array($0).sorted() }
+        ?? employee.capabilityGrants,
+      workspaceURL: ctx.store.employeeHomeURL(employeeID: employee.id)
+    )
+    try FileManager.default.createDirectory(
+      at: request.workspaceURL, withIntermediateDirectories: true)
+    let output = try await ctx.runner.perform(request)
+    let content = output.content.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !content.isEmpty else { throw CodexRunnerError.emptyOutput }
+
+    let kind = artifactKind(for: state.tasks[taskIndex].kind)
+    let artifactID = "\(taskID)-artifact"
+    let relativePath = LocalOrganizationStore.artifactPath(
+      employeeID: employee.id,
+      taskID: taskID,
+      kind: kind
+    )
+    try await ctx.store.writeArtifact(relativePath: relativePath, content: content)
+    if !state.artifacts.contains(where: { $0.id == artifactID }) {
+      state.artifacts.append(
+        Artifact(
+          id: artifactID,
+          title: output.title,
+          kind: kind,
+          relativePath: relativePath,
+          authorID: employee.id,
+          taskID: taskID,
+          createdAt: ctx.now,
+          evidenceBasis: output.evidenceBasis
+        ))
+    }
+    state.tasks[taskIndex].status = .done
+    state.tasks[taskIndex].updatedAt = ctx.now
+    if !state.tasks[taskIndex].artifactIDs.contains(artifactID) {
+      state.tasks[taskIndex].artifactIDs.append(artifactID)
+    }
+    _ = state.updateEmployeeOutcome(outcomeID, now: ctx.now) { value in
+      if !value.artifactIDs.contains(artifactID) { value.artifactIDs.append(artifactID) }
+    }
+    state.activity.append(
+      Activity(
+        id: UUID().uuidString,
+        actorID: employee.id,
+        kind: .progress,
+        message: "I finished \(state.tasks[taskIndex].title) and saved \(output.title).",
+        createdAt: ctx.now
+      ))
+    if ctx.persistsTransitions { try await ctx.store.save(state) }
+    return nil
+  }
+
+  private func completeDelivery(
+    outcomeID: String,
+    finishedOutcome: EmployeeOutcome,
+    employee: Employee,
+    state: inout OrganizationState,
+    now: Date
+  ) {
+    let artifactCount = finishedOutcome.artifactIDs.count
+    let summary =
+      "Delivered \(finishedOutcome.taskIDs.count) tickets and \(artifactCount) local artifact\(artifactCount == 1 ? "" : "s"). Review the work and decide the next outcome."
+    let evidenceBasis = Array(
+      Set(
+        finishedOutcome.artifactIDs.compactMap { artifactID in
+          state.artifacts.first { $0.id == artifactID }?.evidenceBasis
+        })
+    ).sorted().joined(separator: ", ")
+    _ = state.updateEmployeeOutcome(outcomeID, now: now) { value in
+      value.status = .delivered
+      value.helpRequest = nil
+      value.deliverySummary = summary
+      value.deliveries =
+        value.effectiveDeliveries + [
+          OutcomeDelivery(
+            summary: summary,
+            artifactIDs: value.artifactIDs,
+            evidenceBasis: evidenceBasis,
+            limitations: "No external write or publishing was attempted.",
+            recommendedNextAction:
+              "Review the artifacts, then accept the delivery or request one bounded revision.",
+            deliveredByEmployeeID: employee.id,
+            createdAt: now
+          )
+        ]
+      value.outcomeRevision = value.effectiveRevision + 1
+    }
+    state.setEmployee(employee.id, status: .resting, taskID: nil)
+    state.knowledge?.memoryEntries.append(
+      EmployeeMemoryEntry(
+        id: UUID().uuidString,
+        employeeID: employee.id,
+        authorID: employee.id,
+        dayNumber: state.dayNumber,
+        summary:
+          "Owned ‘\(finishedOutcome.outcome)’ using \(finishedOutcome.selectedSkillIDs.joined(separator: ", ")) and delivered \(artifactCount) artifacts.",
+        sourceArtifactID: finishedOutcome.artifactIDs.last,
+        createdAt: now
+      ))
+    state.activity.append(
+      Activity(
+        id: UUID().uuidString,
+        actorID: employee.id,
+        kind: .completed,
+        message: "I delivered the outcome. \(summary)",
+        createdAt: now
+      ))
   }
 
   private func createPlan(

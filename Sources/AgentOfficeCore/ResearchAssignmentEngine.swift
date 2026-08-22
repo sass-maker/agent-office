@@ -64,6 +64,14 @@ public enum ResearchEvidenceVerifier {
 public struct ResearchAssignmentEngine: Sendable {
   public init() {}
 
+  private struct ResearchContext: Sendable {
+    let assignmentID: String
+    let researcher: Employee
+    let assistant: Employee
+    let usesWebResearch: Bool
+    let store: LocalOrganizationStore
+  }
+
   public func start(
     _ input: OrganizationState,
     assignmentID: String,
@@ -185,168 +193,212 @@ public struct ResearchAssignmentEngine: Sendable {
         }
       }
 
-      let completedAt = Date()
-      let brief = Artifact(
-        id: UUID().uuidString,
-        title: output.title,
-        kind: .research,
-        relativePath: LocalOrganizationStore.artifactPath(
-          employeeID: researcher.id,
-          taskID: assignmentID,
-          kind: .research
+      return try await completeResearch(
+        assignment: assignment,
+        output: output,
+        evidenceBasis: evidenceBasis,
+        ctx: ResearchContext(
+          assignmentID: assignmentID, researcher: researcher,
+          assistant: assistant, usesWebResearch: usesWebResearch, store: store
         ),
-        authorID: researcher.id,
-        taskID: assignmentID,
-        createdAt: completedAt,
-        sourceArtifactIDs: [],
-        evidenceBasis: evidenceBasis
+        state: &state
       )
-      let evidenceNotice =
-        usesWebResearch
-        ? "This brief used the owner's permitted web-research capability."
-        : "This is a synthetic rehearsal. No web research was performed."
-      let briefContent = """
-        > Evidence basis: `\(evidenceBasis)`
-        > \(evidenceNotice)
-
-        \(output.content)
-        """
-      try await store.writeArtifact(relativePath: brief.relativePath, content: briefContent)
-
-      let delivery = Artifact(
-        id: UUID().uuidString,
-        title: "Mira's delivery — \(assignment.outcome)",
-        kind: .report,
-        relativePath: LocalOrganizationStore.artifactPath(
-          employeeID: assistant.id,
-          taskID: assignmentID,
-          kind: .report
-        ),
-        authorID: assistant.id,
-        taskID: assignmentID,
-        createdAt: completedAt,
-        sourceArtifactIDs: [brief.id],
-        evidenceBasis: evidenceBasis
-      )
-      let deliveryContent = """
-        # Research delivery
-
-        ## Assignment
-        \(assignment.outcome)
-
-        ## Delivered by
-        Nia completed the research and Mira prepared this handoff for the owner.
-
-        ## Evidence
-        - Basis: `\(evidenceBasis)`
-        - Research brief: `\(brief.relativePath)`
-
-        ## Nia's summary
-        \(output.summary)
-
-        ## Your next decision
-        Read the brief, decide which finding matters most, and use a new assignment for any follow-up research.
-        """
-      try await store.writeArtifact(relativePath: delivery.relativePath, content: deliveryContent)
-
-      state.artifacts.append(contentsOf: [brief, delivery])
-      state.knowledge?.memoryEntries.append(
-        EmployeeMemoryEntry(
-          id: UUID().uuidString,
-          employeeID: researcher.id,
-          authorID: researcher.id,
-          dayNumber: state.dayNumber,
-          summary: output.summary,
-          sourceArtifactID: brief.id,
-          createdAt: completedAt
-        ))
-      _ = state.updateResearchAssignment(assignmentID, now: completedAt) { value in
-        value.status = .delivered
-        value.blockingReason = nil
-        value.evidenceBasis = evidenceBasis
-        value.briefArtifactID = brief.id
-        value.deliveryArtifactID = delivery.id
-      }
-      state.activity.append(
-        Activity(
-          id: UUID().uuidString,
-          actorID: researcher.id,
-          kind: .handoff,
-          message: "Nia delivered the research brief to Mira.",
-          createdAt: completedAt
-        ))
-      state.activity.append(
-        Activity(
-          id: UUID().uuidString,
-          actorID: assistant.id,
-          kind: .completed,
-          message: "Mira left the verified research delivery on your desk.",
-          createdAt: completedAt
-        ))
-      if usesWebResearch {
-        appendCapabilityEvent(
-          kind: .succeeded,
-          assignmentID: assignmentID,
-          actorID: researcher.id,
-          detail: "Cited research was verified and saved to \(brief.relativePath).",
-          state: &state,
-          now: completedAt
-        )
-      }
-      state.restAIEmployees()
-      state.workdayStatus = .resting
-      return state
     } catch is CancellationError {
-      let stoppedAt = Date()
-      _ = state.updateResearchAssignment(assignmentID, now: stoppedAt) { value in
-        value.status = .queued
-        value.blockingReason = "The run stopped before delivery. It is ready to resume."
-      }
-      state.activity.append(
-        Activity(
-          id: UUID().uuidString,
-          actorID: assistant.id,
-          kind: .stopped,
-          message: "Mira kept Nia's interrupted research ready to resume.",
-          createdAt: stoppedAt
-        ))
-      state.restAIEmployees()
-      state.workdayStatus = .resting
-      return state
+      return handleCancellation(
+        assignmentID: assignmentID, assistantID: assistant.id, state: &state)
     } catch {
-      let failedAt = Date()
-      let waitsForRuntime: Bool
-      if let codexError = error as? CodexRunnerError, case .unavailable = codexError {
-        waitsForRuntime = true
-      } else {
-        waitsForRuntime = false
-      }
-      _ = state.updateResearchAssignment(assignmentID, now: failedAt) { value in
-        value.status = waitsForRuntime ? .waiting : .failed
-        value.blockingReason = error.localizedDescription
-      }
-      if usesWebResearch {
-        appendCapabilityEvent(
-          kind: waitsForRuntime ? .unavailable : .failed,
-          assignmentID: assignmentID,
-          actorID: researcher.id,
-          detail: error.localizedDescription,
-          state: &state,
-          now: failedAt
-        )
-      }
-      state.activity.append(
-        Activity(
-          id: UUID().uuidString,
-          actorID: researcher.id,
-          kind: .blocked,
-          message: "Nia could not deliver the research: \(error.localizedDescription)",
-          createdAt: failedAt
-        ))
-      state.restAIEmployees()
-      state.workdayStatus = .resting
-      return state
+      return handleFailure(
+        assignmentID: assignmentID,
+        researcherID: researcher.id,
+        usesWebResearch: usesWebResearch,
+        error: error,
+        state: &state
+      )
     }
+  }
+
+  private func completeResearch(
+    assignment: ResearchAssignment,
+    output: EmployeeWorkOutput,
+    evidenceBasis: String,
+    ctx: ResearchContext,
+    state: inout OrganizationState
+  ) async throws -> OrganizationState {
+    let completedAt = Date()
+    let brief = Artifact(
+      id: UUID().uuidString,
+      title: output.title,
+      kind: .research,
+      relativePath: LocalOrganizationStore.artifactPath(
+        employeeID: ctx.researcher.id,
+        taskID: ctx.assignmentID,
+        kind: .research
+      ),
+      authorID: ctx.researcher.id,
+      taskID: ctx.assignmentID,
+      createdAt: completedAt,
+      sourceArtifactIDs: [],
+      evidenceBasis: evidenceBasis
+    )
+    let evidenceNotice =
+      ctx.usesWebResearch
+      ? "This brief used the owner's permitted web-research capability."
+      : "This is a synthetic rehearsal. No web research was performed."
+    let briefContent = """
+      > Evidence basis: `\(evidenceBasis)`
+      > \(evidenceNotice)
+
+      \(output.content)
+      """
+    try await ctx.store.writeArtifact(relativePath: brief.relativePath, content: briefContent)
+
+    let delivery = Artifact(
+      id: UUID().uuidString,
+      title: "Mira's delivery — \(assignment.outcome)",
+      kind: .report,
+      relativePath: LocalOrganizationStore.artifactPath(
+        employeeID: ctx.assistant.id,
+        taskID: ctx.assignmentID,
+        kind: .report
+      ),
+      authorID: ctx.assistant.id,
+      taskID: ctx.assignmentID,
+      createdAt: completedAt,
+      sourceArtifactIDs: [brief.id],
+      evidenceBasis: evidenceBasis
+    )
+    let deliveryContent = """
+      # Research delivery
+
+      ## Assignment
+      \(assignment.outcome)
+
+      ## Delivered by
+      Nia completed the research and Mira prepared this handoff for the owner.
+
+      ## Evidence
+      - Basis: `\(evidenceBasis)`
+      - Research brief: `\(brief.relativePath)`
+
+      ## Nia's summary
+      \(output.summary)
+
+      ## Your next decision
+      Read the brief, decide which finding matters most, and use a new assignment for any follow-up research.
+      """
+    try await ctx.store.writeArtifact(relativePath: delivery.relativePath, content: deliveryContent)
+
+    state.artifacts.append(contentsOf: [brief, delivery])
+    state.knowledge?.memoryEntries.append(
+      EmployeeMemoryEntry(
+        id: UUID().uuidString,
+        employeeID: ctx.researcher.id,
+        authorID: ctx.researcher.id,
+        dayNumber: state.dayNumber,
+        summary: output.summary,
+        sourceArtifactID: brief.id,
+        createdAt: completedAt
+      ))
+    _ = state.updateResearchAssignment(ctx.assignmentID, now: completedAt) { value in
+      value.status = .delivered
+      value.blockingReason = nil
+      value.evidenceBasis = evidenceBasis
+      value.briefArtifactID = brief.id
+      value.deliveryArtifactID = delivery.id
+    }
+    state.activity.append(
+      Activity(
+        id: UUID().uuidString,
+        actorID: ctx.researcher.id,
+        kind: .handoff,
+        message: "Nia delivered the research brief to Mira.",
+        createdAt: completedAt
+      ))
+    state.activity.append(
+      Activity(
+        id: UUID().uuidString,
+        actorID: ctx.assistant.id,
+        kind: .completed,
+        message: "Mira left the verified research delivery on your desk.",
+        createdAt: completedAt
+      ))
+    if ctx.usesWebResearch {
+      appendCapabilityEvent(
+        kind: .succeeded,
+        assignmentID: ctx.assignmentID,
+        actorID: ctx.researcher.id,
+        detail: "Cited research was verified and saved to \(brief.relativePath).",
+        state: &state,
+        now: completedAt
+      )
+    }
+    state.restAIEmployees()
+    state.workdayStatus = .resting
+    return state
+  }
+
+  private func handleCancellation(
+    assignmentID: String,
+    assistantID: String,
+    state: inout OrganizationState
+  ) -> OrganizationState {
+    let stoppedAt = Date()
+    _ = state.updateResearchAssignment(assignmentID, now: stoppedAt) { value in
+      value.status = .queued
+      value.blockingReason = "The run stopped before delivery. It is ready to resume."
+    }
+    state.activity.append(
+      Activity(
+        id: UUID().uuidString,
+        actorID: assistantID,
+        kind: .stopped,
+        message: "Mira kept Nia's interrupted research ready to resume.",
+        createdAt: stoppedAt
+      ))
+    state.restAIEmployees()
+    state.workdayStatus = .resting
+    return state
+  }
+
+  private func handleFailure(
+    assignmentID: String,
+    researcherID: String,
+    usesWebResearch: Bool,
+    error: Error,
+    state: inout OrganizationState
+  ) -> OrganizationState {
+    let failedAt = Date()
+    let waitsForRuntime: Bool
+    if let codexError = error as? CodexRunnerError, case .unavailable = codexError {
+      waitsForRuntime = true
+    } else {
+      waitsForRuntime = false
+    }
+    _ = state.updateResearchAssignment(assignmentID, now: failedAt) { value in
+      value.status = waitsForRuntime ? .waiting : .failed
+      value.blockingReason = error.localizedDescription
+    }
+    if usesWebResearch {
+      appendCapabilityEvent(
+        kind: waitsForRuntime ? .unavailable : .failed,
+        assignmentID: assignmentID,
+        actorID: researcherID,
+        detail: error.localizedDescription,
+        state: &state,
+        now: failedAt
+      )
+    }
+    state.activity.append(
+      Activity(
+        id: UUID().uuidString,
+        actorID: researcherID,
+        kind: .blocked,
+        message: "Nia could not deliver the research: \(error.localizedDescription)",
+        createdAt: failedAt
+      ))
+    state.restAIEmployees()
+    state.workdayStatus = .resting
+    return state
   }
 
   private func markWaiting(

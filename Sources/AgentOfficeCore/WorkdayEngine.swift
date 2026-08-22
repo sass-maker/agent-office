@@ -3,6 +3,14 @@ import Foundation
 public struct WorkdayEngine: Sendable {
   public init() {}
 
+  private struct ProduceContext: Sendable {
+    let task: WorkTask
+    let taskIndex: Int
+    let employee: Employee
+    let store: LocalOrganizationStore
+    let now: Date
+  }
+
   public func advance(
     _ input: OrganizationState,
     runner: any EmployeeRunner,
@@ -93,6 +101,10 @@ public struct WorkdayEngine: Sendable {
       let taskIndex = state.tasks.firstIndex(where: { $0.id == task.id })
     else { return }
 
+    let ctx = ProduceContext(
+      task: task, taskIndex: taskIndex, employee: employee, store: store, now: now
+    )
+
     state.setEmployee(employee.id, status: .working, taskID: task.id)
     state.tasks[taskIndex].status = .doing
     state.tasks[taskIndex].updatedAt = now
@@ -143,116 +155,24 @@ public struct WorkdayEngine: Sendable {
       output = try await runner.perform(request)
     } catch {
       if usesWebResearch {
-        let eventKind: CapabilityEventKind
-        if case .unavailable? = error as? CodexRunnerError {
-          eventKind = .unavailable
-        } else {
-          eventKind = .failed
-        }
-        appendCapabilityEvent(
-          capability: "web-research",
-          employeeID: employee.id,
-          taskID: task.id,
-          actorID: employee.id,
-          kind: eventKind,
-          detail: error.localizedDescription,
-          state: &state,
-          now: now
+        recordWebResearchFailure(
+          task: task, employee: employee, error: error, state: &state, now: now
         )
       }
       throw error
     }
 
-    let kind: ArtifactKind =
-      switch operation {
-      case .plan, .analysis: .analysis
-      case .research: .research
-      case .draft, .revise: .draft
-      case .report: .report
-      case .review: .review
-      case .customerVoice: .analysis
-      }
-    let revision = operation == .revise ? state.tasks[taskIndex].revisionCount : 0
-    let sourceArtifacts = state.artifacts.filter { task.dependencyIDs.contains($0.taskID) }
-    let evidenceBasis =
-      sourceArtifacts.contains { $0.evidenceBasis == "permitted-web-research" }
-      ? "permitted-web-research"
-      : output.evidenceBasis
-    let artifact = Artifact(
-      id: UUID().uuidString,
-      title: output.title,
-      kind: kind,
-      relativePath: LocalOrganizationStore.artifactPath(
-        employeeID: employee.id,
-        taskID: task.id,
-        kind: kind,
-        revision: revision
-      ),
-      authorID: employee.id,
-      taskID: task.id,
-      createdAt: now,
-      sourceArtifactIDs: sourceArtifacts.map(\.id),
-      evidenceBasis: evidenceBasis
+    let artifact = try await createArtifact(
+      operation: operation, output: output, ctx: ctx, state: &state
     )
-    try await store.writeArtifact(relativePath: artifact.relativePath, content: output.content)
     state.artifacts.append(artifact)
     state.tasks[taskIndex].artifactIDs.append(artifact.id)
     state.tasks[taskIndex].updatedAt = now
 
-    switch operation {
-    case .plan, .analysis:
-      state.tasks[taskIndex].status = .done
-      state.setEmployee(employee.id, status: .waiting, taskID: nil)
-    case .research:
-      state.tasks[taskIndex].status = .done
-      setGoalProgress(0.25, in: &state)
-      state.setEmployee(employee.id, status: .waiting, taskID: nil)
-      appendMemory(
-        employeeID: employee.id,
-        authorID: employee.id,
-        summary: output.summary,
-        sourceArtifactID: artifact.id,
-        state: &state,
-        now: now
-      )
-      if usesWebResearch {
-        appendCapabilityEvent(
-          capability: "web-research",
-          employeeID: employee.id,
-          taskID: task.id,
-          actorID: employee.id,
-          kind: .succeeded,
-          detail: "Research evidence was saved to \(artifact.relativePath).",
-          state: &state,
-          now: now
-        )
-      }
-    case .draft, .revise:
-      state.tasks[taskIndex].status = .review
-      state.setEmployee(employee.id, status: .waiting, taskID: nil)
-      if let reviewer = task.reviewerID {
-        state.setEmployee(reviewer, status: .reviewing, taskID: task.id)
-      }
-    case .report:
-      state.tasks[taskIndex].status = .done
-      setGoalProgress(1, in: &state)
-      state.workdayStatus = .complete
-      state.restAIEmployees()
-      appendMemory(
-        employeeID: employee.id,
-        authorID: employee.id,
-        summary: output.summary,
-        sourceArtifactID: artifact.id,
-        state: &state,
-        now: now
-      )
-      appendAssistantHandoff(kind: .endOfDay, summary: output.summary, state: &state, now: now)
-    case .review:
-      break
-    case .customerVoice:
-      state.tasks[taskIndex].status = .done
-      state.setEmployee(employee.id, status: .resting, taskID: nil)
-    }
+    applyOperationResult(
+      operation: operation, output: output, artifact: artifact,
+      usesWebResearch: usesWebResearch, ctx: ctx, state: &state
+    )
 
     state.activity.append(
       Activity(
@@ -262,6 +182,136 @@ public struct WorkdayEngine: Sendable {
         message: output.summary,
         createdAt: now
       ))
+  }
+
+  private func applyOperationResult(
+    operation: WorkOperation,
+    output: EmployeeWorkOutput,
+    artifact: Artifact,
+    usesWebResearch: Bool,
+    ctx: ProduceContext,
+    state: inout OrganizationState
+  ) {
+    switch operation {
+    case .plan, .analysis:
+      state.tasks[ctx.taskIndex].status = .done
+      state.setEmployee(ctx.employee.id, status: .waiting, taskID: nil)
+    case .research:
+      state.tasks[ctx.taskIndex].status = .done
+      setGoalProgress(0.25, in: &state)
+      state.setEmployee(ctx.employee.id, status: .waiting, taskID: nil)
+      appendMemory(
+        employeeID: ctx.employee.id,
+        authorID: ctx.employee.id,
+        summary: output.summary,
+        sourceArtifactID: artifact.id,
+        state: &state,
+        now: ctx.now
+      )
+      if usesWebResearch {
+        appendCapabilityEvent(
+          capability: "web-research",
+          employeeID: ctx.employee.id,
+          taskID: ctx.task.id,
+          actorID: ctx.employee.id,
+          kind: .succeeded,
+          detail: "Research evidence was saved to \(artifact.relativePath).",
+          state: &state,
+          now: ctx.now
+        )
+      }
+    case .draft, .revise:
+      state.tasks[ctx.taskIndex].status = .review
+      state.setEmployee(ctx.employee.id, status: .waiting, taskID: nil)
+      if let reviewer = ctx.task.reviewerID {
+        state.setEmployee(reviewer, status: .reviewing, taskID: ctx.task.id)
+      }
+    case .report:
+      state.tasks[ctx.taskIndex].status = .done
+      setGoalProgress(1, in: &state)
+      state.workdayStatus = .complete
+      state.restAIEmployees()
+      appendMemory(
+        employeeID: ctx.employee.id,
+        authorID: ctx.employee.id,
+        summary: output.summary,
+        sourceArtifactID: artifact.id,
+        state: &state,
+        now: ctx.now
+      )
+      appendAssistantHandoff(kind: .endOfDay, summary: output.summary, state: &state, now: ctx.now)
+    case .review:
+      break
+    case .customerVoice:
+      state.tasks[ctx.taskIndex].status = .done
+      state.setEmployee(ctx.employee.id, status: .resting, taskID: nil)
+    }
+  }
+
+  private func recordWebResearchFailure(
+    task: WorkTask,
+    employee: Employee,
+    error: Error,
+    state: inout OrganizationState,
+    now: Date
+  ) {
+    let eventKind: CapabilityEventKind
+    if case .unavailable? = error as? CodexRunnerError {
+      eventKind = .unavailable
+    } else {
+      eventKind = .failed
+    }
+    appendCapabilityEvent(
+      capability: "web-research",
+      employeeID: employee.id,
+      taskID: task.id,
+      actorID: employee.id,
+      kind: eventKind,
+      detail: error.localizedDescription,
+      state: &state,
+      now: now
+    )
+  }
+
+  private func createArtifact(
+    operation: WorkOperation,
+    output: EmployeeWorkOutput,
+    ctx: ProduceContext,
+    state: inout OrganizationState
+  ) async throws -> Artifact {
+    let kind: ArtifactKind =
+      switch operation {
+      case .plan, .analysis: .analysis
+      case .research: .research
+      case .draft, .revise: .draft
+      case .report: .report
+      case .review: .review
+      case .customerVoice: .analysis
+      }
+    let revision = operation == .revise ? state.tasks[ctx.taskIndex].revisionCount : 0
+    let sourceArtifacts = state.artifacts.filter { ctx.task.dependencyIDs.contains($0.taskID) }
+    let evidenceBasis =
+      sourceArtifacts.contains { $0.evidenceBasis == "permitted-web-research" }
+      ? "permitted-web-research"
+      : output.evidenceBasis
+    let artifact = Artifact(
+      id: UUID().uuidString,
+      title: output.title,
+      kind: kind,
+      relativePath: LocalOrganizationStore.artifactPath(
+        employeeID: ctx.employee.id,
+        taskID: ctx.task.id,
+        kind: kind,
+        revision: revision
+      ),
+      authorID: ctx.employee.id,
+      taskID: ctx.task.id,
+      createdAt: ctx.now,
+      sourceArtifactIDs: sourceArtifacts.map(\.id),
+      evidenceBasis: evidenceBasis
+    )
+    try await ctx.store.writeArtifact(relativePath: artifact.relativePath, content: output.content)
+    return artifact
   }
 
   private func review(
