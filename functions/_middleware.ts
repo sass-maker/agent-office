@@ -108,12 +108,15 @@ export async function onRequest(context: {
     });
   }
 
-  // JSON errors for unknown /api/* paths (except /api/ai which is handled by _redirects).
-  if (path.startsWith('/api/') && path !== '/api/ai') {
+  const response = await next();
+
+  // JSON rather than HTML for API paths nothing served. Checked AFTER next() on
+  // a real 404, never before: a blanket pre-emptive `/api/*` 404 here would
+  // shadow every genuine API route the site has or later adds -- including auth
+  // callbacks -- which is exactly how this pattern broke sibling repos.
+  if (response.status === 404 && path.startsWith('/api/')) {
     return jsonError(404, 'not_found', `Unknown API path: ${path}`, path);
   }
-
-  const response = await next();
 
   // Add Vary: Accept to HTML responses that have markdown alternates.
   if (
