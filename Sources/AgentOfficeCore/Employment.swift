@@ -425,6 +425,16 @@ public enum EmploymentError: LocalizedError, Equatable {
 }
 
 public enum EmployeePackageCatalogue {
+  /// What a read-only research specialist is allowed to do.
+  ///
+  /// One value rather than a repeated literal, because for Asha and Rowan these
+  /// are the same five answers: read the company, write only their own home,
+  /// never delegate, keep external tools possible *only* so an owner's later
+  /// read-only research grant can be permitted at all, and never publish.
+  private static let researchSpecialistBoundaries = AutonomyBoundaries(
+    mayReadOrganizationFiles: true, mayWriteEmployeeHome: true, mayDelegate: false,
+    mayUseExternalTools: true, mayPublish: false, maximumRevisions: 2)
+
   public static func starterPackages(now: Date = Date()) -> [EmployeePackage] {
     let skills = Dictionary(
       uniqueKeysWithValues: OrganizationKnowledge.builtInSkills(now: now).map {
@@ -475,6 +485,23 @@ public enum EmployeePackageCatalogue {
         reducedModeDescription: "Works only from feedback deliberately placed in the local inbox.",
         builtIn: true),
       EmployeePackage(
+        id: "starter.asha", version: "1.0.0", creator: "Agent Office", name: "Asha",
+        role: "Career Application Specialist",
+        responsibility:
+          "Turn verified candidate facts and real postings into an honest fit assessment, an application packet you can review, and a local record of what came back.",
+        managerRole: "Executive Assistant", avatarColor: "8A7FA6",
+        skills: selected([
+          "job-fit-research", "truthful-application-writing", "application-outcome-review",
+          "communication",
+        ]),
+        requiredConnectionIDs: ["web-research"],
+        boundaries: researchSpecialistBoundaries,
+        reducedModeDescription:
+          "Without granted web research, works only from the postings and candidate facts you supplied and labels the result owner-context-only or synthetic practice. It may not state whether a role is still open, what the market pays, or whether anything was applied to.",
+        externalActionBoundary:
+          "Never submits an application, uploads a resume, signs in, fills a portal, answers a screening question, accepts a legal attestation, solves a CAPTCHA, messages a recruiter, delegates, or controls any account of yours. Every authenticated action stays your handoff, and each packet ends by naming the exact step left for you.",
+        builtIn: true),
+      EmployeePackage(
         id: "starter.rowan", version: "1.0.0", creator: "Agent Office", name: "Rowan",
         role: "Reddit Growth Strategist",
         responsibility:
@@ -485,9 +512,7 @@ public enum EmployeePackageCatalogue {
           "communication",
         ]),
         requiredConnectionIDs: ["web-research"],
-        boundaries: AutonomyBoundaries(
-          mayReadOrganizationFiles: true, mayWriteEmployeeHome: true, mayDelegate: false,
-          mayUseExternalTools: true, mayPublish: false, maximumRevisions: 2),
+        boundaries: researchSpecialistBoundaries,
         reducedModeDescription:
           "Without granted web research, works only from community context you supplied and labels the result owner-context-only or synthetic practice. It may not state current rules, rankings, or whether anything was posted.",
         externalActionBoundary:

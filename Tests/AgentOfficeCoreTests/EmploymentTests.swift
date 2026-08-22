@@ -44,7 +44,15 @@ final class EmploymentTests: XCTestCase {
     XCTAssertTrue(migrated.employees.allSatisfy { $0.effectiveEmploymentState == .hired })
     XCTAssertEqual(migrated.workingContracts.count, 5)
     XCTAssertEqual(migratedAgain.workingContracts.count, 5)
-    XCTAssertEqual(migratedAgain.employeePackages.count, 6)
+    // The seven stable versioned identities, asserted as identities rather than
+    // as a count that every new built-in package would have to come back and
+    // edit.
+    XCTAssertEqual(
+      migratedAgain.employeePackages.map(\.versionedID).sorted(),
+      [
+        "starter.asha@1.0.0", "starter.iris@1.0.0", "starter.maya@1.0.0", "starter.mira@1.0.0",
+        "starter.nia@1.0.0", "starter.rowan@1.0.0", "starter.theo@1.0.0",
+      ])
     XCTAssertEqual(migratedAgain.employee("mira")?.id, "mira")
   }
 
