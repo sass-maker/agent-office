@@ -607,7 +607,7 @@ final class RuntimeBrokerWiringTests: XCTestCase {
     let recording = RecordingRunner()
     _ = await engine.run(
       state, outcomeID: outcomeID, runner: recording, store: store,
-      authorizedCapabilities: ["web-research"])
+      options: EmployeeOutcomeRunOptions(authorizedCapabilities: ["web-research"]))
 
     let seen = await recording.grantsSeen()
     XCTAssertFalse(seen.isEmpty, "the runner should have been asked for work")

@@ -116,6 +116,26 @@ public struct OutcomeRevision: Identifiable, Codable, Sendable, Equatable {
   }
 }
 
+/// Which runtime a commitment is running on, which model it asked for, and
+/// which resolution rule decided.
+///
+/// One value rather than three loose fields, because they are one fact: a
+/// commitment either has a resolved runtime or has not started.
+public struct CommitmentRuntime: Codable, Sendable, Equatable {
+  public var kind: String
+  /// The model override in force, or `nil` when the runtime uses its own
+  /// default. `nil` is the honest record of "no override was sent" rather than
+  /// the name of whichever model happened to be current.
+  public var modelName: String?
+  public var selectionRule: String
+
+  public init(kind: String, modelName: String? = nil, selectionRule: String) {
+    self.kind = kind
+    self.modelName = modelName
+    self.selectionRule = selectionRule
+  }
+}
+
 public struct EmployeeOutcome: Identifiable, Codable, Sendable, Equatable {
   public let id: String
   public var outcome: String
@@ -145,6 +165,14 @@ public struct EmployeeOutcome: Identifiable, Codable, Sendable, Equatable {
   public var acceptedAt: Date?
   public var acceptanceNote: String?
   public var outcomeRevision: Int?
+  /// The runtime this commitment actually started on, and why.
+  ///
+  /// Rule 6 of the runtime policy lives here: once a commitment has started,
+  /// this is what it stays on for its whole life, even if the owner changes the
+  /// employee's contract underneath it. Deliberately not an initializer
+  /// parameter — a commitment is created before anything has run, so the only
+  /// honest value at that point is "not yet".
+  public var runtime: CommitmentRuntime?
 
   public init(
     id: String,

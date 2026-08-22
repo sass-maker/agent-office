@@ -483,7 +483,10 @@ final class WorkdayEngineTests: XCTestCase {
       organization,
       runner: ResearchedOutputRunner(),
       store: store,
-      now: Date(timeIntervalSince1970: 200)
+      now: Date(timeIntervalSince1970: 200),
+      // Real research needs a real runtime, so this scenario has to say Codex
+      // is installed. Without that the engine blocks instead of rehearsing.
+      runtimeHealth: .localAgents(codex: .available)
     )
 
     XCTAssertEqual(result.knowledge?.capabilityEvents.map(\.kind), [.started, .succeeded])
@@ -513,7 +516,8 @@ final class WorkdayEngineTests: XCTestCase {
         organization,
         runner: runner,
         store: store,
-        now: Date(timeIntervalSince1970: 200)
+        now: Date(timeIntervalSince1970: 200),
+        runtimeHealth: .localAgents(codex: .available)
       )
 
       XCTAssertEqual(result.knowledge?.capabilityEvents.map(\.kind), [.started, expectedKind])

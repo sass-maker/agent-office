@@ -133,7 +133,10 @@ final class EmployeeOutcomeEngineTests: XCTestCase {
       outcomeID: outcomeID,
       runner: DeterministicEmployeeRunner(),
       store: store,
-      now: Date(timeIntervalSince1970: 300)
+      now: Date(timeIntervalSince1970: 300),
+      // Codex is installed here, which is what makes the research real and so
+      // makes the missing permission worth blocking over.
+      runtimeHealth: .localAgents(codex: .available)
     )
     let outcome = try XCTUnwrap(result.employeeOutcome(outcomeID))
     let blockedTask = try XCTUnwrap(
