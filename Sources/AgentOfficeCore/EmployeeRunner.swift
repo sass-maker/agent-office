@@ -449,35 +449,25 @@ public enum CodexRunnerError: LocalizedError {
   }
 }
 
-public struct CodexEmployeeRunner: EmployeeRunner {
+/// The locally installed Codex CLI.
+///
+/// Discovery comes from `LocalAgentCLIRunner`, so that a `.app` launched from
+/// Finder, the Dock, or Spotlight — which inherits `launchd`'s environment
+/// rather than the owner's shell — still finds a Codex that is plainly on the
+/// owner's `PATH`.
+public struct CodexEmployeeRunner: EmployeeRunner, LocalAgentCLIRunner {
+  public static let cli = LocalAgentCLI.codex
   public let executableURL: URL
+  public let model: RuntimeModelChoice
 
-  public init(executableURL: URL) {
+  public init(executableURL: URL, model: RuntimeModelChoice = .auto) {
     self.executableURL = executableURL
-  }
-
-  public static func discover(fileManager: FileManager = .default) -> CodexEmployeeRunner? {
-    let environmentPaths =
-      ProcessInfo.processInfo.environment["PATH"]?
-      .split(separator: ":")
-      .map(String.init) ?? []
-    let candidates =
-      environmentPaths.map { URL(fileURLWithPath: $0).appendingPathComponent("codex") }
-      + [
-        URL(fileURLWithPath: "/opt/homebrew/bin/codex"),
-        URL(fileURLWithPath: "/usr/local/bin/codex"),
-      ]
-
-    guard
-      let executable = candidates.first(where: { fileManager.isExecutableFile(atPath: $0.path) })
-    else {
-      return nil
-    }
-    return CodexEmployeeRunner(executableURL: executable)
+    self.model = model
   }
 
   public func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
     let executableURL = self.executableURL
+    let model = self.model
     let process = Process()
     return try await withTaskCancellationHandler {
       try await Task.detached(priority: .userInitiated) {
@@ -489,7 +479,7 @@ public struct CodexEmployeeRunner: EmployeeRunner {
         process.standardOutput = outputPipe
         process.standardError = errorPipe
         process.standardInput = inputPipe
-        process.arguments = Self.commandArguments(for: request)
+        process.arguments = Self.commandArguments(for: request, model: model)
 
         try process.run()
         inputPipe.fileHandleForWriting.write(Data(Self.prompt(for: request).utf8))
@@ -550,7 +540,9 @@ public struct CodexEmployeeRunner: EmployeeRunner {
     }
   }
 
-  public static func commandArguments(for request: EmployeeWorkRequest) -> [String] {
+  public static func commandArguments(
+    for request: EmployeeWorkRequest, model: RuntimeModelChoice = .auto
+  ) -> [String] {
     var arguments: [String] = []
     if request.canUseWebResearch {
       arguments.append("--search")
@@ -562,8 +554,10 @@ public struct CodexEmployeeRunner: EmployeeRunner {
       "--skip-git-repo-check",
       "--color", "never",
       "--cd", request.workspaceURL.path,
-      "-",
     ]
+    // Auto sends no override at all, so Codex's own default model applies.
+    if let name = model.overrideName { arguments += ["--model", name] }
+    arguments.append("-")
     return arguments
   }
 
@@ -661,13 +655,23 @@ public struct CodexEmployeeRunner: EmployeeRunner {
       """
   }
 
-  private struct PlanPayload: Decodable {
+  struct PlanPayload: Decodable {
     var summary: String
     var selectedSkillIDs: [String]
     var tasks: [EmployeeTaskProposal]
   }
 
   private static func decodePlan(from output: String) throws -> PlanPayload {
+    guard let plan = decodedPlan(from: output) else { throw CodexRunnerError.invalidPlan }
+    return plan
+  }
+
+  /// Reads a plan out of a CLI's standard output, or reports that it could not.
+  ///
+  /// Shared by every local runtime so that two runtimes cannot disagree about
+  /// what counts as a usable plan. Returns `nil` rather than throwing so each
+  /// runtime raises the error type its own callers already handle.
+  static func decodedPlan(from output: String) -> PlanPayload? {
     var json = output.trimmingCharacters(in: .whitespacesAndNewlines)
     if json.hasPrefix("```") {
       let lines = json.split(separator: "\n", omittingEmptySubsequences: false)
@@ -677,7 +681,7 @@ public struct CodexEmployeeRunner: EmployeeRunner {
     guard let data = json.data(using: .utf8),
       let plan = try? JSONDecoder().decode(PlanPayload.self, from: data),
       (1...4).contains(plan.tasks.count)
-    else { throw CodexRunnerError.invalidPlan }
+    else { return nil }
     return plan
   }
 }

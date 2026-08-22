@@ -33,7 +33,8 @@ register → resolve(binding) → availability() → openSession() → run(turn)
 ```
 
 1. **Register.** A driver is added to the registry by kind. Nothing is
-   auto-discovered; Office OS ships two and the tests add a third.
+   auto-discovered; Office OS ships three — Demo, Local Codex, and Local Claude
+   Code — and the tests add a fourth.
 2. **Resolve.** A binding resolves to either a driver or an *unavailable
    shadow* naming why: not installed, older than the binding requires,
    misconfigured, or unhealthy.
@@ -97,3 +98,66 @@ One driver being missing, misconfigured, or unhealthy affects only the employees
 bound to it. Employees on other drivers keep working. A lost runtime blocks the
 affected commitment with a readable reason; it never retires the employee,
 erases the commitment, or fabricates a delivery.
+
+## Agent and model are separate choices
+
+Which software does the work (**Agent**) and which model that software runs
+(**Model**) are two decisions, and either can be left on Auto.
+
+| Choice | Values | Auto means |
+|---|---|---|
+| Agent | Auto, Codex, Claude Code, Practice mode | Resolve at run time from what is healthy |
+| Model | Auto, or a model the selected runtime supports | Send **no** override; the runtime's default applies |
+
+Auto model sends no `--model` argument and records `modelName` as `nil` on the
+receipt. Writing down whichever model happened to run would be a claim the app
+cannot substantiate. A model can only be named once an agent is named, so Auto
+and Practice mode offer no model choice at all.
+
+## Finding a locally installed CLI
+
+An app bundle launched from Finder, the Dock, or Spotlight inherits `launchd`'s
+environment, not the owner's shell. Reading `PATH` alone therefore reports a
+perfectly healthy CLI as missing.
+
+`LocalAgentDiscovery` searches in a fixed order and stops at the first hit:
+
+1. the `PATH` this process inherited,
+2. the `PATH` the owner's **login shell** reports, recovered by running
+   `$SHELL -l -i -c` once and caching the result,
+3. directories the installers are known to use.
+
+Only `PATH` is read. No credential, token, or configuration file is opened, and
+the recovered environment is never logged or recorded. Recovery is bounded by a
+timeout, so a start-up file that waits for input degrades to "nothing
+recovered" rather than hanging the app.
+
+## Auto-resolution policy
+
+`RuntimeAutoResolver` applies these in order, and records which rule decided:
+
+1. An explicit employee runtime choice is preserved — including its failure.
+2. Otherwise the employee's last successful runtime, when healthy.
+3. Otherwise the employee's package preference.
+4. Otherwise healthy Codex, then healthy Claude Code.
+5. The resolved driver and model are recorded on the session and the receipt.
+6. A runtime is never switched during an active commitment.
+7. Demo is never silently substituted.
+
+Rules 1 and 6 are allowed to *block*. Falling through from a failed explicit
+choice to a different runtime would be precisely the substitution this policy
+exists to prevent.
+
+### Why rule 7 cannot be violated
+
+Rule 7 is enforced by the type system rather than by care. `AutoSelectableRuntime`
+has exactly two cases, `codex` and `claudeCode`, and no case that denotes Demo.
+Every automatic branch of the resolver builds its result from that type, so
+there is no value it could return that means rehearsal. Demo is reachable only
+through `SelectedRuntime.ownerChosen`, which requires the owner to have named
+it, and `AutoSelectableRuntime(driverKind:)` returns `nil` for Demo so a kind
+cannot be laundered into an automatic choice by passing it in.
+
+Running out of real runtimes is therefore a refusal, not a rehearsal: an
+employee blocks with a readable reason. A rehearsal presented as work is worse
+than no work.

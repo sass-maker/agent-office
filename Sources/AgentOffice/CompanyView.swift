@@ -761,7 +761,7 @@ struct CompanyView: View {
           : contract.capabilityGrants.map(contractCapabilityName).joined(separator: ", "))
       contractFact(
         "Execution",
-        "\(contract.executionProvider == .localCodex ? "Local Codex" : "Practice mode") · \(contract.modelName ?? "provider default")"
+        "\(contract.executionProvider.displayName) · \(contract.modelName ?? "provider default")"
       )
       contractFact("Environment", "Local organization sandbox · \(contract.workspacePath)")
       contractFact(
