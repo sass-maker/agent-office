@@ -1304,6 +1304,27 @@ final class AppModel: ObservableObject {
     }
   }
 
+  /// Writes the receipt for a scheduled run that has just finished, and stops the
+  /// session that ran it.
+  ///
+  /// Does nothing for an owner-initiated run: there is no window to close, and a
+  /// receipt without a scheduled window would be a claim about a schedule that
+  /// does not exist.
+  private func closeScheduledWindow(forCommitment commitmentID: String) {
+    guard
+      organization.completeScheduledWork(
+        forCommitment: commitmentID,
+        now: Date(),
+        reason: organization.employeeOutcome(commitmentID)?.outcome ?? "Scheduled work"
+      ) != nil
+    else { return }
+    for session in organization.runtimeSessions
+    where session.commitmentID == commitmentID && session.state.isAlive {
+      _ = organization.endRuntimeSession(
+        sessionID: session.id, at: Date(), reason: "The scheduled window finished.")
+    }
+  }
+
   private func handleEmployeeRunResult(
     _ result: Result<EmployeeOutcomeRunResult, Error>, request: EmployeeOutcomeRunRequest
   ) async {
@@ -1332,6 +1353,10 @@ final class AppModel: ObservableObject {
           organization.employees[index].currentTaskID = nil
         }
       }
+      // A finished run closes its scheduled window and writes the receipt, so
+      // what happened is inspectable rather than only inferable from the
+      // commitment's current status.
+      closeScheduledWindow(forCommitment: request.outcomeID)
       try await store.save(organization)
       lastError = organization.employeeOutcome(request.outcomeID)?.helpRequest
     } catch {

@@ -616,6 +616,8 @@ public actor LocalOrganizationStore {
         try writeWorkingContract(for: employee, contract: contract, to: home)
       }
 
+      try writeRoutine(for: employee, in: organization, to: home)
+
       let artifacts = organization.artifacts
         .filter { $0.authorID == employee.id }
         .sorted { $0.createdAt < $1.createdAt }
@@ -631,6 +633,24 @@ public actor LocalOrganizationStore {
         encoding: .utf8
       )
     }
+  }
+
+  /// Writes `ROUTINES.md` for a hired employee, and removes it for anyone who
+  /// is not.
+  ///
+  /// Removal matters: a paused or retired employee with a routine file still on
+  /// disk would describe recurring work that is not going to happen.
+  private func writeRoutine(
+    for employee: Employee, in organization: OrganizationState, to home: URL
+  ) throws {
+    let destination = home.appendingPathComponent("ROUTINES.md")
+    guard let routine = organization.employeeRoutine(for: employee.id) else {
+      if fileManager.fileExists(atPath: destination.path) {
+        try fileManager.removeItem(at: destination)
+      }
+      return
+    }
+    try routine.markdown.write(to: destination, atomically: true, encoding: .utf8)
   }
 
   private func writeWorkingContract(

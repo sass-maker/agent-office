@@ -139,7 +139,10 @@ final class ScheduledWorkDispatchTests: XCTestCase {
     XCTAssertTrue(receipt.result.kind.isHonestSuccess)
   }
 
-  func testABlockedCommitmentProducesABlockedReceipt() throws {
+  /// An employee that asked the owner a question is waiting on them, not stuck.
+  /// The two used to be the same receipt kind, which sent the owner looking for
+  /// a fault instead of answering.
+  func testACommitmentWaitingOnTheOwnerSaysSoAndNamesTheNextAction() throws {
     var context = try fixture()
     _ = context.state.beginScheduledWork(context.occurrenceID, now: start)
     _ = context.state.updateEmployeeOutcome(context.commitmentID, now: start) {
@@ -151,8 +154,13 @@ final class ScheduledWorkDispatchTests: XCTestCase {
       context.state.completeScheduledWork(
         context.occurrenceID, now: start.addingTimeInterval(60), reason: "Weekly note"))
 
-    XCTAssertEqual(receipt.result.kind, .blocked)
+    XCTAssertEqual(receipt.result.kind, .waitingForOwner)
+    XCTAssertNotEqual(receipt.result.kind, .blocked)
     XCTAssertEqual(receipt.result.summary, "I need the source list.")
+    XCTAssertEqual(receipt.nextAction.owner, .owner)
+    XCTAssertEqual(receipt.nextAction.detail, "I need the source list.")
+    // The window is over either way, so the occurrence is still terminal.
+    XCTAssertEqual(context.state.scheduledOccurrence(context.occurrenceID)?.status, .blocked)
   }
 
   func testCompletingSomethingThatNeverStartedSaysSo() throws {

@@ -305,6 +305,7 @@ struct MissionView: View {
         Text("Delivery · \(delivery.summary)").font(.caption).foregroundStyle(
           EditorialOfficeTheme.ink.opacity(0.72))
       }
+      receiptTrail(outcome)
       if [.proposed, .waiting, .delivered].contains(outcome.status) {
         TextField(
           outcome.status == .delivered ? "Revision feedback" : "Instruction or reply",
@@ -346,6 +347,36 @@ struct MissionView: View {
         case .accepted, .closed, .cancelled: EmptyView()
         }
       }
+    }
+  }
+
+  /// What the last run of this commitment actually amounted to, and whose move
+  /// it is now.
+  ///
+  /// Shown only when a receipt exists. An absent receipt says nothing here
+  /// because the commitment's own status already says it has not run — the wrong
+  /// thing to add would be a reassuring line about a run that never happened.
+  @ViewBuilder
+  private func receiptTrail(_ outcome: EmployeeOutcome) -> some View {
+    if let receipt = model.organization.latestRunReceipt(forCommitment: outcome.id) {
+      VStack(alignment: .leading, spacing: 5) {
+        Text("LAST RUN")
+          .font(.caption2.weight(.semibold))
+          .tracking(0.8)
+          .foregroundStyle(EditorialOfficeTheme.graphite)
+        // Status is stated in words; colour is never the only signal.
+        Text(receipt.headline).font(.caption.weight(.medium))
+        Text("Next · \(receipt.nextAction.statement)")
+          .font(.caption)
+          .fixedSize(horizontal: false, vertical: true)
+        Text(receipt.result.evidenceStatement)
+          .font(.caption)
+          .foregroundStyle(EditorialOfficeTheme.graphite)
+      }
+      .padding(.top, 4)
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel(
+        "Last run: \(receipt.headline) Next: \(receipt.nextAction.statement)")
     }
   }
 

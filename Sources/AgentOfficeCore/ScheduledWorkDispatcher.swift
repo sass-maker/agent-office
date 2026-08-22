@@ -109,16 +109,42 @@ extension OrganizationState {
     let result: ReceiptResult
     if occurrence.actual == nil {
       result = ReceiptResult(
-        kind: .neverRan, summary: "The runtime never started for this window.")
+        kind: .neverRan,
+        summary: "The runtime never started for this window.",
+        nextAction: ReceiptNextAction(
+          owner: .owner,
+          detail:
+            "Nothing was observed. Check that a runtime is available, then run this deliberately."
+        ))
     } else if case .commitment(let commitmentID) = occurrence.origin.subject,
       let commitment = employeeOutcome(commitmentID)
     {
       result = Self.result(for: commitment)
     } else {
-      result = ReceiptResult(kind: .quiet, summary: "Ran with nothing to change.")
+      result = ReceiptResult(
+        kind: .quiet, summary: "Ran with nothing to change.",
+        nextAction: .nothingOutstanding)
     }
     return try? finishOccurrence(
       occurrenceID, result: result, reason: reason, endedAt: now)
+  }
+
+  /// Closes whichever scheduled window this commitment was dispatched for.
+  ///
+  /// Callers know which commitment just finished, not which occurrence sent it,
+  /// so the lookup lives here rather than being reconstructed at each call site.
+  /// Returns `nil` when the commitment was not scheduled — an owner-initiated
+  /// run has no window to close and inventing one would fabricate a schedule.
+  @discardableResult
+  public mutating func completeScheduledWork(
+    forCommitment commitmentID: String, now: Date, reason: String
+  ) -> RunReceipt? {
+    guard
+      let occurrence = scheduledOccurrences.first(where: {
+        $0.origin.subject == .commitment(commitmentID) && !$0.status.isTerminal
+      })
+    else { return nil }
+    return completeScheduledWork(occurrence.id, now: now, reason: reason)
   }
 
   /// Bounded capacity conditions, each of which leaves the occurrence due
@@ -176,25 +202,69 @@ extension OrganizationState {
 
   private static func result(for commitment: EmployeeOutcome) -> ReceiptResult {
     switch commitment.status {
-    case .delivered, .accepted, .closed:
+    case .delivered:
       return ReceiptResult(
         kind: .changed,
         summary: commitment.deliverySummary ?? "Delivered.",
-        evidenceIDs: commitment.artifactIDs
+        evidenceIDs: commitment.artifactIDs,
+        nextAction: ReceiptNextAction(
+          owner: .owner,
+          detail: commitment.effectiveDeliveries.last?.recommendedNextAction
+            ?? "Read the delivery and either accept it or request one bounded revision."
+        )
+      )
+    case .accepted, .closed:
+      return ReceiptResult(
+        kind: .changed,
+        summary: commitment.deliverySummary ?? "Delivered.",
+        evidenceIDs: commitment.artifactIDs,
+        nextAction: .nothingOutstanding
       )
     case .waiting:
+      // The employee did its part and handed a question back. Reporting this as
+      // blocked would send the owner looking for a fault that is not there.
       return ReceiptResult(
-        kind: .blocked,
-        summary: commitment.helpRequest ?? "The employee is waiting on a decision."
+        kind: .waitingForOwner,
+        summary: commitment.helpRequest ?? "The employee is waiting on a decision.",
+        evidenceIDs: commitment.artifactIDs,
+        nextAction: ReceiptNextAction(
+          owner: .owner,
+          detail: commitment.helpRequest ?? "Answer the employee so it can continue."
+        )
       )
     case .failed:
-      return ReceiptResult(kind: .failed, summary: "The run did not finish.")
+      return ReceiptResult(
+        kind: .failed,
+        summary: commitment.helpRequest ?? "The run did not finish.",
+        evidenceIDs: commitment.artifactIDs,
+        nextAction: ReceiptNextAction(
+          owner: .owner,
+          detail: "Decide whether to retry this commitment or change what it asks for."
+        )
+      )
     case .cancelled:
-      return ReceiptResult(kind: .skipped, summary: "The commitment was cancelled.")
+      return ReceiptResult(
+        kind: .cancelled,
+        summary: "The commitment was stopped before it finished.",
+        evidenceIDs: commitment.artifactIDs,
+        nextAction: .nothingOutstanding
+      )
+    case .proposed:
+      return ReceiptResult(
+        kind: .waitingForOwner,
+        summary: "The employee proposed a plan and is waiting for your approval.",
+        nextAction: ReceiptNextAction(
+          owner: .owner, detail: "Approve or return the proposed plan.")
+      )
     default:
       // Ran, and there is nothing to show for it yet. That is a valid outcome
       // and must not be reported as a delivery or as a failure.
-      return ReceiptResult(kind: .quiet, summary: "Ran with nothing to change.")
+      return ReceiptResult(
+        kind: .quiet,
+        summary: "Ran with nothing to change.",
+        nextAction: ReceiptNextAction(
+          owner: .employee, detail: "The employee picks this up again on its next window.")
+      )
     }
   }
 }
