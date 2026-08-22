@@ -129,9 +129,13 @@ extension OrganizationState {
       switch result.kind {
       case .changed: .delivered
       case .quiet: .quiet
+      // The window is over either way; the receipt is what distinguishes "the
+      // employee is stuck" from "the employee is waiting on you".
+      case .waitingForOwner: .blocked
       case .blocked: .blocked
       case .failed: .failed
       case .skipped: .skipped
+      case .cancelled: .cancelled
       case .neverRan: .missed
       }
 

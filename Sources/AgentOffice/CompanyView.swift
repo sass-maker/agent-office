@@ -730,10 +730,70 @@ struct CompanyView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
 
+      latestRunSection(for: employee)
+
       if let contract = model.organization.workingContract(for: employee.id) {
         contractSection(for: employee, contract: contract)
       }
     }
+  }
+
+  /// The last run this employee actually had, and whose move it is now.
+  ///
+  /// Absence is stated rather than left blank: an employee that has never run
+  /// says so, so a quiet folio cannot read as a successful one.
+  @ViewBuilder
+  private func latestRunSection(for employee: Employee) -> some View {
+    detailRule.padding(.vertical, 22)
+    Text("Latest run").font(.system(.title3, design: .serif, weight: .medium))
+    if let receipt = model.organization.latestRunReceipt(forEmployee: employee.id) {
+      VStack(alignment: .leading, spacing: 8) {
+        // Status is text first. Colour is never the only carrier.
+        Text(receipt.headline).font(.callout.weight(.medium))
+        Text(receipt.result.summary)
+          .font(.callout)
+          .fixedSize(horizontal: false, vertical: true)
+        contractFact("Next action", receipt.nextAction.statement)
+        contractFact("Evidence", receipt.result.evidenceStatement)
+        contractFact("Ran on", receipt.work.runtimeKind ?? "not recorded")
+        contractFact("Model", receipt.work.modelName ?? "the runtime's own default")
+        contractFact("Usage", usageText(receipt.result.usage))
+        contractFact(
+          "Planned",
+          "\(receipt.scheduledWindow.start.formatted(date: .abbreviated, time: .shortened)) · "
+            + "\(Int(receipt.scheduledWindow.duration / 60)) min")
+        contractFact("Actual", actualText(receipt))
+      }
+      .padding(.top, 12)
+      .accessibilityElement(children: .contain)
+      .accessibilityLabel(
+        "Latest run for \(employee.name): \(receipt.headline) \(receipt.nextAction.statement)")
+    } else {
+      Text(
+        "This employee has not run yet. Nothing is being claimed about work it has not done."
+      )
+      .font(.callout)
+      .foregroundStyle(EditorialOfficeTheme.graphite)
+      .padding(.top, 10)
+      .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  /// Three-valued on purpose: a runtime that reported nothing is unknown, never
+  /// zero.
+  private func usageText(_ usage: RunUsage) -> String {
+    switch usage {
+    case .observed(let description): description
+    case .unknown: "The runtime reported nothing"
+    case .notApplicable: "Not applicable"
+    }
+  }
+
+  private func actualText(_ receipt: RunReceipt) -> String {
+    guard let actual = receipt.actual else { return "Never started" }
+    let started = actual.startedAt.formatted(date: .abbreviated, time: .shortened)
+    guard let duration = actual.duration else { return "Started \(started), still open" }
+    return "Started \(started) · ran \(Int(duration / 60)) min"
   }
 
   @ViewBuilder
