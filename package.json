@@ -12,6 +12,7 @@
     "quality:duplication": "node scripts/check-code-health.mjs duplication",
     "quality:hygiene": "node scripts/check-code-health.mjs hygiene",
     "quality:suppressions": "node scripts/check-code-health.mjs suppressions",
-    "quality:unused": "node scripts/check-code-health.mjs unused"
+    "quality:unused": "node scripts/check-code-health.mjs unused",
+    "deploy": "npm run typecheck && wrangler pages deploy site --project-name office-os --branch main --commit-hash \"$(git rev-parse HEAD)\""
   }
 }
