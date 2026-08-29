@@ -62,10 +62,13 @@ extension OrganizationState {
     }
   }
 
-  public mutating func prepareFirstContentMission(now: Date = Date()) throws -> [String] {
-    let existing = employeeOutcomes.filter { $0.effectiveSource == .legacyWorkday }
-    if !existing.isEmpty { return existing.map(\.id) }
-    let templates: [(String, String, String, [String])] = [
+  /// The three commitments the first content mission is made of.
+  ///
+  /// Hoisted out of `prepareFirstContentMission` so the roster the mission runs
+  /// on can be read without creating it, which is what preflight needs in order
+  /// to resolve a runtime for each employee before any work starts.
+  private static let firstContentMissionTemplates:
+    [(employeeID: String, outcome: String, context: String, acceptanceCriteria: [String])] = [
       (
         "nia", "Identify the audience question",
         "Use the company brief to identify the most useful question and evidence boundary for the current mission.",
@@ -85,9 +88,21 @@ extension OrganizationState {
         ["State whether the mission is met.", "Name the next owner decision."]
       ),
     ]
-    return try templates.map { employeeID, outcome, context, criteria in
+
+  /// Who the first content mission is shared between, in the order it is
+  /// created. Derived from the templates so preflight can never check a roster
+  /// the mission has since stopped using.
+  public static var firstContentMissionEmployeeIDs: [String] {
+    firstContentMissionTemplates.map(\.employeeID)
+  }
+
+  public mutating func prepareFirstContentMission(now: Date = Date()) throws -> [String] {
+    let existing = employeeOutcomes.filter { $0.effectiveSource == .legacyWorkday }
+    if !existing.isEmpty { return existing.map(\.id) }
+    return try Self.firstContentMissionTemplates.map { template in
       try createEmployeeOutcome(
-        employeeID: employeeID, outcome: outcome, context: context, acceptanceCriteria: criteria,
+        employeeID: template.employeeID, outcome: template.outcome, context: template.context,
+        acceptanceCriteria: template.acceptanceCriteria,
         priority: .normal, source: .legacyWorkday, sourceID: "first-content-mission", now: now)
     }
   }

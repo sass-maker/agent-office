@@ -85,19 +85,15 @@ struct EmployeeOutcomeAssignmentSheet: View {
         }
 
         HStack(alignment: .center, spacing: 14) {
-          Image(systemName: model.organization.executionMode == .demo ? "theatermasks" : "cpu")
+          Image(systemName: runtimeIcon)
             .font(.title3)
           VStack(alignment: .leading, spacing: 2) {
-            Text(
-              model.organization.executionMode == .demo
-                ? "Practice with the Demo team" : "Work with Local Codex"
-            )
-            .font(.callout.weight(.medium))
-            Text(
-              "No self-granted permissions, publishing, spending, or writes outside this company folder."
-            )
-            .font(.caption)
-            .foregroundStyle(EditorialOfficeTheme.graphite)
+            Text(runtimeNotice.title)
+              .font(.callout.weight(.medium))
+            Text(runtimeNotice.detail)
+              .font(.caption)
+              .foregroundStyle(EditorialOfficeTheme.graphite)
+              .fixedSize(horizontal: false, vertical: true)
           }
           Spacer(minLength: 12)
           Button("Assign to \(employee.name)") { submit() }
@@ -209,6 +205,23 @@ struct EmployeeOutcomeAssignmentSheet: View {
     .padding(.vertical, 7)
     .overlay(alignment: .bottom) {
       Rectangle().fill(EditorialOfficeTheme.rule.opacity(0.64)).frame(height: 1)
+    }
+  }
+
+  /// What this employee will actually work on.
+  ///
+  /// Resolved through the runtime policy rather than the organization-wide
+  /// execution mode, which had only two values and so could never name Claude
+  /// Code, and mislabelled anyone whose contract disagreed with the default.
+  private var runtimeNotice: RuntimeNotice {
+    model.runtimeDisposition(for: employee.id).assignmentNotice(employeeName: employee.name)
+  }
+
+  private var runtimeIcon: String {
+    switch runtimeNotice.standing {
+    case .blocked: "exclamationmark.triangle"
+    case .rehearsal: "theatermasks"
+    case .real: "cpu"
     }
   }
 

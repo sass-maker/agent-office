@@ -797,9 +797,7 @@ struct OrganizationHomeView: View {
         }
       }
 
-      if model.webResearchRequestPending
-        || (model.organization.executionMode == .localCodex && !model.webResearchGranted)
-      {
+      if webResearchNeedsAttention {
         AttentionRow(
           title: "Nia is asking for the library key",
           detail:
@@ -894,6 +892,16 @@ struct OrganizationHomeView: View {
     model.organization.activeAIEmployees
   }
 
+  /// Whether the owner is being asked for the read-only web-research key.
+  ///
+  /// Nia's resolved runtime decides this, not the organization-wide execution
+  /// mode: `startDay` asks for the grant whenever her runtime performs real
+  /// work, so reading the mode here hid the row for a contract-driven real run
+  /// and showed it for a rehearsal that never touches the network.
+  private var webResearchNeedsAttention: Bool {
+    model.webResearchRequestPending || model.webResearchGrantNeeded
+  }
+
   private var customerVoiceNeedsAttention: Bool {
     model.customerVoiceOccurrence?.status == .blocked
       || model.customerVoiceOccurrence?.status == .queued
@@ -904,11 +912,7 @@ struct OrganizationHomeView: View {
   private var attentionCount: Int {
     var count = model.organization.managementInbox.count
     if !model.organization.hasMeaningfulProductBrief { count += 1 }
-    if model.webResearchRequestPending
-      || (model.organization.executionMode == .localCodex && !model.webResearchGranted)
-    {
-      count += 1
-    }
+    if webResearchNeedsAttention { count += 1 }
     if customerVoiceNeedsAttention { count += 1 }
     count += additionalUnresolvedBlockers.count
     return count
