@@ -5,8 +5,6 @@ public enum WorkOperation: String, Sendable {
   case analysis
   case research
   case draft
-  case revise
-  case review
   case report
   case customerVoice
 }
@@ -23,11 +21,6 @@ public struct EmployeeTaskProposal: Codable, Sendable, Equatable {
     self.kind = kind
     self.skillIDs = skillIDs
   }
-}
-
-public enum ReviewVerdict: String, Codable, Sendable {
-  case revise
-  case approve
 }
 
 public struct EmployeeWorkRequest: Sendable {
@@ -78,7 +71,6 @@ public struct EmployeeWorkOutput: Sendable {
   public var title: String
   public var summary: String
   public var content: String
-  public var verdict: ReviewVerdict?
   public var evidenceBasis: String
   public var proposedTasks: [EmployeeTaskProposal]
   public var selectedSkillIDs: [String]
@@ -87,7 +79,6 @@ public struct EmployeeWorkOutput: Sendable {
     title: String,
     summary: String,
     content: String,
-    verdict: ReviewVerdict? = nil,
     evidenceBasis: String = "owner-context-only",
     proposedTasks: [EmployeeTaskProposal] = [],
     selectedSkillIDs: [String] = []
@@ -95,7 +86,6 @@ public struct EmployeeWorkOutput: Sendable {
     self.title = title
     self.summary = summary
     self.content = content
-    self.verdict = verdict
     self.evidenceBasis = evidenceBasis
     self.proposedTasks = proposedTasks
     self.selectedSkillIDs = selectedSkillIDs
@@ -115,8 +105,6 @@ public struct DeterministicEmployeeRunner: EmployeeRunner {
     case .analysis: return Self.analysisOutput(for: request)
     case .research: return Self.researchOutput(for: request)
     case .draft: return Self.draftOutput(for: request)
-    case .revise: return Self.reviseOutput(for: request)
-    case .review: return Self.reviewOutput(for: request)
     case .report: return Self.reportOutput(for: request)
     case .customerVoice: return Self.customerVoiceOutput(for: request)
     }
@@ -310,48 +298,6 @@ public struct DeterministicEmployeeRunner: EmployeeRunner {
     )
   }
 
-  private static func reviseOutput(for _: EmployeeWorkRequest) -> EmployeeWorkOutput {
-    EmployeeWorkOutput(
-      title: "From outcome to a useful workday — revised",
-      summary: "Theo revised the draft around a clearer practical example.",
-      content: """
-        # From an outcome to a useful workday
-
-        Imagine asking a small content team for one useful article.
-        Nia researches the question readers actually have. Theo writes
-        the first answer. Maya reviews it against the outcome and sends
-        back one concrete correction: show the operating loop, not just
-        the idea.
-
-        The team now has a visible path: outcome → research → draft →
-        review → approval. Every handoff leaves an ordinary file behind,
-        and every employee knows who owns the next move. If two revisions
-        cannot resolve the work, the loop stops and asks the owner for a
-        decision instead of quietly consuming another afternoon.
-
-        This is useful before the organization can publish, browse, or
-        operate cloud systems. Those abilities can arrive later with
-        stronger permissions and guardrails. The first proof is simpler:
-        named employees can pick up real work, coordinate, and leave the
-        company in a clearer state than they found it.
-        """
-    )
-  }
-
-  private static func reviewOutput(for request: EmployeeWorkRequest) -> EmployeeWorkOutput {
-    let shouldApprove = request.task.revisionCount > 0
-    return EmployeeWorkOutput(
-      title: shouldApprove ? "Editorial approval" : "Editorial review",
-      summary: shouldApprove
-        ? "Maya approved the revised article."
-        : "Maya asked for one focused revision.",
-      content: shouldApprove
-        ? "# Approved\n\nThe revision now demonstrates the operating loop, its stopping condition, and the boundary between current proof and future capability."
-        : "# Revision requested\n\nOpen with a concrete researcher → writer → manager example. Make the two-cycle stopping condition explicit and separate today's useful proof from future permissions and integrations.",
-      verdict: shouldApprove ? .approve : .revise
-    )
-  }
-
   private static func reportOutput(for request: EmployeeWorkRequest) -> EmployeeWorkOutput {
     if request.task.id.hasPrefix("employee-outcome-") {
       return EmployeeWorkOutput(
@@ -517,19 +463,11 @@ public struct CodexEmployeeRunner: EmployeeRunner, LocalAgentCLIRunner {
           )
         }
 
-        let verdict: ReviewVerdict?
-        if request.operation == .review {
-          verdict = output.localizedCaseInsensitiveContains("APPROVE") ? .approve : .revise
-        } else {
-          verdict = nil
-        }
-
         return EmployeeWorkOutput(
           title: request.task.title,
           summary:
             "\(request.employee.name) completed \(request.operation.rawValue) work with local Codex.",
           content: output,
-          verdict: verdict,
           evidenceBasis: request.canUseWebResearch ? "permitted-web-research" : "owner-context-only"
         )
       }.value
@@ -587,10 +525,6 @@ public struct CodexEmployeeRunner: EmployeeRunner, LocalAgentCLIRunner {
         {"summary":"one sentence","selectedSkillIDs":["assigned-skill-id"],"tasks":[{"title":"short ticket title","detail":"clear completion condition","kind":"analysis","skillIDs":["assigned-skill-id"]}]}
         """
     }
-    let reviewInstruction =
-      request.operation == .review
-      ? "Begin your response with exactly APPROVE or REVISE, then provide concise evidence-based feedback."
-      : "Return the complete useful Markdown artifact only."
     let skillContext =
       request.skills.isEmpty
       ? "No organizational skill guidance is assigned to this employee."
@@ -654,7 +588,7 @@ public struct CodexEmployeeRunner: EmployeeRunner, LocalAgentCLIRunner {
       \(request.canUseWebResearch
             ? "Web research is explicitly permitted for this research task. Use live search, cite source URLs, and separate external evidence from owner-supplied claims."
             : "Web research is not permitted for this task. Do not imply that any external source was checked.")
-      \(reviewInstruction)
+      Return the complete useful Markdown artifact only.
       """
   }
 

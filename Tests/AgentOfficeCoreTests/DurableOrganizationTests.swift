@@ -2,7 +2,18 @@ import XCTest
 
 @testable import AgentOfficeCore
 
-final class WorkdayEngineTests: XCTestCase {
+/// What the local organization is before and after it is put away.
+///
+/// Everything here is about durability rather than about running work: the
+/// shape the organization seeds with, what onboarding writes, what survives
+/// being saved and reopened, what migration adds to an older file, and what the
+/// owner can teach a named employee. These tests lived in `WorkdayEngineTests`
+/// only because that file happened to be where the first suite was written;
+/// none of them needs a work engine.
+final class DurableOrganizationTests: XCTestCase {
+
+  // MARK: - What a new organization is
+
   func testSeededOrganizationHasDurableEmployeeShape() {
     let organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
 
@@ -76,52 +87,7 @@ final class WorkdayEngineTests: XCTestCase {
     XCTAssertEqual(reopened.activity.filter { $0.message.contains("doors opened") }.count, 1)
   }
 
-  func testCompletedFirstUsePathSurvivesQuitAndReopen() async throws {
-    let root = temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: root) }
-    let store = LocalOrganizationStore(rootURL: root)
-    let engine = WorkdayEngine()
-    var organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
-    organization.name = "Juniper House"
-    organization.setupCompleted = true
-    organization.dayNumber = 1
-    organization.workdayStatus = .active
-    organization.knowledge?.productBrief = """
-      Juniper House is a local Mac workplace for solo founders who need recurring non-technical work completed. Named AI employees receive explicit outcomes, coordinate through bounded tasks and review, and leave inspectable local artifacts. The product may safely claim local persistence, visible permissions, and resumable workdays.
-      """
-    organization.employees[organization.employees.firstIndex { $0.id == "nia" }!]
-      .capabilityGrants = ["web-research"]
-
-    for step in 0..<10 where organization.workdayStatus == .active {
-      organization = await engine.advance(
-        organization,
-        runner: DeterministicEmployeeRunner(),
-        store: store,
-        now: Date(timeIntervalSince1970: TimeInterval(200 + step))
-      )
-    }
-    try await store.save(organization)
-
-    let reopened = try await LocalOrganizationStore(rootURL: root).loadOrCreate()
-    XCTAssertEqual(reopened.name, "Juniper House")
-    XCTAssertEqual(reopened.setupCompleted, true)
-    XCTAssertEqual(reopened.workdayStatus, .complete)
-    XCTAssertTrue(reopened.tasks.allSatisfy { $0.status == .done })
-    XCTAssertTrue(reopened.hasMeaningfulProductBrief)
-    XCTAssertTrue(reopened.hasCapability("web-research", employeeID: "nia"))
-    XCTAssertEqual(reopened.knowledge?.assistantHandoffs.last?.kind, .endOfDay)
-    XCTAssertFalse(reopened.knowledge?.memoryEntries.isEmpty == true)
-    XCTAssertFalse(reopened.artifacts.isEmpty)
-    XCTAssertTrue(
-      FileManager.default.fileExists(
-        atPath: root.appendingPathComponent("employees/mira/IDENTITY.md").path))
-    XCTAssertTrue(
-      FileManager.default.fileExists(
-        atPath: root.appendingPathComponent("employees/nia/MEMORY.md").path))
-    XCTAssertTrue(
-      FileManager.default.fileExists(
-        atPath: root.appendingPathComponent("employees/maya/ARTIFACTS.md").path))
-  }
+  // MARK: - What survives being saved and reopened
 
   func testSetupCompletionSurvivesPersistence() async throws {
     let root = temporaryDirectory()
@@ -136,20 +102,6 @@ final class WorkdayEngineTests: XCTestCase {
 
     XCTAssertEqual(loaded.setupCompleted, true)
     XCTAssertEqual(loaded.name, "Juniper House")
-  }
-
-  func testOfficeRoutesUseAuthoredLanesAndReserveSharedDestinations() {
-    let planner = OfficeRoutePlanner()
-    let origin = OfficePoint(x: 0.56, y: 0.72)
-    let route = planner.route(from: origin, to: .writerDesk)
-    let firstSeat = planner.destination(for: .reviewTable, occupancySlot: 0)
-    let secondSeat = planner.destination(for: .reviewTable, occupancySlot: 1)
-
-    XCTAssertGreaterThan(route.count, 3)
-    XCTAssertEqual(route.first, origin)
-    XCTAssertEqual(route.last, planner.destination(for: .writerDesk))
-    XCTAssertNotEqual(firstSeat, secondSeat)
-    XCTAssertGreaterThan(firstSeat.distance(to: secondSeat), 0.03)
   }
 
   func testPersistenceRoundTripKeepsOrganizationAndArtifactsInspectable() async throws {
@@ -200,6 +152,106 @@ final class WorkdayEngineTests: XCTestCase {
       FileManager.default.fileExists(
         atPath: root.appendingPathComponent("employees/maya/ARTIFACTS.md").path))
   }
+
+  func testDeliveredWorkIsProjectedIntoTheOwnerReadableHistories() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = LocalOrganizationStore(rootURL: root)
+    var organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
+
+    let assignmentID = try organization.createResearchAssignment(
+      outcome: "Map the decisions a founder makes during first use",
+      context: "",
+      now: Date(timeIntervalSince1970: 200)
+    )
+    let brief = Artifact(
+      id: "brief-artifact",
+      title: "Nia's brief",
+      kind: .research,
+      relativePath: "employees/nia/brief.md",
+      authorID: "nia",
+      taskID: assignmentID,
+      createdAt: Date(timeIntervalSince1970: 300),
+      evidenceBasis: "synthetic-demo"
+    )
+    organization.artifacts.append(brief)
+    XCTAssertTrue(
+      organization.updateResearchAssignment(assignmentID, now: Date(timeIntervalSince1970: 300)) {
+        value in
+        value.status = .delivered
+        value.evidenceBasis = "synthetic-demo"
+        value.briefArtifactID = brief.id
+      })
+
+    let occurrenceID = try organization.beginDutyOccurrence(
+      dutyID: EmployeeDuty.customerVoiceWeeklyID,
+      now: Date(timeIntervalSince1970: 400)
+    )
+    let dutyBrief = Artifact(
+      id: "duty-brief-artifact",
+      title: "Iris's brief",
+      kind: .analysis,
+      relativePath: "employees/iris/brief.md",
+      authorID: "iris",
+      taskID: occurrenceID,
+      createdAt: Date(timeIntervalSince1970: 500),
+      evidenceBasis: "local-feedback-analysis"
+    )
+    organization.artifacts.append(dutyBrief)
+    XCTAssertTrue(
+      organization.updateDutyOccurrence(occurrenceID, now: Date(timeIntervalSince1970: 500)) {
+        value in
+        value.status = .delivered
+        value.evidenceBasis = "local-feedback-analysis"
+        value.briefArtifactID = dutyBrief.id
+        value.includedInputs = [
+          DutyInputReference(label: "F1", fileName: "founder-note.md", byteCount: 12)
+        ]
+      })
+
+    try await store.save(organization)
+
+    let assignments = try String(
+      contentsOf: root.appendingPathComponent("RESEARCH_ASSIGNMENTS.md"), encoding: .utf8)
+    XCTAssertTrue(assignments.contains("Map the decisions a founder makes during first use"))
+    XCTAssertTrue(assignments.contains("synthetic-demo"))
+    XCTAssertTrue(assignments.contains("[Open Nia's brief](employees/nia/brief.md)"))
+
+    let duties = try String(contentsOf: root.appendingPathComponent("DUTIES.md"), encoding: .utf8)
+    XCTAssertTrue(duties.contains("Customer Voice Weekly"))
+    XCTAssertTrue(duties.contains("[Open Iris's brief](employees/iris/brief.md)"))
+    XCTAssertTrue(duties.contains("1 included · 0 excluded"))
+  }
+
+  func testEmployeeHomesStayInsideSelectedOrganization() async throws {
+    let firstRoot = temporaryDirectory()
+    let secondRoot = temporaryDirectory()
+    defer {
+      try? FileManager.default.removeItem(at: firstRoot)
+      try? FileManager.default.removeItem(at: secondRoot)
+    }
+    let firstStore = LocalOrganizationStore(rootURL: firstRoot)
+    let secondStore = LocalOrganizationStore(rootURL: secondRoot)
+    var first = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
+    first.name = "First Company"
+    var second = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
+    second.name = "Second Company"
+
+    try await firstStore.save(first)
+    try await secondStore.save(second)
+
+    let firstIdentity = try String(
+      contentsOf: firstRoot.appendingPathComponent("employees/maya/IDENTITY.md"), encoding: .utf8)
+    let secondIdentity = try String(
+      contentsOf: secondRoot.appendingPathComponent("employees/maya/IDENTITY.md"), encoding: .utf8)
+    XCTAssertEqual(firstIdentity, secondIdentity)
+    XCTAssertNotEqual(firstStore.rootURL, secondStore.rootURL)
+    XCTAssertFalse(
+      FileManager.default.fileExists(
+        atPath: firstRoot.appendingPathComponent("employees/unknown").path))
+  }
+
+  // MARK: - What migration adds to an older organization file
 
   func testMigrationAddsOwnerAssistantAndKnowledgeWithoutLosingWork() {
     var legacy = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
@@ -298,6 +350,8 @@ final class WorkdayEngineTests: XCTestCase {
     XCTAssertTrue(company.contains("## Current mission"))
     XCTAssertTrue(company.contains("**Mira** · AI"))
   }
+
+  // MARK: - What the owner can teach a named employee
 
   func testOwnerCanTeachPersistAndAssignSkillWithoutDuplicates() async throws {
     let root = temporaryDirectory()
@@ -400,44 +454,13 @@ final class WorkdayEngineTests: XCTestCase {
     XCTAssertFalse(niaPrompt.contains("Quote discipline"))
   }
 
-  func testEmployeeHomesStayInsideSelectedOrganization() async throws {
-    let firstRoot = temporaryDirectory()
-    let secondRoot = temporaryDirectory()
-    defer {
-      try? FileManager.default.removeItem(at: firstRoot)
-      try? FileManager.default.removeItem(at: secondRoot)
-    }
-    let firstStore = LocalOrganizationStore(rootURL: firstRoot)
-    let secondStore = LocalOrganizationStore(rootURL: secondRoot)
-    var first = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
-    first.name = "First Company"
-    var second = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
-    second.name = "Second Company"
+  // MARK: - What the assistant leaves on the owner's desk
 
-    try await firstStore.save(first)
-    try await secondStore.save(second)
-
-    let firstIdentity = try String(
-      contentsOf: firstRoot.appendingPathComponent("employees/maya/IDENTITY.md"), encoding: .utf8)
-    let secondIdentity = try String(
-      contentsOf: secondRoot.appendingPathComponent("employees/maya/IDENTITY.md"), encoding: .utf8)
-    XCTAssertEqual(firstIdentity, secondIdentity)
-    XCTAssertNotEqual(firstStore.rootURL, secondStore.rootURL)
-    XCTAssertFalse(
-      FileManager.default.fileExists(
-        atPath: firstRoot.appendingPathComponent("employees/unknown").path))
-  }
-
-  func testAssistantBriefIsGroundedAndInterruptedHandoffIsDeduplicated() {
+  func testInterruptedHandoffIsRecordedOnceForTheDay() {
     var organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
-    let brief = ExecutiveAssistant.morningBrief(for: organization)
-
-    XCTAssertEqual(brief?.assistantID, "mira")
-    XCTAssertTrue(brief?.summary.contains("No work is being claimed as complete") == true)
-    XCTAssertTrue(brief?.decisions.contains(where: { $0.contains("product") }) == true)
-
     organization.dayNumber = 1
     organization.workdayStatus = .active
+
     ExecutiveAssistant.appendInterruptedHandoff(
       to: &organization, now: Date(timeIntervalSince1970: 200))
     ExecutiveAssistant.appendInterruptedHandoff(
@@ -445,7 +468,11 @@ final class WorkdayEngineTests: XCTestCase {
 
     XCTAssertEqual(organization.knowledge?.assistantHandoffs.count, 1)
     XCTAssertEqual(organization.knowledge?.assistantHandoffs.first?.assistantID, "mira")
+    XCTAssertEqual(organization.knowledge?.assistantHandoffs.first?.kind, .interruptedDay)
+    XCTAssertEqual(organization.activity.last?.actorID, "mira")
   }
+
+  // MARK: - What the runner is allowed to reach
 
   func testCodexWebSearchFlagRequiresResearchGrant() {
     let organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
@@ -473,210 +500,25 @@ final class WorkdayEngineTests: XCTestCase {
     XCTAssertFalse(CodexEmployeeRunner.commandArguments(for: request).contains("--search"))
   }
 
-  func testGrantedResearchRecordsCapabilitySuccessAndEvidence() async {
-    let root = temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: root) }
-    let store = LocalOrganizationStore(rootURL: root)
-    var organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
-    organization.executionMode = .localCodex
-    organization.workdayStatus = .active
-    organization.employees[organization.employees.firstIndex { $0.id == "nia" }!].capabilityGrants =
-      ["web-research"]
+  // MARK: - Where employees stand in the office
 
-    let result = await WorkdayEngine().advance(
-      organization,
-      runner: ResearchedOutputRunner(),
-      store: store,
-      now: Date(timeIntervalSince1970: 200),
-      // Real research needs a real runtime, so this scenario has to say Codex
-      // is installed. Without that the engine blocks instead of rehearsing.
-      runtimeHealth: .localAgents(codex: .available)
-    )
+  func testOfficeRoutesUseAuthoredLanesAndReserveSharedDestinations() {
+    let planner = OfficeRoutePlanner()
+    let origin = OfficePoint(x: 0.56, y: 0.72)
+    let route = planner.route(from: origin, to: .writerDesk)
+    let firstSeat = planner.destination(for: .reviewTable, occupancySlot: 0)
+    let secondSeat = planner.destination(for: .reviewTable, occupancySlot: 1)
 
-    XCTAssertEqual(result.knowledge?.capabilityEvents.map(\.kind), [.started, .succeeded])
-    XCTAssertEqual(result.artifacts.first?.evidenceBasis, "permitted-web-research")
-    XCTAssertEqual(
-      result.knowledge?.memoryEntries.first?.sourceArtifactID, result.artifacts.first?.id)
-  }
-
-  func testUnavailableAndFailedResearchBecomeAttributedBlockers() async {
-    for (runner, expectedKind) in [
-      (
-        AnyEmployeeRunner { _ in throw CodexRunnerError.unavailable },
-        CapabilityEventKind.unavailable
-      ),
-      (AnyEmployeeRunner { _ in throw TestFailure() }, CapabilityEventKind.failed),
-    ] {
-      let root = temporaryDirectory()
-      defer { try? FileManager.default.removeItem(at: root) }
-      let store = LocalOrganizationStore(rootURL: root)
-      var organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
-      organization.executionMode = .localCodex
-      organization.workdayStatus = .active
-      organization.employees[organization.employees.firstIndex { $0.id == "nia" }!]
-        .capabilityGrants = ["web-research"]
-
-      let result = await WorkdayEngine().advance(
-        organization,
-        runner: runner,
-        store: store,
-        now: Date(timeIntervalSince1970: 200),
-        runtimeHealth: .localAgents(codex: .available)
-      )
-
-      XCTAssertEqual(result.knowledge?.capabilityEvents.map(\.kind), [.started, expectedKind])
-      XCTAssertEqual(result.task("research-audience")?.status, .blocked)
-      XCTAssertEqual(result.blockers.count, 1)
-      XCTAssertTrue(result.artifacts.isEmpty)
-    }
-  }
-
-  func testDeterministicTeamCompletesResearchDraftReviewRevisionAndReport() async {
-    let root = temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: root) }
-    let store = LocalOrganizationStore(rootURL: root)
-    let engine = WorkdayEngine()
-    var organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
-    organization.workdayStatus = .active
-
-    for step in 0..<10 where organization.workdayStatus == .active {
-      organization = await engine.advance(
-        organization,
-        runner: DeterministicEmployeeRunner(),
-        store: store,
-        now: Date(timeIntervalSince1970: TimeInterval(200 + step))
-      )
-    }
-
-    XCTAssertEqual(organization.workdayStatus, .complete)
-    XCTAssertTrue(organization.tasks.allSatisfy { $0.status == .done })
-    XCTAssertEqual(organization.goals.first?.progress, 1)
-    XCTAssertEqual(organization.task("draft-first-article")?.revisionCount, 1)
-    XCTAssertEqual(organization.artifacts.filter { $0.kind == .draft }.count, 2)
-    XCTAssertEqual(organization.artifacts.filter { $0.kind == .review }.count, 2)
-    XCTAssertEqual(organization.artifacts.filter { $0.kind == .report }.count, 1)
-    XCTAssertTrue(organization.blockers.isEmpty)
-    XCTAssertTrue(organization.employees.allSatisfy { $0.status == .resting })
-
-    let knownActors = Set(organization.employees.map(\.id) + ["owner"])
-    XCTAssertTrue(organization.activity.allSatisfy { knownActors.contains($0.actorID) })
-  }
-
-  func testThirdRevisionRequestStopsAsOwnerBlocker() async {
-    let root = temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: root) }
-    let store = LocalOrganizationStore(rootURL: root)
-    let engine = WorkdayEngine()
-    var organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
-    organization.workdayStatus = .active
-
-    for step in 0..<12 where organization.blockers.isEmpty {
-      organization = await engine.advance(
-        organization,
-        runner: AlwaysReviseRunner(),
-        store: store,
-        now: Date(timeIntervalSince1970: TimeInterval(300 + step))
-      )
-    }
-
-    let draft = organization.task("draft-first-article")
-    XCTAssertEqual(draft?.revisionCount, 2)
-    XCTAssertEqual(draft?.status, .blocked)
-    XCTAssertEqual(organization.blockers.count, 1)
-    XCTAssertTrue(organization.blockers[0].detail.contains("2-revision limit"))
-    XCTAssertEqual(organization.blockers[0].employeeID, "maya")
-  }
-
-  func testRestingOrganizationDoesNotAdvanceWork() async {
-    let root = temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: root) }
-    let store = LocalOrganizationStore(rootURL: root)
-    let original = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
-
-    let unchanged = await WorkdayEngine().advance(
-      original,
-      runner: DeterministicEmployeeRunner(),
-      store: store,
-      now: Date(timeIntervalSince1970: 200)
-    )
-
-    XCTAssertEqual(unchanged, original)
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: root.appendingPathComponent("organization.json").path))
-  }
-
-  func testCancelledEmployeeWorkDoesNotCreateAFalseBlocker() async {
-    let root = temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: root) }
-    let store = LocalOrganizationStore(rootURL: root)
-    var organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
-    organization.workdayStatus = .active
-
-    let result = await WorkdayEngine().advance(
-      organization,
-      runner: CancelledRunner(),
-      store: store,
-      now: Date(timeIntervalSince1970: 200)
-    )
-
-    XCTAssertEqual(result, organization)
-    XCTAssertTrue(result.blockers.isEmpty)
-    XCTAssertEqual(result.task("research-audience")?.status, .ready)
-    let persisted = try? await store.loadOrCreate()
-    XCTAssertEqual(persisted?.workdayStatus, .active)
-    XCTAssertEqual(persisted?.tasks, organization.tasks)
-    XCTAssertEqual(persisted?.blockers, organization.blockers)
+    XCTAssertGreaterThan(route.count, 3)
+    XCTAssertEqual(route.first, origin)
+    XCTAssertEqual(route.last, planner.destination(for: .writerDesk))
+    XCTAssertNotEqual(firstSeat, secondSeat)
+    XCTAssertGreaterThan(firstSeat.distance(to: secondSeat), 0.03)
   }
 
   private func temporaryDirectory() -> URL {
     FileManager.default.temporaryDirectory
       .appendingPathComponent("agent-office-tests-\(UUID().uuidString)", isDirectory: true)
   }
-}
 
-private struct AlwaysReviseRunner: EmployeeRunner {
-  func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
-    if request.operation == .review {
-      return EmployeeWorkOutput(
-        title: "Review",
-        summary: "More revision requested.",
-        content: "# Revise\n\nPlease try again.",
-        verdict: .revise
-      )
-    }
-    return try await DeterministicEmployeeRunner().perform(request)
-  }
-}
-
-private struct CancelledRunner: EmployeeRunner {
-  func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
-    throw CancellationError()
-  }
-}
-
-private struct ResearchedOutputRunner: EmployeeRunner {
-  func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
-    EmployeeWorkOutput(
-      title: "Researched audience question",
-      summary: "Nia found and cited current evidence.",
-      content: "# Evidence\n\n- [Current source](https://example.com/source)",
-      evidenceBasis: "permitted-web-research"
-    )
-  }
-}
-
-private struct TestFailure: LocalizedError {
-  var errorDescription: String? { "The research provider failed." }
-}
-
-private struct AnyEmployeeRunner: EmployeeRunner {
-  let operation: @Sendable (EmployeeWorkRequest) async throws -> EmployeeWorkOutput
-
-  init(_ operation: @escaping @Sendable (EmployeeWorkRequest) async throws -> EmployeeWorkOutput) {
-    self.operation = operation
-  }
-
-  func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
-    try await operation(request)
-  }
 }

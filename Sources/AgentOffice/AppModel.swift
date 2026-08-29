@@ -138,15 +138,15 @@ final class AppModel: ObservableObject {
   }
 
   var customerVoiceDuty: EmployeeDuty? {
-    organization.employeeDuty(CustomerVoiceDutyEngine.dutyID)
+    organization.employeeDuty(EmployeeDuty.customerVoiceWeeklyID)
   }
 
   var customerVoiceOccurrence: DutyOccurrence? {
-    organization.latestOccurrence(for: CustomerVoiceDutyEngine.dutyID)
+    organization.latestOccurrence(for: EmployeeDuty.customerVoiceWeeklyID)
   }
 
   var isCustomerVoiceRunning: Bool {
-    organization.activeOccurrence(for: CustomerVoiceDutyEngine.dutyID)?.status == .running
+    organization.activeOccurrence(for: EmployeeDuty.customerVoiceWeeklyID)?.status == .running
   }
 
   var isEmployeeRunActive: Bool { workTask != nil || !runningEmployeeIDs.isEmpty }
@@ -618,7 +618,7 @@ final class AppModel: ObservableObject {
 
     do {
       let occurrenceID = try organization.beginDutyOccurrence(
-        dutyID: CustomerVoiceDutyEngine.dutyID
+        dutyID: EmployeeDuty.customerVoiceWeeklyID
       )
       lastError = nil
       persistSoon()
@@ -631,7 +631,8 @@ final class AppModel: ObservableObject {
   }
 
   func stopCustomerVoiceDuty() {
-    guard let occurrence = organization.activeOccurrence(for: CustomerVoiceDutyEngine.dutyID) else {
+    guard let occurrence = organization.activeOccurrence(for: EmployeeDuty.customerVoiceWeeklyID)
+    else {
       return
     }
     if let outcomeID = occurrence.canonicalOutcomeID {

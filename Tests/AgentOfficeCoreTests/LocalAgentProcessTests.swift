@@ -151,23 +151,6 @@ final class LocalAgentProcessRunnerTests: XCTestCase {
     XCTAssertEqual(output.content, "one sentence")
   }
 
-  func testAReviewVerdictIsReadFromTheRuntimeOutput() throws {
-    func verdict(_ text: String) throws -> ReviewVerdict? {
-      try LocalAgentWorkOutput.make(
-        from: text, request: request(operation: .review), runtimeLabel: "Claude Code",
-        invalidPlan: ClaudeCodeRunnerError.invalidPlan
-      ).verdict
-    }
-
-    XCTAssertEqual(try verdict("APPROVE — this is ready."), .approve)
-    XCTAssertEqual(try verdict("Needs another pass."), .revise)
-    XCTAssertNil(
-      try LocalAgentWorkOutput.make(
-        from: "prose", request: request(operation: .draft), runtimeLabel: "Claude Code",
-        invalidPlan: ClaudeCodeRunnerError.invalidPlan
-      ).verdict)
-  }
-
   func testErrorDescriptionsNameTheRuntimeThatFailed() {
     for error: ClaudeCodeRunnerError in [
       .unavailable, .failed(2, "detail"), .emptyOutput, .invalidPlan,
