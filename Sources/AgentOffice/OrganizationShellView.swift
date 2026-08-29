@@ -251,57 +251,66 @@ struct OrganizationShellView: View {
   @ViewBuilder
   private func workControl(compact: Bool) -> some View {
     if model.organization.workdayStatus == .complete {
-      VStack(alignment: compact ? .center : .leading, spacing: 5) {
+      workCompleteSummary(compact: compact)
+    } else {
+      workdayToggleButton(compact: compact)
+    }
+  }
+
+  private var workdayToggleTitle: String {
+    model.organization.workdayStatus == .active ? "End Day" : "Start Day"
+  }
+
+  private var isWorkdayToggleDisabled: Bool {
+    hasUnsavedChanges || (model.isEmployeeRunActive && model.organization.workdayStatus != .active)
+  }
+
+  private func workCompleteSummary(compact: Bool) -> some View {
+    VStack(alignment: compact ? .center : .leading, spacing: 5) {
+      Image(
+        systemName: model.canCreateEmployeeOutcome
+          ? "person.crop.circle.badge.plus" : "checkmark.circle"
+      )
+      .font(.title3)
+      Text(model.canCreateEmployeeOutcome ? "Office ready" : "Work complete")
+        .font(compact ? .caption2 : .callout)
+        .multilineTextAlignment(compact ? .center : .leading)
+    }
+    .foregroundStyle(EditorialOfficeTheme.sidebarMuted)
+    .frame(maxWidth: .infinity, minHeight: 58, alignment: compact ? .center : .leading)
+    .padding(.horizontal, compact ? 8 : 21)
+    .help(
+      model.canCreateEmployeeOutcome
+        ? "The first mission is complete. Choose an employee in the Office for the next outcome."
+        : "The bounded workflow is complete. Review Mission or delivered work.")
+  }
+
+  private func workdayToggleButton(compact: Bool) -> some View {
+    Button(action: model.toggleDay) {
+      VStack(alignment: compact ? .center : .leading, spacing: 6) {
         Image(
-          systemName: model.canCreateEmployeeOutcome
-            ? "person.crop.circle.badge.plus" : "checkmark.circle"
+          systemName: model.organization.workdayStatus == .active
+            ? "calendar.badge.clock" : "calendar"
         )
         .font(.title3)
-        Text(model.canCreateEmployeeOutcome ? "Office ready" : "Work complete")
+        Text(workdayToggleTitle)
           .font(compact ? .caption2 : .callout)
-          .multilineTextAlignment(compact ? .center : .leading)
       }
-      .foregroundStyle(EditorialOfficeTheme.sidebarMuted)
+      .foregroundStyle(EditorialOfficeTheme.onInk)
       .frame(maxWidth: .infinity, minHeight: 58, alignment: compact ? .center : .leading)
       .padding(.horizontal, compact ? 8 : 21)
-      .help(
-        model.canCreateEmployeeOutcome
-          ? "The first mission is complete. Choose an employee in the Office for the next outcome."
-          : "The bounded workflow is complete. Review Mission or delivered work.")
-    } else {
-      Button(action: model.toggleDay) {
-        VStack(alignment: compact ? .center : .leading, spacing: 6) {
-          Image(
-            systemName: model.organization.workdayStatus == .active
-              ? "calendar.badge.clock" : "calendar"
-          )
-          .font(.title3)
-          Text(model.organization.workdayStatus == .active ? "End Day" : "Start Day")
-            .font(compact ? .caption2 : .callout)
-        }
-        .foregroundStyle(EditorialOfficeTheme.onInk)
-        .frame(maxWidth: .infinity, minHeight: 58, alignment: compact ? .center : .leading)
-        .padding(.horizontal, compact ? 8 : 21)
-        .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .disabled(
-        hasUnsavedChanges
-          || (model.isEmployeeRunActive && model.organization.workdayStatus != .active)
-      )
-      .help(
-        hasUnsavedChanges
-          ? "Save the current edits before starting work."
-          : (model.organization.workdayStatus == .active ? "End Day" : "Start Day")
-      )
-      .accessibilityLabel(model.organization.workdayStatus == .active ? "End Day" : "Start Day")
-      .accessibilityHint(
-        hasUnsavedChanges
-          ? "Save the current edits before changing the workday."
-          : "Updates the shared workday state."
-      )
-      .keyboardShortcut(.return, modifiers: [.command])
+      .contentShape(Rectangle())
     }
+    .buttonStyle(.plain)
+    .disabled(isWorkdayToggleDisabled)
+    .help(hasUnsavedChanges ? "Save the current edits before starting work." : workdayToggleTitle)
+    .accessibilityLabel(workdayToggleTitle)
+    .accessibilityHint(
+      hasUnsavedChanges
+        ? "Save the current edits before changing the workday."
+        : "Updates the shared workday state."
+    )
+    .keyboardShortcut(.return, modifiers: [.command])
   }
 
   private func openEmployeeProfile(_ employeeID: String) {
