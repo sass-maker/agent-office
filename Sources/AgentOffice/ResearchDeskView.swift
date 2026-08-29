@@ -2,6 +2,10 @@ import AgentOfficeCore
 import SwiftUI
 
 struct ResearchAssignmentSheet: View {
+  /// Every research assignment is created for Nia, so the sheet describes her
+  /// resolved runtime.
+  static let assigneeID = "nia"
+
   @EnvironmentObject private var model: AppModel
   @Environment(\.dismiss) private var dismiss
   @State private var outcome = ""
@@ -112,9 +116,9 @@ struct ResearchAssignmentSheet: View {
           .foregroundStyle(apricot)
           .frame(width: 24)
         VStack(alignment: .leading, spacing: 3) {
-          Text(modeTitle)
+          Text(notice.title)
             .font(.callout.weight(.bold))
-          Text(modeDetail)
+          Text(notice.detail)
             .font(.caption)
             .foregroundStyle(ink.opacity(0.62))
         }
@@ -152,26 +156,26 @@ struct ResearchAssignmentSheet: View {
     outcome.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
+  /// What this assignment will actually run on, resolved for the assignee every
+  /// research assignment is created with.
+  ///
+  /// Read from the runtime policy rather than the organization-wide execution
+  /// mode, which called a contract-driven real run a rehearsal and could never
+  /// name Claude Code.
+  private var notice: RuntimeNotice {
+    model.runtimeDisposition(for: Self.assigneeID)
+      .researchNotice(
+        employeeName: model.employeeName(Self.assigneeID),
+        webResearchGranted: model.webResearchGranted
+      )
+  }
+
   private var modeIcon: String {
-    model.organization.executionMode == .demo ? "theatermasks.fill" : "globe.americas.fill"
-  }
-
-  private var modeTitle: String {
-    if model.organization.executionMode == .demo { return "Practice run — no web" }
-    return model.webResearchGranted
-      ? "Read-only web research granted" : "Nia will ask before researching"
-  }
-
-  private var modeDetail: String {
-    if model.organization.executionMode == .demo {
-      return
-        "No web research will occur. The brief will be clearly marked as a rehearsal based only on your context."
+    switch notice.standing {
+    case .blocked: "exclamationmark.triangle.fill"
+    case .rehearsal: "theatermasks.fill"
+    case .real: "globe.americas.fill"
     }
-    if model.webResearchGranted {
-      return
-        "Nia may read public web sources. She cannot publish, message people, or change external systems."
-    }
-    return "The assignment will wait on your desk until you grant read-only web research."
   }
 
   private func submit() {
@@ -287,19 +291,7 @@ struct ResearchDeskCard: View {
       }
     case .waiting:
       HStack(spacing: 8) {
-        if model.organization.executionMode == .localCodex && !model.codexAvailable {
-          actionButton("Use a practice run", icon: "theatermasks.fill") {
-            model.setExecutionMode(.demo)
-          }
-        } else if model.organization.executionMode == .localCodex && !model.webResearchGranted {
-          actionButton("Grant web research", icon: "key.fill") {
-            model.setWebResearchGranted(true)
-          }
-        } else {
-          actionButton("Try again", icon: "arrow.clockwise") {
-            model.retryResearchAssignment(assignment.id)
-          }
-        }
+        remedyButtons
         Spacer()
         Button("Stop assignment") { model.cancelResearchAssignment(assignment.id) }
           .buttonStyle(.plain)
@@ -341,6 +333,50 @@ struct ResearchDeskCard: View {
           .buttonStyle(.plain)
           .font(.caption.weight(.bold))
           .foregroundStyle(spruce)
+      }
+    }
+  }
+
+  /// The controls a waiting assignment offers its owner, best remedy first.
+  ///
+  /// Each one is an action that can actually change the resolver's answer for
+  /// this assignee. The card used to offer "Use a practice run" whenever the
+  /// organization-wide mode said Codex and Codex was missing — an
+  /// organization-wide question standing in for a refusal about one employee, so
+  /// the escape hatch appeared for assignments that were not blocked and stayed
+  /// hidden for the ones that were.
+  @ViewBuilder
+  private var remedyButtons: some View {
+    let remedies = model.runtimeDisposition(
+      for: assignment.assigneeID, commitmentID: assignment.canonicalOutcomeID
+    ).waitingRemedies(webResearchGranted: model.webResearchGranted)
+    ForEach(Array(remedies.enumerated()), id: \.offset) { _, remedy in
+      remedyButton(remedy)
+    }
+  }
+
+  @ViewBuilder
+  private func remedyButton(_ remedy: RuntimeRemedy) -> some View {
+    switch remedy {
+    case .grantWebResearch:
+      actionButton("Grant web research", icon: "key.fill") {
+        model.setWebResearchGranted(true)
+      }
+    case .recheckRuntimeInstallations(let reason):
+      actionButton("Check again", icon: "arrow.triangle.2.circlepath") {
+        model.recheckAgentInstallations()
+      }
+      .help(reason)
+    case .rehearseWholeOrganization:
+      actionButton("Move everyone to a practice run", icon: "theatermasks.fill") {
+        model.setExecutionMode(.demo)
+      }
+      .help(
+        "Rewrites every hired employee's contract to Practice mode. To change one employee, edit their contract in Company."
+      )
+    case .retry:
+      actionButton("Try again", icon: "arrow.clockwise") {
+        model.retryResearchAssignment(assignment.id)
       }
     }
   }

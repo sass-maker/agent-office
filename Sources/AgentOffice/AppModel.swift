@@ -125,6 +125,28 @@ final class AppModel: ObservableObject {
     return last.kind == .requested
   }
 
+  /// What the screens must say about the runtime one employee will actually
+  /// work on, resolved through the same policy the preflight gates use.
+  ///
+  /// Views ask this instead of reading `organization.executionMode`, so a
+  /// screen can no longer promise a rehearsal for a run the gates will treat as
+  /// real, or hide a request the gates are about to refuse without.
+  func runtimeDisposition(for employeeID: String, commitmentID: String? = nil)
+    -> RuntimeDisposition
+  {
+    organization.runtimeDisposition(
+      for: employeeID, health: runtimeHealth, commitmentID: commitmentID)
+  }
+
+  /// Whether Nia is waiting on the read-only web-research key.
+  ///
+  /// True exactly when her resolved runtime will really reach the network and
+  /// the key has not been granted — which is the condition `startDay` refuses
+  /// on, so the owner is now offered the grant in precisely those cases.
+  var webResearchGrantNeeded: Bool {
+    runtimeDisposition(for: "nia").needsWebResearchGrant(granted: webResearchGranted)
+  }
+
   var latestResearchAssignment: ResearchAssignment? {
     organization.latestResearchAssignment
   }
