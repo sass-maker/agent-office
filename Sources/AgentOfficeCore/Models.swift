@@ -990,6 +990,35 @@ public struct OrganizationState: Codable, Sendable, Equatable {
     employee(employeeID)?.capabilityGrants.contains(capability) == true
   }
 
+  /// Records one step in the life of a capability an employee is exercising.
+  ///
+  /// `capabilityEvents` is the attribution surface: a run receipt records that
+  /// authority was used, never the lifecycle of the use. The actor is the
+  /// employee, because these are the events work raises about itself; the
+  /// owner's own `.requested`, `.granted` and `.revoked` events are written
+  /// where the owner decides.
+  public mutating func appendCapabilityEvent(
+    _ kind: CapabilityEventKind,
+    capability: String,
+    employeeID: String,
+    taskID: String?,
+    detail: String,
+    now: Date
+  ) {
+    if knowledge == nil { knowledge = OrganizationKnowledge(productBrief: "") }
+    knowledge?.capabilityEvents.append(
+      CapabilityEvent(
+        id: UUID().uuidString,
+        capability: capability,
+        employeeID: employeeID,
+        taskID: taskID,
+        actorID: employeeID,
+        kind: kind,
+        detail: detail,
+        createdAt: now
+      ))
+  }
+
   public var researchAssignments: [ResearchAssignment] {
     knowledge?.researchAssignments ?? []
   }

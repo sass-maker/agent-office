@@ -24,6 +24,41 @@ public struct EmployeeOutcomeRunRequest: Sendable {
   }
 }
 
+/// What a run read out of the local feedback inbox, addressed to the duty
+/// occurrence that asked for it.
+///
+/// Carried on the run result because the occurrence lives outside everything
+/// else the result covers, and coverage the engine measured but the command
+/// boundary dropped would leave the duty history reporting nothing was read.
+public struct DutyInputCapture: Codable, Sendable, Equatable {
+  public var occurrenceID: String
+  public var includedInputs: [DutyInputReference]
+  public var excludedInputs: [DutyInputExclusion]
+
+  public init(
+    occurrenceID: String,
+    includedInputs: [DutyInputReference],
+    excludedInputs: [DutyInputExclusion]
+  ) {
+    self.occurrenceID = occurrenceID
+    self.includedInputs = includedInputs
+    self.excludedInputs = excludedInputs
+  }
+
+  /// The capture a commitment's own duty occurrence holds, if a duty owns it.
+  init?(for outcome: EmployeeOutcome, in state: OrganizationState) {
+    guard outcome.effectiveSource == .recurringResponsibility,
+      let occurrenceID = outcome.sourceID,
+      let occurrence = state.dutyOccurrence(occurrenceID)
+    else { return nil }
+    self.init(
+      occurrenceID: occurrenceID,
+      includedInputs: occurrence.includedInputs,
+      excludedInputs: occurrence.excludedInputs
+    )
+  }
+}
+
 public struct EmployeeOutcomeRunResult: Codable, Sendable, Equatable {
   public var outcomeID: String
   public var employeeID: String
@@ -37,6 +72,12 @@ public struct EmployeeOutcomeRunResult: Codable, Sendable, Equatable {
   public var activity: [Activity]
   public var memoryEntries: [EmployeeMemoryEntry]
   public var employee: Employee
+  /// Capability lifecycle events the run raised about itself. Optional so that
+  /// history written before runs recorded them still decodes.
+  public var capabilityEvents: [CapabilityEvent]?
+  /// The local feedback inbox coverage the run measured, when a recurring duty
+  /// owns the commitment. Optional for the same reason.
+  public var dutyInputs: DutyInputCapture?
 
   public init(
     request: EmployeeOutcomeRunRequest, initial: OrganizationState, result: OrganizationState
@@ -46,6 +87,7 @@ public struct EmployeeOutcomeRunResult: Codable, Sendable, Equatable {
     else { throw EmployeeOutcomeError.missingEmployee }
     let initialActivityIDs = Set(initial.activity.map(\.id))
     let initialMemoryIDs = Set(initial.knowledge?.memoryEntries.map(\.id) ?? [])
+    let initialCapabilityIDs = Set(initial.knowledge?.capabilityEvents.map(\.id) ?? [])
     self.outcomeID = request.outcomeID
     self.employeeID = request.employeeID
     self.contractRevision = request.contractRevision
@@ -59,6 +101,9 @@ public struct EmployeeOutcomeRunResult: Codable, Sendable, Equatable {
     self.memoryEntries =
       result.knowledge?.memoryEntries.filter { !initialMemoryIDs.contains($0.id) } ?? []
     self.employee = employee
+    self.capabilityEvents =
+      result.knowledge?.capabilityEvents.filter { !initialCapabilityIDs.contains($0.id) } ?? []
+    self.dutyInputs = DutyInputCapture(for: outcome, in: result)
   }
 }
 
@@ -124,6 +169,24 @@ extension OrganizationState {
     if let employeeIndex = employees.firstIndex(where: { $0.id == result.employeeID }) {
       employees[employeeIndex].status = result.employee.status
       employees[employeeIndex].currentTaskID = result.employee.currentTaskID
+    }
+    applyRunAttribution(result)
+  }
+
+  /// Applies what the run recorded about itself rather than about its tickets:
+  /// which capabilities it exercised, and which local inputs it read.
+  ///
+  /// Kept separate from the ticket, artifact and blocker application above
+  /// because these are claims about the run, and a run that is refused for a
+  /// stale revision must not leave them behind.
+  private mutating func applyRunAttribution(_ result: EmployeeOutcomeRunResult) {
+    let recordedIDs = Set(knowledge?.capabilityEvents.map(\.id) ?? [])
+    knowledge?.capabilityEvents.append(
+      contentsOf: (result.capabilityEvents ?? []).filter { !recordedIDs.contains($0.id) })
+    guard let inputs = result.dutyInputs else { return }
+    _ = updateDutyOccurrence(inputs.occurrenceID) { occurrence in
+      occurrence.includedInputs = inputs.includedInputs
+      occurrence.excludedInputs = inputs.excludedInputs
     }
   }
 }

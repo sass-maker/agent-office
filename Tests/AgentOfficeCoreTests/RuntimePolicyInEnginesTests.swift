@@ -313,21 +313,22 @@ final class RuntimePolicyInEnginesTests: XCTestCase {
   func testWebResearchIsRealOnlyWhenTheResolvedRuntimeIsReal() async throws {
     let root = temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
-    var rehearsal = try workdayOrganization(provider: .demo, grantResearch: true)
+    var (rehearsal, commitmentID) = try researchCommitment(provider: .demo)
 
-    rehearsal = await WorkdayEngine().advance(
+    rehearsal = await EmployeeOutcomeEngine().run(
       rehearsal,
+      outcomeID: commitmentID,
       runner: DeterministicEmployeeRunner(),
       store: LocalOrganizationStore(rootURL: root),
       now: epoch,
       runtimeHealth: .localAgents(codex: .available)
     )
 
-    XCTAssertEqual(rehearsal.task("research-audience")?.status, .done)
+    XCTAssertEqual(researchTicket(of: commitmentID, in: rehearsal)?.status, .done)
     XCTAssertEqual(
       rehearsal.knowledge?.capabilityEvents.isEmpty, true,
       "A rehearsal reaches no network, so it may not record web research.")
-    XCTAssertNotEqual(rehearsal.artifacts.first?.evidenceBasis, "permitted-web-research")
+    XCTAssertFalse(rehearsal.artifacts.contains { $0.evidenceBasis == "permitted-web-research" })
   }
 
   /// The organization-wide execution mode says Practice here, and the employee's
@@ -337,11 +338,12 @@ final class RuntimePolicyInEnginesTests: XCTestCase {
   func testTheContractNotTheOrganizationModeDecidesWhetherResearchIsReal() async throws {
     let root = temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
-    var state = try workdayOrganization(provider: .localCodex, grantResearch: true)
+    var (state, commitmentID) = try researchCommitment(provider: .localCodex)
     XCTAssertEqual(state.executionMode, .demo, "The fixture must disagree with the contract.")
 
-    state = await WorkdayEngine().advance(
+    state = await EmployeeOutcomeEngine().run(
       state,
+      outcomeID: commitmentID,
       runner: ResearchingRunner(),
       store: LocalOrganizationStore(rootURL: root),
       now: epoch,
@@ -351,7 +353,9 @@ final class RuntimePolicyInEnginesTests: XCTestCase {
     XCTAssertEqual(
       state.knowledge?.capabilityEvents.map(\.kind), [.started, .succeeded],
       "A real runtime doing granted research must be recorded as having used it.")
-    XCTAssertEqual(state.artifacts.first?.evidenceBasis, "permitted-web-research")
+    let brief = try XCTUnwrap(state.artifacts.first { $0.kind == .research })
+    XCTAssertEqual(brief.evidenceBasis, "permitted-web-research")
+    XCTAssertEqual(researchTicket(of: commitmentID, in: state)?.status, .done)
   }
 
   func testAnExplicitRehearsalIsStillAllowed() async throws {
@@ -426,6 +430,47 @@ final class RuntimePolicyInEnginesTests: XCTestCase {
     return (state, commitmentID)
   }
 
+  /// A commitment owned by the researcher, whose plan contains a research
+  /// ticket, with the read-only web-research grant already in the contract.
+  ///
+  /// Whether that research is real is then left entirely to `provider`, which
+  /// is the question these two tests ask.
+  private func researchCommitment(
+    provider: EmployeeExecutionProvider
+  ) throws -> (state: OrganizationState, commitmentID: String) {
+    var state = LocalOrganizationStore.migrated(.seeded(now: epoch), now: epoch)
+    for index in state.employees.indices where state.employees[index].kind == .ai {
+      state.employees[index].employmentState = .hired
+    }
+    try state.updateWorkingContract(
+      employeeID: "nia",
+      role: state.employee("nia")?.role ?? "Researcher",
+      responsibility: state.employee("nia")?.responsibility ?? "Research",
+      managerID: nil,
+      assignedSkillIDs: state.assignedSkills(employeeID: "nia").map(\.id),
+      declaredConnectionIDs: [],
+      capabilityGrants: ["web-research"],
+      executionProvider: provider,
+      modelName: nil,
+      boundaries: AutonomyBoundaries(),
+      reviewPolicy: .automaticForLocalWork,
+      actorID: "owner",
+      reason: "runtime policy fixture"
+    )
+    let commitmentID = try state.createEmployeeOutcome(
+      employeeID: "nia", outcome: "Find current onboarding evidence", context: "", now: epoch)
+    state = EmployeeOutcomeEngine().start(state, outcomeID: commitmentID, now: epoch)
+    return (state, commitmentID)
+  }
+
+  private func researchTicket(
+    of commitmentID: String, in state: OrganizationState
+  ) -> WorkTask? {
+    state.employeeOutcome(commitmentID)?.taskIDs
+      .compactMap(state.task)
+      .first { $0.kind == .research }
+  }
+
   /// An active workday whose first ready ticket is Nia's research.
   private func workdayOrganization(
     provider: EmployeeExecutionProvider, grantResearch: Bool = false
@@ -494,14 +539,33 @@ final class RuntimePolicyInEnginesTests: XCTestCase {
 ///
 /// Failing inside `perform` is the point: it turns "the engine ran something
 /// after resolution refused" into a test failure rather than a silent pass.
-/// Returns research that claims permitted web evidence, so the engine's own
-/// decision about whether the run was real is what the assertions read.
+/// Returns a verifiable research brief that claims permitted web evidence, so
+/// the engine's own decision about whether the run was real is what the
+/// assertions read. Everything that is not research is left to the
+/// deterministic runner, including the plan that creates the research ticket.
 private struct ResearchingRunner: EmployeeRunner {
   func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
-    EmployeeWorkOutput(
+    guard request.operation == .research else {
+      return try await DeterministicEmployeeRunner().perform(request)
+    }
+    return EmployeeWorkOutput(
       title: "Audience research",
       summary: "Found three primary sources.",
-      content: "# Audience\n\nThree sources.",
+      content: """
+        # Audience
+
+        ## Findings
+        Three primary sources describe the same onboarding failure.
+
+        ## Sources
+        - https://example.com/onboarding-report
+
+        ## Uncertainty
+        The sample covers one quarter only.
+
+        ## Recommended next actions
+        Interview five recent signups.
+        """,
       evidenceBasis: request.canUseWebResearch ? "permitted-web-research" : "local-reasoning"
     )
   }

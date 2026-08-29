@@ -3,6 +3,8 @@ import XCTest
 @testable import AgentOfficeCore
 
 final class EmployeeOutcomeEngineTests: XCTestCase {
+  private let epoch = Date(timeIntervalSince1970: 1_000)
+
   func testOutcomeValidationAndIndependentEmployeeQueues() throws {
     var organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
 
@@ -192,9 +194,289 @@ final class EmployeeOutcomeEngineTests: XCTestCase {
     XCTAssertEqual(organization.employeeOutcome(outcomeID)?.taskIDs, ["\(outcomeID)-task-1"])
   }
 
+  // MARK: - What a recurring duty actually read
+
+  func testADutyCommitmentReadsTheLocalInboxAndRecordsItsCoverage() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = LocalOrganizationStore(rootURL: root)
+    try await seedFeedbackInbox(store)
+    let (organization, occurrenceID, outcomeID) = try dutyCommitment()
+    let recorder = ContextRecorder()
+
+    let result = await EmployeeOutcomeEngine().run(
+      organization,
+      outcomeID: outcomeID,
+      runner: RecordingRunner(recorder: recorder),
+      store: store,
+      now: epoch
+    )
+
+    let occurrence = try XCTUnwrap(result.dutyOccurrence(occurrenceID))
+    XCTAssertEqual(occurrence.includedInputs.map(\.fileName), ["founder-note.md"])
+    XCTAssertEqual(occurrence.includedInputs.map(\.label), ["F1"])
+    XCTAssertEqual(occurrence.excludedInputs.map(\.fileName), ["screenshot.png"])
+    let contexts = await recorder.contexts
+    XCTAssertTrue(
+      contexts.contains {
+        $0.contains("<feedback_source label=\"F1\" filename=\"founder-note.md\">")
+          && $0.contains("Setup was confusing.")
+      },
+      "The captured feedback must reach the work, not only the coverage counters.")
+  }
+
+  func testACommitmentNoDutyOwnsReadsNoFeedbackInbox() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = LocalOrganizationStore(rootURL: root)
+    try await seedFeedbackInbox(store)
+    var organization = hiredOrganization()
+    try allowUnreviewedPlans(for: "theo", in: &organization)
+    let outcomeID = try organization.createEmployeeOutcome(
+      employeeID: "theo", outcome: "Draft a concise launch note", context: "", now: epoch)
+    organization = EmployeeOutcomeEngine().start(organization, outcomeID: outcomeID, now: epoch)
+    let recorder = ContextRecorder()
+
+    _ = await EmployeeOutcomeEngine().run(
+      organization,
+      outcomeID: outcomeID,
+      runner: RecordingRunner(recorder: recorder),
+      store: store,
+      now: epoch
+    )
+
+    let contexts = await recorder.contexts
+    XCTAssertFalse(
+      contexts.contains { $0.contains("<feedback_source") },
+      "Customer feedback is the duty's input, not every employee's.")
+  }
+
+  // MARK: - Research has to be verifiable
+
+  func testResearchWithoutASourceURLIsRefusedInsteadOfDelivered() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (organization, outcomeID) = try researchCommitment()
+
+    let result = await EmployeeOutcomeEngine().run(
+      organization,
+      outcomeID: outcomeID,
+      runner: UncitedResearchRunner(),
+      store: LocalOrganizationStore(rootURL: root),
+      now: epoch,
+      runtimeHealth: .localAgents(codex: .available)
+    )
+
+    let outcome = try XCTUnwrap(result.employeeOutcome(outcomeID))
+    XCTAssertEqual(outcome.status, .failed)
+    XCTAssertEqual(outcome.helpRequest?.contains("no source URL"), true)
+    XCTAssertFalse(
+      result.artifacts.contains { $0.kind == .research },
+      "Unverifiable research must not be saved as a research artifact.")
+    XCTAssertEqual(
+      result.knowledge?.capabilityEvents.map(\.kind), [.started, .failed],
+      "A refused research run still used the capability, and says so.")
+  }
+
+  func testRehearsedResearchIsNotHeldToTheSourceURLRule() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (organization, outcomeID) = try researchCommitment(provider: .demo)
+
+    let result = await EmployeeOutcomeEngine().run(
+      organization,
+      outcomeID: outcomeID,
+      runner: UncitedResearchRunner(),
+      store: LocalOrganizationStore(rootURL: root),
+      now: epoch,
+      runtimeHealth: .localAgents(codex: .available)
+    )
+
+    XCTAssertEqual(result.employeeOutcome(outcomeID)?.status, .delivered)
+    XCTAssertEqual(result.knowledge?.capabilityEvents.isEmpty, true)
+  }
+
+  // MARK: - The command boundary carries what the run recorded about itself
+
+  func testCapabilityEventsAndInputCoverageSurviveTheCommandBoundary() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = LocalOrganizationStore(rootURL: root)
+    try await seedFeedbackInbox(store)
+    let engine = EmployeeOutcomeEngine()
+
+    var (duty, occurrenceID, dutyOutcomeID) = try dutyCommitment()
+    let dutyResult = try await engine.execute(
+      EmployeeOutcomeRunRequest(organization: duty, outcomeID: dutyOutcomeID),
+      runner: DeterministicEmployeeRunner(), store: store, now: epoch)
+    try duty.apply(dutyResult)
+
+    var (research, researchOutcomeID) = try researchCommitment()
+    let researchResult = try await engine.execute(
+      EmployeeOutcomeRunRequest(organization: research, outcomeID: researchOutcomeID),
+      runner: CitedResearchRunner(), store: store, now: epoch,
+      runtimeHealth: .localAgents(codex: .available))
+    try research.apply(researchResult)
+
+    XCTAssertEqual(
+      duty.dutyOccurrence(occurrenceID)?.includedInputs.map(\.fileName), ["founder-note.md"])
+    XCTAssertEqual(
+      duty.dutyOccurrence(occurrenceID)?.excludedInputs.map(\.fileName), ["screenshot.png"])
+    XCTAssertEqual(
+      research.knowledge?.capabilityEvents.map(\.kind), [.started, .succeeded],
+      "Attribution the engine recorded must not be dropped on the way to saved state.")
+  }
+
+  // MARK: - Fixtures
+
+  /// A running Customer Voice occurrence and the canonical commitment it owns.
+  private func dutyCommitment() throws -> (
+    state: OrganizationState, occurrenceID: String, outcomeID: String
+  ) {
+    var state = hiredOrganization()
+    try allowUnreviewedPlans(for: "iris", in: &state)
+    let occurrenceID = try state.beginDutyOccurrence(
+      dutyID: CustomerVoiceDutyEngine.dutyID, now: epoch)
+    let outcomeID = try XCTUnwrap(state.dutyOccurrence(occurrenceID)?.canonicalOutcomeID)
+    state = EmployeeOutcomeEngine().start(state, outcomeID: outcomeID, now: epoch)
+    return (state, occurrenceID, outcomeID)
+  }
+
+  /// A commitment whose plan contains a research ticket, with the read-only
+  /// web-research grant already in the researcher's contract.
+  private func researchCommitment(
+    provider: EmployeeExecutionProvider = .localCodex
+  ) throws -> (state: OrganizationState, outcomeID: String) {
+    var state = hiredOrganization()
+    try allowUnreviewedPlans(
+      for: "nia", in: &state, provider: provider, grants: ["web-research"])
+    let outcomeID = try state.createEmployeeOutcome(
+      employeeID: "nia", outcome: "Find current onboarding evidence", context: "", now: epoch)
+    state = EmployeeOutcomeEngine().start(state, outcomeID: outcomeID, now: epoch)
+    return (state, outcomeID)
+  }
+
+  /// Lets an employee's plan proceed without owner review, so a test can reach
+  /// the ticket work these tests are about rather than stopping at the plan.
+  private func allowUnreviewedPlans(
+    for employeeID: String,
+    in state: inout OrganizationState,
+    provider: EmployeeExecutionProvider = .demo,
+    grants: [String] = []
+  ) throws {
+    try state.updateWorkingContract(
+      employeeID: employeeID,
+      role: state.employee(employeeID)?.role ?? "",
+      responsibility: state.employee(employeeID)?.responsibility ?? "",
+      managerID: nil,
+      assignedSkillIDs: state.assignedSkills(employeeID: employeeID).map(\.id),
+      declaredConnectionIDs: [],
+      capabilityGrants: grants,
+      executionProvider: provider,
+      modelName: nil,
+      boundaries: AutonomyBoundaries(),
+      reviewPolicy: .automaticForLocalWork,
+      actorID: "owner",
+      reason: "outcome engine fixture"
+    )
+  }
+
+  private func hiredOrganization() -> OrganizationState {
+    var state = LocalOrganizationStore.migrated(.seeded(now: epoch), now: epoch)
+    for index in state.employees.indices where state.employees[index].kind == .ai {
+      state.employees[index].employmentState = .hired
+    }
+    return state
+  }
+
+  /// One readable feedback file and one the scanner must leave out.
+  private func seedFeedbackInbox(_ store: LocalOrganizationStore) async throws {
+    let inbox = try await store.ensureFeedbackInbox()
+    try "Setup was confusing.".write(
+      to: inbox.appendingPathComponent("founder-note.md"), atomically: true, encoding: .utf8)
+    try "not text we analyze".write(
+      to: inbox.appendingPathComponent("screenshot.png"), atomically: true, encoding: .utf8)
+  }
+
   private func temporaryDirectory() -> URL {
     FileManager.default.temporaryDirectory
       .appendingPathComponent("AgentOfficeOutcomeTests-\(UUID().uuidString)", isDirectory: true)
+  }
+}
+
+/// Collects the context every request carried, so a test can assert on what the
+/// work was actually given rather than on what the engine intended to give it.
+private actor ContextRecorder {
+  private(set) var contexts: [String] = []
+
+  func record(_ context: String) {
+    contexts.append(context)
+  }
+}
+
+private struct RecordingRunner: EmployeeRunner {
+  let recorder: ContextRecorder
+
+  func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
+    await recorder.record(request.context)
+    return try await DeterministicEmployeeRunner().perform(request)
+  }
+}
+
+/// A well-formed brief that claims permitted web evidence and cites no source.
+private struct UncitedResearchRunner: EmployeeRunner {
+  func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
+    guard request.operation == .research else {
+      return try await DeterministicEmployeeRunner().perform(request)
+    }
+    return EmployeeWorkOutput(
+      title: "Audience research",
+      summary: "Restated what the team already believed.",
+      content: """
+        # Audience
+
+        ## Findings
+        Onboarding confuses new founders.
+
+        ## Sources
+        Internal conversations only.
+
+        ## Uncertainty
+        Nothing external was checked.
+
+        ## Recommended next actions
+        Interview five recent signups.
+        """,
+      evidenceBasis: "permitted-web-research"
+    )
+  }
+}
+
+private struct CitedResearchRunner: EmployeeRunner {
+  func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
+    guard request.operation == .research else {
+      return try await DeterministicEmployeeRunner().perform(request)
+    }
+    return EmployeeWorkOutput(
+      title: "Audience research",
+      summary: "Found one primary source.",
+      content: """
+        # Audience
+
+        ## Findings
+        The onboarding drop-off is documented.
+
+        ## Sources
+        - https://example.com/onboarding-report
+
+        ## Uncertainty
+        One quarter of data only.
+
+        ## Recommended next actions
+        Interview five recent signups.
+        """,
+      evidenceBasis: "permitted-web-research"
+    )
   }
 }
 
