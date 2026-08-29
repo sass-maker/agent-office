@@ -32,10 +32,13 @@ public struct EmployeeOutcomeEngine: Sendable {
     /// The runtime this commitment resolved to, decided once per run and then
     /// read everywhere instead of being re-derived from organization-wide state.
     let selection: ResolvedRuntimeSelection
-    /// The local feedback the recurring duty that owns this commitment reads,
-    /// already framed as `<feedback_source>` blocks. `nil` for every commitment
-    /// no duty owns, which is most of them.
-    let feedbackContext: String?
+    /// The local feedback the recurring duty that owns this commitment read.
+    /// `nil` for every commitment no duty owns, which is most of them.
+    ///
+    /// The whole snapshot rather than only its `<feedback_source>` blocks,
+    /// because the labels the work is handed are the same labels its brief is
+    /// later required to cite.
+    let feedback: FeedbackInputSnapshot?
   }
 
   public func start(
@@ -114,12 +117,29 @@ public struct EmployeeOutcomeEngine: Sendable {
     let feedback = await captureDutyInputs(
       outcome: outcome, store: store, state: &state, now: now)
 
+    // A feedback review with no feedback to review has nothing to say. The
+    // coverage just recorded on the occurrence is honest about that; a brief
+    // written on top of it would not be, because it would read as a reading
+    // that never happened. This waits rather than fails: nothing went wrong
+    // with the work, and the owner adds a file and resumes.
+    if let feedback, feedback.files.isEmpty {
+      return blockForOwner(
+        state,
+        outcomeID: outcomeID,
+        employeeID: employee.id,
+        reason: CustomerVoiceDutyError.emptyInbox.localizedDescription,
+        blockerID: "\(outcomeID)-feedback-inbox",
+        blockerTitle: "\(employee.name) has no feedback to review",
+        now: now
+      )
+    }
+
     let ctx = RunContext(
       runner: runner, store: store, now: now,
       persistsTransitions: options.persistsTransitions,
       authorizedCapabilities: options.authorizedCapabilities,
       selection: selection,
-      feedbackContext: feedback?.promptContext
+      feedback: feedback
     )
 
     do {
@@ -223,14 +243,14 @@ public struct EmployeeOutcomeEngine: Sendable {
     if ctx.persistsTransitions { try await ctx.store.save(state) }
 
     let request = EmployeeWorkRequest(
-      operation: operation(for: state.tasks[taskIndex].kind),
+      operation: operation(for: state.tasks[taskIndex].kind, feedback: ctx.feedback),
       employee: employee,
       task: state.tasks[taskIndex],
       organizationName: state.name,
       outcome: outcome.outcome,
       productBrief: state.productBrief,
       context: await context(
-        for: outcome, in: state, store: ctx.store, feedback: ctx.feedbackContext),
+        for: outcome, in: state, store: ctx.store, feedback: ctx.feedback?.promptContext),
       memory: state.recentMemoryContext(for: employee.id),
       skills: state.assignedSkills(employeeID: employee.id).filter {
         outcome.selectedSkillIDs.contains($0.id)
@@ -248,7 +268,6 @@ public struct EmployeeOutcomeEngine: Sendable {
     let usesWebResearch = !ctx.selection.isRehearsal && request.canUseWebResearch
     let (output, content) = try await performTicketWork(
       request,
-      kind: state.tasks[taskIndex].kind,
       usesWebResearch: usesWebResearch,
       state: &state,
       ctx: ctx
@@ -511,10 +530,33 @@ public struct EmployeeOutcomeEngine: Sendable {
     refusal: RuntimeSelectionRefusal?,
     now: Date
   ) -> OrganizationState {
+    blockForOwner(
+      input,
+      outcomeID: outcomeID,
+      employeeID: employeeID,
+      reason: refusal?.reason
+        ?? "No runtime could be selected for this employee, so nothing was run.",
+      blockerID: "\(outcomeID)-runtime",
+      blockerTitle: "\(input.employee(employeeID)?.name ?? "This employee") has no runtime",
+      now: now
+    )
+  }
+
+  /// Stops a commitment before any work is attempted, because something only
+  /// the owner can supply is missing.
+  ///
+  /// Waiting rather than failing, because nothing went wrong with the work: the
+  /// owner supplies what is missing and the commitment resumes.
+  private func blockForOwner(
+    _ input: OrganizationState,
+    outcomeID: String,
+    employeeID: String,
+    reason: String,
+    blockerID: String,
+    blockerTitle: String,
+    now: Date
+  ) -> OrganizationState {
     var state = input
-    let reason =
-      refusal?.reason
-      ?? "No runtime could be selected for this employee, so nothing was run."
     _ = state.updateEmployeeOutcome(outcomeID, now: now) { value in
       value.status = .waiting
       value.helpRequest = reason
@@ -524,7 +566,6 @@ public struct EmployeeOutcomeEngine: Sendable {
     // commitment has a ticket to attach it to. When it does not, the
     // commitment's own help request is the honest surface and inventing a
     // ticket id to hang a blocker on would be worse than not having one.
-    let blockerID = "\(outcomeID)-runtime"
     if let index = state.blockers.firstIndex(where: { $0.id == blockerID }) {
       state.blockers[index].detail = reason
       state.blockers[index].resolved = false
@@ -532,7 +573,7 @@ public struct EmployeeOutcomeEngine: Sendable {
       state.blockers.append(
         Blocker(
           id: blockerID,
-          title: "\(state.employee(employeeID)?.name ?? "This employee") has no runtime",
+          title: blockerTitle,
           detail: reason,
           employeeID: employeeID,
           taskID: taskID,
@@ -643,7 +684,6 @@ public struct EmployeeOutcomeEngine: Sendable {
   /// still attributed rather than silently dropped.
   private func performTicketWork(
     _ request: EmployeeWorkRequest,
-    kind: TaskKind,
     usesWebResearch: Bool,
     state: inout OrganizationState,
     ctx: RunContext
@@ -662,7 +702,7 @@ public struct EmployeeOutcomeEngine: Sendable {
       let output = try await ctx.runner.perform(request)
       let content = output.content.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !content.isEmpty else { throw CodexRunnerError.emptyOutput }
-      try verifyResearch(content, kind: kind, selection: ctx.selection)
+      try verifyEvidence(content, operation: request.operation, ctx: ctx)
       return (output, content)
     } catch {
       if usesWebResearch {
@@ -700,23 +740,38 @@ public struct EmployeeOutcomeEngine: Sendable {
     return snapshot
   }
 
-  /// Refuses a research ticket whose brief cannot be checked.
+  /// Refuses work whose claimed evidence cannot be checked.
   ///
   /// Real research is accepted only when it carries the required sections and
-  /// at least one reachable `http(s)` URL under its own Sources heading.
-  /// Non-empty output is not evidence of research. A rehearsal reaches no
-  /// network and claims no sources, so nothing there is verified.
-  private func verifyResearch(
+  /// at least one reachable `http(s)` URL under its own Sources heading. A real
+  /// Customer Voice brief is accepted only when it carries its own required
+  /// sections and cites at least one of the feedback labels it was handed.
+  /// Non-empty output is evidence of neither. A rehearsal reaches no network
+  /// and analyzes nothing, so nothing there is verified.
+  private func verifyEvidence(
     _ content: String,
-    kind: TaskKind,
-    selection: ResolvedRuntimeSelection
+    operation: WorkOperation,
+    ctx: RunContext
   ) throws {
-    guard kind == .research, !selection.isRehearsal else { return }
-    guard ResearchEvidenceVerifier.hasRequiredSections(content) else {
-      throw ResearchAssignmentRunError.incompleteBrief
-    }
-    guard ResearchEvidenceVerifier.containsSourceURL(content) else {
-      throw ResearchAssignmentRunError.missingSourceReference
+    guard !ctx.selection.isRehearsal else { return }
+    switch operation {
+    case .research:
+      guard ResearchEvidenceVerifier.hasRequiredSections(content) else {
+        throw ResearchAssignmentRunError.incompleteBrief
+      }
+      guard ResearchEvidenceVerifier.containsSourceURL(content) else {
+        throw ResearchAssignmentRunError.missingSourceReference
+      }
+    case .customerVoice:
+      guard CustomerVoiceEvidenceVerifier.hasRequiredSections(content) else {
+        throw CustomerVoiceDutyError.incompleteBrief
+      }
+      guard
+        CustomerVoiceEvidenceVerifier.containsValidSourceLabel(
+          content, references: ctx.feedback?.references ?? [])
+      else { throw CustomerVoiceDutyError.missingSourceLabel }
+    case .plan, .analysis, .draft, .revise, .review, .report:
+      return
     }
   }
 
@@ -743,12 +798,21 @@ public struct EmployeeOutcomeEngine: Sendable {
     return sections.joined(separator: "\n\n")
   }
 
-  private func operation(for kind: TaskKind) -> WorkOperation {
+  /// What operation a ticket runs as.
+  ///
+  /// An analysis ticket on a commitment that captured the feedback inbox is the
+  /// Customer Voice review itself: it is the only work handed
+  /// `<feedback_source>` blocks, and the only work the citation rule is about.
+  /// Naming it here is what reaches both the structured brief instruction in
+  /// the runner and the `[F1]` check, the same way #72 keyed the research brief
+  /// off the ticket's kind rather than off a spelling of its identifier.
+  private func operation(for kind: TaskKind, feedback: FeedbackInputSnapshot?) -> WorkOperation {
+    if kind == .analysis, feedback != nil { return .customerVoice }
     switch kind {
-    case .research: .research
-    case .draft: .draft
-    case .report: .report
-    case .analysis: .analysis
+    case .research: return .research
+    case .draft: return .draft
+    case .report: return .report
+    case .analysis: return .analysis
     }
   }
 

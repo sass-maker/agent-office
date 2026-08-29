@@ -327,14 +327,200 @@ final class EmployeeOutcomeEngineTests: XCTestCase {
       "Attribution the engine recorded must not be dropped on the way to saved state.")
   }
 
+  // MARK: - A feedback review with no feedback is refused
+
+  func testADutyCommitmentWithAnEmptyInboxRefusesInsteadOfBriefing() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (organization, occurrenceID, outcomeID) = try dutyCommitment()
+
+    let result = await EmployeeOutcomeEngine().run(
+      organization,
+      outcomeID: outcomeID,
+      runner: UnreachableRunner(),
+      store: LocalOrganizationStore(rootURL: root),
+      now: epoch
+    )
+
+    let outcome = try XCTUnwrap(result.employeeOutcome(outcomeID))
+    XCTAssertEqual(outcome.status, .waiting)
+    XCTAssertEqual(
+      outcome.helpRequest, CustomerVoiceDutyError.emptyInbox.localizedDescription,
+      "The refusal has to say what the owner must supply.")
+    XCTAssertTrue(
+      result.artifacts.isEmpty, "A brief about an empty inbox is a brief about nothing.")
+    XCTAssertEqual(result.dutyOccurrence(occurrenceID)?.includedInputs, [])
+    XCTAssertEqual(result.employee("iris")?.status, .blocked)
+  }
+
+  /// An inbox holding only files the scanner cannot analyze is empty for the
+  /// purpose of a feedback review, and the exclusions say why.
+  func testAFullyExcludedInboxRefusesAndSurvivesIntoSavedState() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = LocalOrganizationStore(rootURL: root)
+    let inbox = try await store.ensureFeedbackInbox()
+    try "not text we analyze".write(
+      to: inbox.appendingPathComponent("screenshot.png"), atomically: true, encoding: .utf8)
+    var (organization, occurrenceID, outcomeID) = try dutyCommitment()
+
+    let runResult = try await EmployeeOutcomeEngine().execute(
+      EmployeeOutcomeRunRequest(organization: organization, outcomeID: outcomeID),
+      runner: UnreachableRunner(), store: store, now: epoch)
+    try organization.apply(runResult)
+    organization.synchronizeLegacyAdapters(outcomeID: outcomeID, now: epoch)
+
+    XCTAssertEqual(organization.employeeOutcome(outcomeID)?.status, .waiting)
+    let occurrence = try XCTUnwrap(organization.dutyOccurrence(occurrenceID))
+    XCTAssertEqual(
+      occurrence.status, .blocked,
+      "The refusal must reach the duty surface the owner actually reads.")
+    XCTAssertEqual(
+      occurrence.blockingReason, CustomerVoiceDutyError.emptyInbox.localizedDescription)
+    XCTAssertEqual(occurrence.includedInputs, [])
+    XCTAssertEqual(occurrence.excludedInputs.map(\.fileName), ["screenshot.png"])
+  }
+
+  // MARK: - A Customer Voice brief has to cite what it reviewed
+
+  func testACustomerVoiceBriefThatCitesNothingIsRefused() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = LocalOrganizationStore(rootURL: root)
+    try await seedFeedbackInbox(store)
+    let (organization, occurrenceID, outcomeID) = try dutyCommitment(provider: .localCodex)
+
+    let result = await EmployeeOutcomeEngine().run(
+      organization,
+      outcomeID: outcomeID,
+      runner: CustomerVoiceRunner(content: Self.uncitedBrief),
+      store: store,
+      now: epoch,
+      runtimeHealth: .localAgents(codex: .available)
+    )
+
+    let outcome = try XCTUnwrap(result.employeeOutcome(outcomeID))
+    XCTAssertEqual(outcome.status, .failed)
+    XCTAssertEqual(outcome.helpRequest?.contains("captured feedback source"), true)
+    XCTAssertFalse(
+      result.artifacts.contains { $0.kind == .analysis },
+      "An uncited brief must not be saved as reviewed feedback.")
+    XCTAssertEqual(
+      result.dutyOccurrence(occurrenceID)?.includedInputs.map(\.label), ["F1"],
+      "What was read is still true, even though the brief was refused.")
+  }
+
+  func testACustomerVoiceBriefMissingItsRequiredSectionsIsRefused() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = LocalOrganizationStore(rootURL: root)
+    try await seedFeedbackInbox(store)
+    let (organization, _, outcomeID) = try dutyCommitment(provider: .localCodex)
+
+    let result = await EmployeeOutcomeEngine().run(
+      organization,
+      outcomeID: outcomeID,
+      runner: CustomerVoiceRunner(content: "Founders find setup confusing. [F1]"),
+      store: store,
+      now: epoch,
+      runtimeHealth: .localAgents(codex: .available)
+    )
+
+    XCTAssertEqual(result.employeeOutcome(outcomeID)?.status, .failed)
+    XCTAssertEqual(
+      result.employeeOutcome(outcomeID)?.helpRequest?.contains("input coverage"), true)
+  }
+
+  func testACitedCustomerVoiceBriefIsDeliveredWithItsCoverage() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = LocalOrganizationStore(rootURL: root)
+    try await seedFeedbackInbox(store)
+    let (organization, occurrenceID, outcomeID) = try dutyCommitment(provider: .localCodex)
+
+    let result = await EmployeeOutcomeEngine().run(
+      organization,
+      outcomeID: outcomeID,
+      runner: CustomerVoiceRunner(content: Self.citedBrief),
+      store: store,
+      now: epoch,
+      runtimeHealth: .localAgents(codex: .available)
+    )
+
+    XCTAssertEqual(result.employeeOutcome(outcomeID)?.status, .delivered)
+    let brief = try XCTUnwrap(result.artifacts.first { $0.kind == .analysis })
+    let saved = try await store.readArtifact(relativePath: brief.relativePath)
+    XCTAssertTrue(
+      saved.contains("[F1]"), "The delivered brief is the one that carried the citation.")
+    let occurrence = try XCTUnwrap(result.dutyOccurrence(occurrenceID))
+    XCTAssertEqual(occurrence.includedInputs.map(\.fileName), ["founder-note.md"])
+    XCTAssertEqual(occurrence.excludedInputs.map(\.fileName), ["screenshot.png"])
+  }
+
+  func testARehearsedCustomerVoiceBriefIsNotHeldToTheCitationRule() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = LocalOrganizationStore(rootURL: root)
+    try await seedFeedbackInbox(store)
+    let (organization, _, outcomeID) = try dutyCommitment()
+
+    let result = await EmployeeOutcomeEngine().run(
+      organization,
+      outcomeID: outcomeID,
+      runner: CustomerVoiceRunner(content: Self.uncitedBrief),
+      store: store,
+      now: epoch,
+      runtimeHealth: .localAgents(codex: .available)
+    )
+
+    XCTAssertEqual(
+      result.employeeOutcome(outcomeID)?.status, .delivered,
+      "A rehearsal analyzes nothing, so there is nothing there to verify.")
+    let brief = try XCTUnwrap(result.artifacts.first { $0.kind == .analysis })
+    let saved = try await store.readArtifact(relativePath: brief.relativePath)
+    XCTAssertTrue(
+      saved.contains("Rewrite the first-run screen."),
+      "The delivered artifact is the uncited brief, not some other ticket's output.")
+  }
+
   // MARK: - Fixtures
 
+  /// Every required section, and no citation of the feedback it claims to have
+  /// reviewed.
+  private static let uncitedBrief = """
+    # Input coverage
+    Every file in the inbox was read.
+
+    # Themes
+    Setup is confusing.
+
+    # Evidence
+    Founders said so.
+
+    # Uncertainty
+    One week of feedback only.
+
+    # Owner decision
+    Rewrite the first-run screen.
+
+    # Next occurrence
+    Add new feedback before the next run.
+    """
+
+  private static let citedBrief = uncitedBrief.replacingOccurrences(
+    of: "Founders said so.", with: "- [F1] \"Setup was confusing.\"")
+
   /// A running Customer Voice occurrence and the canonical commitment it owns.
-  private func dutyCommitment() throws -> (
+  ///
+  /// `provider` decides whether the run is a rehearsal, which is the only thing
+  /// that decides whether the brief is held to the citation rule.
+  private func dutyCommitment(
+    provider: EmployeeExecutionProvider = .demo
+  ) throws -> (
     state: OrganizationState, occurrenceID: String, outcomeID: String
   ) {
     var state = hiredOrganization()
-    try allowUnreviewedPlans(for: "iris", in: &state)
+    try allowUnreviewedPlans(for: "iris", in: &state, provider: provider)
     let occurrenceID = try state.beginDutyOccurrence(
       dutyID: CustomerVoiceDutyEngine.dutyID, now: epoch)
     let outcomeID = try XCTUnwrap(state.dutyOccurrence(occurrenceID)?.canonicalOutcomeID)
@@ -477,6 +663,33 @@ private struct CitedResearchRunner: EmployeeRunner {
         """,
       evidenceBasis: "permitted-web-research"
     )
+  }
+}
+
+/// Returns a fixed Customer Voice brief and leaves everything else, including
+/// the plan that creates the ticket, to the deterministic runner.
+private struct CustomerVoiceRunner: EmployeeRunner {
+  let content: String
+
+  func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
+    guard request.operation == .customerVoice else {
+      return try await DeterministicEmployeeRunner().perform(request)
+    }
+    return EmployeeWorkOutput(
+      title: "Customer Voice Weekly",
+      summary: "Named one theme from this week's feedback.",
+      content: content,
+      evidenceBasis: "local-feedback-analysis"
+    )
+  }
+}
+
+/// Fails if it is invoked at all, so "the engine refused before running
+/// anything" is a test result rather than an assumption.
+private struct UnreachableRunner: EmployeeRunner {
+  func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
+    XCTFail("A refused commitment must not reach the runtime")
+    return EmployeeWorkOutput(title: "Unexpected", summary: "Unexpected", content: "Unexpected")
   }
 }
 
