@@ -263,26 +263,34 @@ final class AppModel: ObservableObject {
         "Iris is already running Customer Voice Weekly. Stop or finish it before starting the content workday."
       return
     }
-    if organization.executionMode == .localCodex && !organization.hasMeaningfulProductBrief {
+    // The seven-rule policy decides both whether this mission may start and
+    // whether it is real work, employee by employee. The organization-wide mode
+    // used to answer both questions for everyone, which blocked an employee
+    // whose own contract named a healthy runtime and let one whose contract
+    // named a real runtime skip the checks that exist only to protect real work.
+    let mission = organization.runtimePreflight(
+      for: OrganizationState.firstContentMissionEmployeeIDs, health: runtimeHealth)
+    if mission.performsRealWork && !organization.hasMeaningfulProductBrief {
       lastError =
         "Mira needs a real product brief before the team can produce honest work. Add the product, audience, problem, and claims first."
       return
     }
-    if organization.executionMode == .localCodex && !codexAvailable {
+    if let refusal = mission.refusal {
       appendCapabilityEvent(
         kind: .unavailable,
         actorID: "nia",
-        detail: "Local Codex is not available, so no external research was attempted."
+        detail:
+          "No runtime could be selected for the content mission, so no external research was attempted."
       )
-      lastError =
-        "Local Codex is not available on this machine. Reconnect it before real research, or switch to Demo for an owner-context-only rehearsal."
+      lastError = refusal
       persistSoon()
       return
     }
-    if organization.executionMode == .localCodex && !webResearchGranted {
+    let research = organization.runtimePreflight(for: "nia", health: runtimeHealth)
+    if research.performsRealWork && !webResearchGranted {
       requestWebResearch()
       lastError =
-        "Nia is asking for read-only web research. Grant it in today's folio, or switch to Demo for an owner-context-only rehearsal."
+        "Nia is asking for read-only web research. Grant it in today's folio, or set her to Practice mode for an owner-context-only rehearsal."
       return
     }
 
@@ -610,9 +618,14 @@ final class AppModel: ObservableObject {
         "Nia is still researching. Let that assignment finish or stop it before Iris begins."
       return
     }
-    if organization.executionMode == .localCodex && !codexAvailable {
-      lastError =
-        "Local Codex is unavailable. Reconnect it or use Practice mode for a synthetic Customer Voice run."
+    // Iris's own contract decides what she runs on, so a duty is refused only
+    // when the policy refuses her — not when an organization-wide default and
+    // this Mac happen to disagree.
+    let assigneeID =
+      organization.employeeDuty(EmployeeDuty.customerVoiceWeeklyID)?.assigneeID
+      ?? EmployeeDuty.customerVoiceWeekly().assigneeID
+    if let refusal = organization.runtimePreflight(for: assigneeID, health: runtimeHealth).refusal {
+      lastError = refusal
       return
     }
 
@@ -713,9 +726,11 @@ final class AppModel: ObservableObject {
       lastError = "Finish the fixed local workflow before assigning an employee outcome."
       return false
     }
-    if organization.executionMode == .localCodex && !codexAvailable {
-      lastError =
-        "Local Codex is unavailable. Reconnect it or choose Demo for a synthetic rehearsal."
+    // Resolved for this employee specifically: assigning work to someone whose
+    // contract names a healthy runtime must not fail because a different
+    // default is unavailable.
+    if let refusal = organization.runtimePreflight(for: employeeID, health: runtimeHealth).refusal {
+      lastError = refusal
       return false
     }
     let command = OrganizationCommand(

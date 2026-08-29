@@ -150,6 +150,71 @@ extension OrganizationState {
   }
 }
 
+/// What an owner-facing entry point needs to know before it starts work.
+///
+/// Preflight asks the seven-rule policy the same question the work engines ask,
+/// rather than reading the legacy organization-wide execution mode. Two facts
+/// come back: whether anyone is blocked, and whether the work that would run is
+/// real rather than a rehearsal the owner asked for. The second is what decides
+/// whether the preconditions that only protect real work — a truthful product
+/// brief, a read-only web-research grant — apply to this run at all.
+public struct RuntimePreflight: Sendable, Equatable {
+  /// Why the work cannot start, or `nil` when every employee resolved to a
+  /// runtime.
+  public var refusal: String?
+
+  /// Whether at least one employee resolved to a real runtime.
+  ///
+  /// False for a run that is entirely rehearsal: a rehearsal reaches nothing
+  /// outside the company folder, so gating it on a real product brief or a web
+  /// grant would block work that could not have misused either.
+  public var performsRealWork: Bool
+
+  public init(refusal: String? = nil, performsRealWork: Bool = false) {
+    self.refusal = refusal
+    self.performsRealWork = performsRealWork
+  }
+
+  /// Whether the caller must stop and show `refusal` instead of starting work.
+  public var isBlocked: Bool { refusal != nil }
+}
+
+extension OrganizationState {
+  /// Resolves a runtime for every employee this work needs and reports what
+  /// preflight found.
+  ///
+  /// Every employee is resolved even after one refuses, so the answer does not
+  /// depend on the order the roster happens to be listed in. The refusal that
+  /// is surfaced is the first one, and one blocked employee blocks the run:
+  /// starting a shared mission with a silently missing member would be the
+  /// partial rehearsal the runtime policy exists to prevent.
+  public func runtimePreflight(
+    for employeeIDs: [String],
+    health: RuntimeHealthSnapshot,
+    commitmentID: String? = nil
+  ) -> RuntimePreflight {
+    var preflight = RuntimePreflight()
+    for employeeID in employeeIDs {
+      let outcome = resolveRuntime(for: employeeID, health: health, commitmentID: commitmentID)
+      if let selection = outcome.selection {
+        preflight.performsRealWork = preflight.performsRealWork || !selection.isRehearsal
+      } else if preflight.refusal == nil {
+        preflight.refusal = outcome.refusal?.reason
+      }
+    }
+    return preflight
+  }
+
+  /// Preflight for work that belongs to one employee.
+  public func runtimePreflight(
+    for employeeID: String,
+    health: RuntimeHealthSnapshot,
+    commitmentID: String? = nil
+  ) -> RuntimePreflight {
+    runtimePreflight(for: [employeeID], health: health, commitmentID: commitmentID)
+  }
+}
+
 extension EmployeeOutcome {
   /// The runtime this commitment is pinned to, if it has started on one.
   public var resolvedRuntimeKind: RuntimeDriverKind? {
