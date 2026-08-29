@@ -602,10 +602,13 @@ public struct CodexEmployeeRunner: EmployeeRunner, LocalAgentCLIRunner {
         Success criteria: \(skill.successCriteria)
         """
       }.joined(separator: "\n\n")
-    let assignmentInstruction =
-      request.task.id.hasPrefix("research-assignment-")
+    // Keyed off what the ticket is, not off how its identifier happens to be
+    // spelled: every research ticket is verified against these sections, so
+    // every research ticket has to be asked for them.
+    let researchInstruction =
+      request.task.kind == .research
       ? """
-      This is an owner-directed research assignment. Structure the Markdown artifact with these sections:
+      This is a research ticket. Structure the Markdown artifact with these sections:
       Executive summary, Findings, Sources, Uncertainty, and Recommended next actions.
       Every externally researched finding must point to a full HTTP(S) source URL in Sources.
       Prefer current primary sources and state when a conclusion is an inference.
@@ -646,7 +649,7 @@ public struct CodexEmployeeRunner: EmployeeRunner, LocalAgentCLIRunner {
 
       Work only on this task. Do not run commands, modify files, contact services,
       publish anything, or claim evidence you do not have.
-      \(assignmentInstruction)
+      \(researchInstruction)
       \(customerVoiceInstruction)
       \(request.canUseWebResearch
             ? "Web research is explicitly permitted for this research task. Use live search, cite source URLs, and separate external evidence from owner-supplied claims."

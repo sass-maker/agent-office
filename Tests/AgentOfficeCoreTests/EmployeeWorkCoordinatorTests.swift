@@ -79,6 +79,34 @@ final class EmployeeWorkCoordinatorTests: XCTestCase {
     }
   }
 
+  /// History written before runs carried their own attribution has neither key,
+  /// and still has to replay.
+  func testARunResultWithoutAttributionStillDecodes() throws {
+    var state = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
+    let outcomeID = try state.createEmployeeOutcome(
+      employeeID: "maya", outcome: "Prepare a note", context: "")
+    state = EmployeeOutcomeEngine().start(state, outcomeID: outcomeID)
+    let result = try Self.syntheticResult(
+      try EmployeeOutcomeRunRequest(organization: state, outcomeID: outcomeID))
+
+    var object = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: try JSONEncoder().encode(result)) as? [String: Any])
+    object.removeValue(forKey: "capabilityEvents")
+    object.removeValue(forKey: "dutyInputs")
+    let decoded = try JSONDecoder().decode(
+      EmployeeOutcomeRunResult.self,
+      from: try JSONSerialization.data(withJSONObject: object)
+    )
+
+    XCTAssertNil(decoded.capabilityEvents)
+    XCTAssertNil(decoded.dutyInputs)
+    XCTAssertEqual(decoded.outcomeID, result.outcomeID)
+
+    var fresh = state
+    try fresh.apply(decoded)
+    XCTAssertEqual(fresh.employeeOutcome(outcomeID)?.status, .delivered)
+  }
+
   private func makeRequests(employeeIDs: [String]) throws -> [EmployeeOutcomeRunRequest] {
     var state = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
     var ids: [String] = []

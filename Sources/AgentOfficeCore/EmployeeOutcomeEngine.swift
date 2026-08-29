@@ -32,6 +32,10 @@ public struct EmployeeOutcomeEngine: Sendable {
     /// The runtime this commitment resolved to, decided once per run and then
     /// read everywhere instead of being re-derived from organization-wide state.
     let selection: ResolvedRuntimeSelection
+    /// The local feedback the recurring duty that owns this commitment reads,
+    /// already framed as `<feedback_source>` blocks. `nil` for every commitment
+    /// no duty owns, which is most of them.
+    let feedbackContext: String?
   }
 
   public func start(
@@ -103,11 +107,19 @@ public struct EmployeeOutcomeEngine: Sendable {
     pinRuntime(selection, to: outcomeID, state: &state, now: now)
     outcome = state.employeeOutcome(outcomeID) ?? outcome
 
+    // A commitment a recurring duty owns reads the local feedback inbox before
+    // any work starts, and the occurrence records exactly what was read. The
+    // coverage the owner sees is the point: an unread inbox must never look
+    // like an analyzed one.
+    let feedback = await captureDutyInputs(
+      outcome: outcome, store: store, state: &state, now: now)
+
     let ctx = RunContext(
       runner: runner, store: store, now: now,
       persistsTransitions: options.persistsTransitions,
       authorizedCapabilities: options.authorizedCapabilities,
-      selection: selection
+      selection: selection,
+      feedbackContext: feedback?.promptContext
     )
 
     do {
@@ -217,7 +229,8 @@ public struct EmployeeOutcomeEngine: Sendable {
       organizationName: state.name,
       outcome: outcome.outcome,
       productBrief: state.productBrief,
-      context: await context(for: outcome, in: state, store: ctx.store),
+      context: await context(
+        for: outcome, in: state, store: ctx.store, feedback: ctx.feedbackContext),
       memory: state.recentMemoryContext(for: employee.id),
       skills: state.assignedSkills(employeeID: employee.id).filter {
         outcome.selectedSkillIDs.contains($0.id)
@@ -228,9 +241,18 @@ public struct EmployeeOutcomeEngine: Sendable {
     )
     try FileManager.default.createDirectory(
       at: request.workspaceURL, withIntermediateDirectories: true)
-    let output = try await ctx.runner.perform(request)
-    let content = output.content.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !content.isEmpty else { throw CodexRunnerError.emptyOutput }
+
+    // Whether this ticket is real web research is a property of the resolved
+    // runtime and the grant the request actually carries, so a rehearsal can
+    // never record that a capability was exercised.
+    let usesWebResearch = !ctx.selection.isRehearsal && request.canUseWebResearch
+    let (output, content) = try await performTicketWork(
+      request,
+      kind: state.tasks[taskIndex].kind,
+      usesWebResearch: usesWebResearch,
+      state: &state,
+      ctx: ctx
+    )
 
     let kind = artifactKind(for: state.tasks[taskIndex].kind)
     let artifactID = "\(taskID)-artifact"
@@ -252,6 +274,11 @@ public struct EmployeeOutcomeEngine: Sendable {
           createdAt: ctx.now,
           evidenceBasis: output.evidenceBasis
         ))
+    }
+    if usesWebResearch {
+      state.appendCapabilityEvent(
+        .succeeded, capability: "web-research", employeeID: employee.id, taskID: taskID,
+        detail: "Research evidence was saved to \(relativePath).", now: ctx.now)
     }
     state.tasks[taskIndex].status = .done
     state.tasks[taskIndex].updatedAt = ctx.now
@@ -608,12 +635,105 @@ public struct EmployeeOutcomeEngine: Sendable {
     return state
   }
 
+  /// Runs one ticket on the resolved runtime and returns output that is allowed
+  /// to become an artifact.
+  ///
+  /// The capability the work exercises is announced before the runtime is
+  /// called and its outcome recorded after, so an interrupted or refused run is
+  /// still attributed rather than silently dropped.
+  private func performTicketWork(
+    _ request: EmployeeWorkRequest,
+    kind: TaskKind,
+    usesWebResearch: Bool,
+    state: inout OrganizationState,
+    ctx: RunContext
+  ) async throws -> (output: EmployeeWorkOutput, content: String) {
+    let employee = request.employee
+    let taskID = request.task.id
+    if usesWebResearch {
+      // Written before the work, so an interrupted run still shows that the
+      // capability was exercised rather than only appearing once it succeeded.
+      state.appendCapabilityEvent(
+        .started, capability: "web-research", employeeID: employee.id, taskID: taskID,
+        detail: "\(employee.name) started permitted web research.", now: ctx.now)
+      if ctx.persistsTransitions { try await ctx.store.save(state) }
+    }
+    do {
+      let output = try await ctx.runner.perform(request)
+      let content = output.content.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !content.isEmpty else { throw CodexRunnerError.emptyOutput }
+      try verifyResearch(content, kind: kind, selection: ctx.selection)
+      return (output, content)
+    } catch {
+      if usesWebResearch {
+        state.appendCapabilityEvent(
+          Self.failureEvent(for: error), capability: "web-research", employeeID: employee.id,
+          taskID: taskID, detail: error.localizedDescription, now: ctx.now)
+      }
+      throw error
+    }
+  }
+
+  /// Reads the local feedback inbox for a commitment a recurring duty owns.
+  ///
+  /// The references and exclusions are recorded on the occurrence before any
+  /// work runs, so the coverage the duty history reports is what was read
+  /// rather than a claim about it. Returns `nil` when no duty owns the
+  /// commitment, and when the inbox itself could not be read — an unreadable
+  /// inbox is not the same as an empty one, and inventing an empty capture
+  /// would report coverage that was never measured.
+  private func captureDutyInputs(
+    outcome: EmployeeOutcome,
+    store: LocalOrganizationStore,
+    state: inout OrganizationState,
+    now: Date
+  ) async -> FeedbackInputSnapshot? {
+    guard outcome.effectiveSource == .recurringResponsibility,
+      let occurrenceID = outcome.sourceID,
+      state.dutyOccurrence(occurrenceID) != nil,
+      let snapshot = try? await store.captureFeedbackSnapshot()
+    else { return nil }
+    _ = state.updateDutyOccurrence(occurrenceID, now: now) { value in
+      value.includedInputs = snapshot.references
+      value.excludedInputs = snapshot.exclusions
+    }
+    return snapshot
+  }
+
+  /// Refuses a research ticket whose brief cannot be checked.
+  ///
+  /// Real research is accepted only when it carries the required sections and
+  /// at least one reachable `http(s)` URL under its own Sources heading.
+  /// Non-empty output is not evidence of research. A rehearsal reaches no
+  /// network and claims no sources, so nothing there is verified.
+  private func verifyResearch(
+    _ content: String,
+    kind: TaskKind,
+    selection: ResolvedRuntimeSelection
+  ) throws {
+    guard kind == .research, !selection.isRehearsal else { return }
+    guard ResearchEvidenceVerifier.hasRequiredSections(content) else {
+      throw ResearchAssignmentRunError.incompleteBrief
+    }
+    guard ResearchEvidenceVerifier.containsSourceURL(content) else {
+      throw ResearchAssignmentRunError.missingSourceReference
+    }
+  }
+
+  /// A runtime that was never there did not fail at research; it was missing.
+  private static func failureEvent(for error: Error) -> CapabilityEventKind {
+    if case .unavailable? = error as? CodexRunnerError { return .unavailable }
+    return .failed
+  }
+
   private func context(
     for outcome: EmployeeOutcome,
     in state: OrganizationState,
-    store: LocalOrganizationStore
+    store: LocalOrganizationStore,
+    feedback: String?
   ) async -> String {
     var sections = [outcome.context].filter { !$0.isEmpty }
+    if let feedback { sections.append(feedback) }
     for artifactID in outcome.artifactIDs {
       guard let artifact = state.artifacts.first(where: { $0.id == artifactID }),
         let content = try? await store.readArtifact(relativePath: artifact.relativePath)
