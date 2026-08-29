@@ -283,7 +283,7 @@ h2 { margin: 0; font-size: clamp(2.7rem, 5vw, 5.4rem); font-weight: 760; }
 .window-bar i:first-child { background: var(--apricot); }
 .window-bar i:nth-child(2) { background: var(--butter); }
 .window-bar i:nth-child(3) { background: var(--moss); }
-.window-bar span { margin-left: auto; color: rgba(38,50,56,0.64); font-size: 0.7rem; font-weight: 700; }
+.window-bar span { margin-left: auto; color: rgba(38,50,56,0.78); font-size: 0.7rem; font-weight: 700; }
 .mac-window img { width: 100%; height: auto; }
 .case-plaque {
   width: max-content;
@@ -330,7 +330,7 @@ h2 { margin: 0; font-size: clamp(2.7rem, 5vw, 5.4rem); font-weight: 760; }
 }
 .record-pin { position: absolute; top: 15px; left: 50%; width: 14px; height: 14px; border-radius: 50%; background: var(--apricot); box-shadow: 2px 4px 5px rgba(0,0,0,0.25); }
 .record-label { margin: 0 0 10px; color: var(--walnut); font-size: 0.74rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-.record-person { margin: 0 0 24px; color: var(--moss); font-weight: 750; }
+.record-person { margin: 0 0 24px; color: #526f49; font-weight: 750; }
 .work-record h3 { min-height: 2.1em; margin: 0; font-size: clamp(2rem, 3.2vw, 3rem); }
 .record-progress { height: 5px; margin: 28px 0 30px; overflow: hidden; background: #e7dbc4; }
 .record-progress span { display: block; width: 100%; height: 100%; background: var(--apricot); transform: scaleX(0.25); transform-origin: left; transition: transform 360ms cubic-bezier(.16,1,.3,1); }
@@ -387,7 +387,7 @@ h2 { margin: 0; font-size: clamp(2.7rem, 5vw, 5.4rem); font-weight: 760; }
 .terminal-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--moss); }
 .terminal-bar i:first-child { background: var(--apricot); }
 .terminal-bar i:nth-child(2) { background: var(--butter); }
-.terminal-bar span { margin-left: auto; }
+.terminal-bar span { margin-left: auto; color: rgba(255,255,255,0.64); }
 .terminal code { display: block; padding: 42px; font: 700 clamp(0.95rem, 1.5vw, 1.2rem)/2 ui-monospace, "SFMono-Regular", Menlo, monospace; }
 .terminal code span { color: var(--butter); }
 .terminal button { position: absolute; right: 16px; bottom: 16px; min-height: 44px; padding: 8px 13px; color: var(--paper); border: 1px solid rgba(255,255,255,0.22); border-radius: 8px; background: transparent; font: inherit; font-size: 0.76rem; font-weight: 740; cursor: pointer; }
@@ -478,7 +478,7 @@ footer p { margin: 0; }
   h2 { font-size: clamp(2.5rem, 11vw, 4rem); }
   .hero-lede { margin-top: 24px; }
   .hero-actions { display: grid; }
-  .keepsake { padding: 74px 10px 24px; border-width: 5px; border-bottom-width: 12px; border-radius: 18px 18px 12px 12px; }
+  .keepsake { margin: 100px auto 0; padding: 74px 10px 24px; border-width: 5px; border-bottom-width: 12px; border-radius: 18px 18px 12px 12px; }
   .case-lid { top: 16px; }
   .case-lid p { font-size: 0.8rem; }
   .window-bar span { display: none; }

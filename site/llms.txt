@@ -5,8 +5,14 @@
 ## Product
 
 - [Home](https://office-os.sassmaker.com/): Product overview and workday
-- [System](https://office-os.sassmaker.com/#system): Local-first system boundary
+- [Release state](https://office-os.sassmaker.com/#release): Public distribution and trust-gate status
 - [Privacy](https://office-os.sassmaker.com/#privacy): Data and external-request policy
+
+## Availability and commercial truth
+
+- Working private macOS proof of concept; no public download or source access
+- One-time workplace ownership and optional employee subscriptions are the intended model
+- No price, checkout, employee marketplace, account system, or public distribution is live
 
 ## Machine surfaces
 

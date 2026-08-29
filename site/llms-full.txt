@@ -1,6 +1,13 @@
 # Office OS — full agent brief
 
-Local-first Mac workplace for named AI employees with bounded responsibilities, inspectable work, and owner supervision.
+Local-first Mac workplace for assigning bounded outcomes to named AI employees, inspecting their progress and artifacts, resolving blockers, and resuming the organization across days.
+
+## Current state
+
+- Working private proof of concept for macOS; no public download or source access
+- Intended as a one-time workplace purchase with optional employee subscriptions
+- No price, checkout, employee marketplace, account system, or public distribution today
+- Native release remains closed until Developer ID, notarization, stapling, Gatekeeper, checksum, and support gates pass
 
 ## Index
 
@@ -23,7 +30,7 @@ A local-first Mac workplace for named AI employees.
 ## Product links
 
 - Home: https://office-os.sassmaker.com/ — Product overview and workday
-- System: https://office-os.sassmaker.com/#system — Local-first system boundary
+- Release state: https://office-os.sassmaker.com/#release — Public distribution and trust-gate status
 - Privacy: https://office-os.sassmaker.com/#privacy — Data and external-request policy
 
 ## Tracked search intents

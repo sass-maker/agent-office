@@ -8,7 +8,7 @@
   "robots": "https://office-os.sassmaker.com/robots.txt",
   "markdown": {
     "suffix": ".md",
-    "negotiation": true
+    "negotiation": false
   },
   "searchIntents": [
     {

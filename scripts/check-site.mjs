@@ -9,8 +9,10 @@ const requiredFiles = [
   "script.js",
   "release.json",
   "assets/favicon.svg",
-  "assets/workplace.jpg",
-  "assets/employees.png",
+  "assets/workplace.webp",
+  "assets/workplace-900.webp",
+  "assets/workplace-1400.webp",
+  "assets/employees.webp",
 ];
 
 await Promise.all(requiredFiles.map((file) => access(resolve(site, file))));
@@ -25,6 +27,10 @@ const requiredCopy = [
   "Contact pending",
   "Privacy statement",
   "Distribution build in preparation",
+  "no public download or checkout",
+  "pricing and checkout not live",
+  "The repository is private",
+  "this informational site does not load analytics",
 ];
 
 for (const copy of requiredCopy) {
@@ -48,6 +54,10 @@ if (release.downloadUrl !== null) {
 const binaryUrls = html.match(/https?:[^\s"']+\.(?:dmg|pkg|zip)/gi) ?? [];
 if (binaryUrls.length > 0 && release.downloadUrl === null) {
   throw new Error("The page exposes a binary URL while release metadata is closed");
+}
+
+if (/posthog|clarity\.ms|google-analytics|googletagmanager/i.test(html)) {
+  throw new Error("The informational site promises no analytics but still loads an analytics provider");
 }
 
 console.log("Office OS site check passed; binary distribution remains fail-closed.");
