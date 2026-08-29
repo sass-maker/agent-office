@@ -1,29 +1,49 @@
 import Foundation
 
 extension OrganizationState {
+  /// Fills in the optional fields that documents written before the canonical
+  /// outcome model predate. Every field is filled independently and only when
+  /// the persisted document left it absent, so the migration is idempotent.
   public mutating func migrateCanonicalOutcomeDefaults() {
     guard knowledge != nil else { return }
+    backfillEmployeeOutcomeDefaults()
+    backfillTaskDefaults()
+  }
+
+  private mutating func backfillEmployeeOutcomeDefaults() {
     for index in knowledge!.employeeOutcomes.indices {
       var outcome = knowledge!.employeeOutcomes[index]
-      if outcome.acceptanceCriteria == nil { outcome.acceptanceCriteria = [] }
-      if outcome.priority == nil { outcome.priority = .normal }
       if outcome.queuePosition == nil {
         outcome.queuePosition =
           knowledge!.employeeOutcomes[..<index].filter { $0.assigneeID == outcome.assigneeID }.count
       }
-      if outcome.source == nil { outcome.source = .owner }
-      if outcome.planStatus == nil {
-        outcome.planStatus =
-          outcome.taskIDs.isEmpty
-          ? .notStarted : ([.queued, .planning].contains(outcome.status) ? .drafting : .approved)
-      }
-      if outcome.accountableEmployeeID == nil { outcome.accountableEmployeeID = outcome.assigneeID }
-      if outcome.managementMessages == nil { outcome.managementMessages = [] }
-      if outcome.deliveries == nil { outcome.deliveries = [] }
-      if outcome.revisions == nil { outcome.revisions = [] }
-      if outcome.outcomeRevision == nil { outcome.outcomeRevision = 0 }
+      Self.backfillOutcomeClassification(&outcome)
+      Self.backfillOutcomeCollections(&outcome)
       knowledge!.employeeOutcomes[index] = outcome
     }
+  }
+
+  private static func backfillOutcomeClassification(_ outcome: inout EmployeeOutcome) {
+    if outcome.priority == nil { outcome.priority = .normal }
+    if outcome.source == nil { outcome.source = .owner }
+    if outcome.planStatus == nil { outcome.planStatus = inferredPlanStatus(for: outcome) }
+    if outcome.accountableEmployeeID == nil { outcome.accountableEmployeeID = outcome.assigneeID }
+  }
+
+  private static func inferredPlanStatus(for outcome: EmployeeOutcome) -> OutcomePlanStatus {
+    guard !outcome.taskIDs.isEmpty else { return .notStarted }
+    return [.queued, .planning].contains(outcome.status) ? .drafting : .approved
+  }
+
+  private static func backfillOutcomeCollections(_ outcome: inout EmployeeOutcome) {
+    if outcome.acceptanceCriteria == nil { outcome.acceptanceCriteria = [] }
+    if outcome.managementMessages == nil { outcome.managementMessages = [] }
+    if outcome.deliveries == nil { outcome.deliveries = [] }
+    if outcome.revisions == nil { outcome.revisions = [] }
+    if outcome.outcomeRevision == nil { outcome.outcomeRevision = 0 }
+  }
+
+  private mutating func backfillTaskDefaults() {
     for index in tasks.indices {
       guard let outcome = employeeOutcomes.first(where: { $0.taskIDs.contains(tasks[index].id) })
       else { continue }
