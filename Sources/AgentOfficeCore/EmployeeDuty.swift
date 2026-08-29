@@ -73,9 +73,15 @@ public struct EmployeeDuty: Identifiable, Codable, Sendable, Equatable {
     self.createdAt = createdAt
   }
 
+  /// The identifier of the one recurring duty this version ships.
+  ///
+  /// It lives beside the duty it names so that reading the duty is enough to
+  /// know its identifier.
+  public static let customerVoiceWeeklyID = "customer-voice-weekly"
+
   public static func customerVoiceWeekly(now: Date = Date()) -> EmployeeDuty {
     EmployeeDuty(
-      id: "customer-voice-weekly",
+      id: customerVoiceWeeklyID,
       title: "Customer Voice Weekly",
       responsibility: "Turn deliberately supplied customer feedback into one cited owner decision.",
       assigneeID: "iris",

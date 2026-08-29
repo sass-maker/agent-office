@@ -3,13 +3,13 @@ import XCTest
 
 @testable import AgentOfficeCore
 
-/// Proves the seven-rule runtime policy is in effect *in the work engines*, not
+/// Proves the seven-rule runtime policy is in effect *in the work engine*, not
 /// only inside `RuntimeAutoResolver`.
 ///
-/// Every test here drives `EmployeeOutcomeEngine` or `WorkdayEngine` and asserts
-/// on what the engine did — what it pinned, what it refused, and whether it
-/// invoked a runtime at all — so the resolver being correct in isolation cannot
-/// make any of them pass.
+/// Every test here drives `EmployeeOutcomeEngine` and asserts on what the engine
+/// did — what it pinned, what it refused, and whether it invoked a runtime at
+/// all — so the resolver being correct in isolation cannot make any of them
+/// pass.
 final class RuntimePolicyInEnginesTests: XCTestCase {
   private let epoch = Date(timeIntervalSince1970: 1_000)
 
@@ -39,26 +39,6 @@ final class RuntimePolicyInEnginesTests: XCTestCase {
       outcome.helpRequest?.contains("blocked rather than rehearsing"), true,
       "The refusal must say it refused, not quietly rehearse.")
     XCTAssertEqual(state.employee("theo")?.status, .blocked)
-  }
-
-  func testWorkdayEngineBlocksTheTicketInsteadOfRehearsing() async throws {
-    let root = temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: root) }
-    var state = try workdayOrganization(provider: .auto)
-
-    state = await WorkdayEngine().advance(
-      state,
-      runner: NeverRunsRunner(),
-      store: LocalOrganizationStore(rootURL: root),
-      now: epoch,
-      runtimeHealth: .practiceOnly
-    )
-
-    XCTAssertEqual(state.task("research-audience")?.status, .blocked)
-    XCTAssertTrue(state.artifacts.isEmpty)
-    XCTAssertEqual(state.blockers.count, 1)
-    XCTAssertEqual(
-      state.blockers.first?.detail.contains("blocked rather than rehearsing"), true)
   }
 
   // MARK: - Rule 1: an explicit choice is preserved, and allowed to fail
@@ -469,33 +449,6 @@ final class RuntimePolicyInEnginesTests: XCTestCase {
     state.employeeOutcome(commitmentID)?.taskIDs
       .compactMap(state.task)
       .first { $0.kind == .research }
-  }
-
-  /// An active workday whose first ready ticket is Nia's research.
-  private func workdayOrganization(
-    provider: EmployeeExecutionProvider, grantResearch: Bool = false
-  ) throws -> OrganizationState {
-    var state = LocalOrganizationStore.migrated(.seeded(now: epoch), now: epoch)
-    state.workdayStatus = .active
-    if grantResearch, let index = state.employees.firstIndex(where: { $0.id == "nia" }) {
-      state.employees[index].capabilityGrants = ["web-research"]
-    }
-    try state.updateWorkingContract(
-      employeeID: "nia",
-      role: state.employee("nia")?.role ?? "Researcher",
-      responsibility: state.employee("nia")?.responsibility ?? "Research",
-      managerID: nil,
-      assignedSkillIDs: state.assignedSkills(employeeID: "nia").map(\.id),
-      declaredConnectionIDs: [],
-      capabilityGrants: grantResearch ? ["web-research"] : [],
-      executionProvider: provider,
-      modelName: nil,
-      boundaries: AutonomyBoundaries(),
-      reviewPolicy: .automaticForLocalWork,
-      actorID: "owner",
-      reason: "runtime policy fixture"
-    )
-    return state
   }
 
   private func pin(

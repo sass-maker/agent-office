@@ -185,7 +185,7 @@ function checkComplexity() {
   );
   // Ratcheted legacy debt: https://github.com/sass-maker/agent-office/issues/21
   failRegressions("Complexity", observed, {
-    violations: 34,
+    violations: 31,
     maxCcn: 18,
     maxLength: 271,
     maxParams: 28,

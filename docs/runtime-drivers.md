@@ -164,8 +164,8 @@ than no work.
 
 ### Where the policy is applied
 
-The resolver is a pure function, so something has to call it. Exactly two
-production paths do, and both go through
+The resolver is a pure function, so something has to call it. Exactly one
+production path does, through
 `OrganizationState.resolveRuntime(for:health:commitmentID:)`:
 
 - **`EmployeeOutcomeEngine.run`** resolves before any runner is invoked. A
@@ -174,9 +174,6 @@ production paths do, and both go through
   `runtimeModelName`, and `runtimeSelectionRule` onto the commitment — this pin
   *is* rule 6, and once written it is never rewritten, so a later contract edit
   cannot move work that is already open.
-- **`WorkdayEngine.advance`** resolves per employee before producing or
-  reviewing. A refusal blocks the ticket with the reason instead of producing an
-  artifact.
 
 `AppModel` probes the machine once (`runtimeHealth`) and hands the result down.
 It also resolves *before* binding, and `bindResolvedRuntime` points the binding

@@ -245,7 +245,7 @@ public enum ClaudeCodeRunnerError: LocalizedError, Equatable {
 /// Turns a local agent CLI's standard output into employee work.
 ///
 /// Shared by every local runtime so that two runtimes cannot disagree about
-/// what a plan, a review verdict, or an artifact is. Only the runtime's name in
+/// what a plan or an artifact is. Only the runtime's name in
 /// the summary differs, because the summary is shown to the owner and should say
 /// which runtime did the work.
 enum LocalAgentWorkOutput {
@@ -266,16 +266,11 @@ enum LocalAgentWorkOutput {
         selectedSkillIDs: plan.selectedSkillIDs
       )
     }
-    let verdict: ReviewVerdict? =
-      request.operation == .review
-      ? (output.localizedCaseInsensitiveContains("APPROVE") ? .approve : .revise)
-      : nil
     return EmployeeWorkOutput(
       title: request.task.title,
       summary:
         "\(request.employee.name) completed \(request.operation.rawValue) work with \(runtimeLabel).",
       content: output,
-      verdict: verdict,
       evidenceBasis: request.canUseWebResearch ? "permitted-web-research" : "owner-context-only"
     )
   }

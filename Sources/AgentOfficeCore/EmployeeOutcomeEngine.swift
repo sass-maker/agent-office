@@ -770,7 +770,7 @@ public struct EmployeeOutcomeEngine: Sendable {
         CustomerVoiceEvidenceVerifier.containsValidSourceLabel(
           content, references: ctx.feedback?.references ?? [])
       else { throw CustomerVoiceDutyError.missingSourceLabel }
-    case .plan, .analysis, .draft, .revise, .review, .report:
+    case .plan, .analysis, .draft, .report:
       return
     }
   }

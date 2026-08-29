@@ -278,6 +278,33 @@ final class EmployeeOutcomeEngineTests: XCTestCase {
       "A refused research run still used the capability, and says so.")
   }
 
+  /// A runtime that was never installed did not fail at research; it was
+  /// missing, and the attribution has to say which.
+  ///
+  /// Retargeted from `WorkdayEngineTests` when the engine that used to record
+  /// this was retired.
+  func testAMissingRuntimeIsAttributedAsUnavailableRatherThanFailed() async throws {
+    let root = temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (organization, outcomeID) = try researchCommitment()
+
+    let result = await EmployeeOutcomeEngine().run(
+      organization,
+      outcomeID: outcomeID,
+      runner: UnavailableResearchRunner(),
+      store: LocalOrganizationStore(rootURL: root),
+      now: epoch,
+      runtimeHealth: .localAgents(codex: .available)
+    )
+
+    XCTAssertEqual(
+      result.knowledge?.capabilityEvents.map(\.kind), [.started, .unavailable],
+      "A runtime that was never there is unavailable, not failed.")
+    XCTAssertFalse(
+      result.artifacts.contains { $0.kind == .research },
+      "A run that never reached a runtime must not leave a research artifact.")
+  }
+
   func testRehearsedResearchIsNotHeldToTheSourceURLRule() async throws {
     let root = temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: root) }
@@ -522,7 +549,7 @@ final class EmployeeOutcomeEngineTests: XCTestCase {
     var state = hiredOrganization()
     try allowUnreviewedPlans(for: "iris", in: &state, provider: provider)
     let occurrenceID = try state.beginDutyOccurrence(
-      dutyID: CustomerVoiceDutyEngine.dutyID, now: epoch)
+      dutyID: EmployeeDuty.customerVoiceWeeklyID, now: epoch)
     let outcomeID = try XCTUnwrap(state.dutyOccurrence(occurrenceID)?.canonicalOutcomeID)
     state = EmployeeOutcomeEngine().start(state, outcomeID: outcomeID, now: epoch)
     return (state, occurrenceID, outcomeID)
@@ -686,6 +713,16 @@ private struct CustomerVoiceRunner: EmployeeRunner {
 
 /// Fails if it is invoked at all, so "the engine refused before running
 /// anything" is a test result rather than an assumption.
+/// A runtime that is present for planning and gone by the time research runs.
+private struct UnavailableResearchRunner: EmployeeRunner {
+  func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
+    guard request.operation == .research else {
+      return try await DeterministicEmployeeRunner().perform(request)
+    }
+    throw CodexRunnerError.unavailable
+  }
+}
+
 private struct UnreachableRunner: EmployeeRunner {
   func perform(_ request: EmployeeWorkRequest) async throws -> EmployeeWorkOutput {
     XCTFail("A refused commitment must not reach the runtime")
