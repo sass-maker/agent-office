@@ -132,6 +132,60 @@ the recovered environment is never logged or recorded. Recovery is bounded by a
 timeout, so a start-up file that waits for input degrades to "nothing
 recovered" rather than hanging the app.
 
+## Asking a CLI which models it offers
+
+The list of models is asked of the installed CLI rather than asserted by Office
+OS. A hardcoded list ages into a lie: the names it carried before this contract
+existed (`gpt-5.1-codex` and friends) are not in any catalogue Codex ships today.
+
+| CLI | Listing command | Cost | Why |
+|---|---|---|---|
+| Codex | `codex debug models --bundled` | Free, offline | Renders the catalogue the installed binary already carries; `--bundled` skips the refresh, so nothing reaches the network |
+| Claude Code | **none** | — | The CLI has no model-listing subcommand. `claude models` is not a command: the argument is forwarded to the model as a prompt, so asking would start a billed session |
+
+A listing command must be free and offline. A probe that would open a session is
+not a listing command, however much it reads like one.
+
+### What the owner is shown
+
+Every list carries where it came from, so an assumption can never be presented
+as a report.
+
+| Provenance | Names shown | Said on screen |
+|---|---|---|
+| `reportedByCLI` | What the CLI listed | "Codex reported these models on this Mac." |
+| `assumed(reason:)` | Office OS's own list | "Office OS is showing what it assumes… not what … reported", plus why it cannot be asked |
+| `unavailable(failure)` | **none** | The failure, in the owner's terms, and that Auto still works |
+
+The rule behind the third row: **if the CLI could have been asked and the ask
+failed, Office OS does not substitute a guess.** Falling back to a static list
+there would make a failure look like a successful discovery — the same reason
+`RunUsage` reports `unknown` rather than zero. A CLI with nothing to ask is the
+only case where assuming is honest, and it says so.
+
+Auto is always offered, so a runtime that cannot be asked is still fully usable:
+its own default applies and nothing is claimed about which model ran. A model
+name a contract already carries stays selectable even when the runtime did not
+list it, so a failed ask cannot quietly reset an owner's choice.
+
+### When the ask happens
+
+- On demand, from the screen that shows a model choice — never at launch, and
+  never while drawing a picker.
+- Answers are remembered per CLI **and per executable path**, so an answer about
+  a different binary is not reused for this one.
+- A report stands for 6 hours; a failure for 60 seconds. One lifetime cannot do
+  both: a long one pins a transient failure, a short one shells out constantly
+  for an answer that only changes when the owner updates the CLI.
+- "Check again" forgets the remembered answers along with the recovered `PATH`,
+  because they describe the same installation.
+
+Choosing the command and reading the answer are pure and unit-tested. Only
+`SystemRuntimeModelListingRunner` touches a process; it closes standard input,
+drains both streams concurrently, and abandons a command that overstays its
+budget. The catalogue also carries prompt templates and other runtime internals,
+which are never decoded, logged, or recorded — only the model names are kept.
+
 ## Auto-resolution policy
 
 `RuntimeAutoResolver` applies these in order, and records which rule decided:

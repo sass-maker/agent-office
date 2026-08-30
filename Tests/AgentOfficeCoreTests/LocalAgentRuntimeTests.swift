@@ -228,14 +228,13 @@ final class LocalAgentRuntimeDriverTests: XCTestCase {
     XCTAssertEqual(RuntimeModelChoice(modelName: " opus "), .explicit("opus"))
   }
 
-  func testEachRuntimeOffersItsOwnModels() {
-    XCTAssertFalse(RuntimeModelCatalog.offeredModels(for: .localCodex).isEmpty)
-    XCTAssertFalse(RuntimeModelCatalog.offeredModels(for: .localClaudeCode).isEmpty)
-    // Demo runs no model of its own, so it offers none to override.
-    XCTAssertTrue(RuntimeModelCatalog.offeredModels(for: .demo).isEmpty)
-    XCTAssertTrue(
-      Set(RuntimeModelCatalog.offeredModels(for: .codex))
-        .isDisjoint(with: Set(RuntimeModelCatalog.offeredModels(for: .claudeCode))))
+  /// Demo runs no model of its own, so there is no CLI to ask and nothing to
+  /// override. What each real runtime offers is asked of the runtime itself —
+  /// see `RuntimeModelInquiryTests`.
+  func testAPracticeRuntimeHasNoCLIToAskForModels() {
+    XCTAssertNil(RuntimeDriverKind.demo.localAgentCLI)
+    XCTAssertEqual(RuntimeDriverKind.localCodex.localAgentCLI, .codex)
+    XCTAssertEqual(RuntimeDriverKind.localClaudeCode.localAgentCLI, .claudeCode)
   }
 
   // MARK: - Sandboxing
