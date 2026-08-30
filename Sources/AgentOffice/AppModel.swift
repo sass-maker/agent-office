@@ -21,6 +21,8 @@ final class AppModel: ObservableObject {
   @Published private(set) var pendingRuntimeRequests: [RuntimeAccessRequest] = []
   private let employeeWorkCoordinator = EmployeeWorkCoordinator(concurrencyLimit: 2)
   private var workTask: Task<Void, Never>?
+  private let modelInquiry = RuntimeModelInquiry()
+  private var modelOfferCache = RuntimeModelOfferCache()
 
   init() {
     let store = LocalOrganizationStore(rootURL: Self.defaultOrganizationURL)
@@ -107,9 +109,49 @@ final class AppModel: ObservableObject {
 
   /// Forgets the recovered `PATH` so a CLI installed while the app was open can
   /// be found without a relaunch.
+  ///
+  /// The remembered model answers go with it: they describe an installation
+  /// that the owner has just told us may have changed.
   func recheckAgentInstallations() {
     objectWillChange.send()
     SystemLocalAgentEnvironmentProbe.shared.forgetRecoveredPath()
+    modelOfferCache.forgetAll()
+    runtimeModelOffers.removeAll()
+  }
+
+  // MARK: - Runtime models
+
+  /// What each installed CLI last said about the models it offers.
+  ///
+  /// Published rather than computed because asking is a process, and a picker
+  /// must never start one to draw itself.
+  @Published private(set) var runtimeModelOffers: [LocalAgentCLI: RuntimeModelOffer] = [:]
+
+  /// The models to offer for one runtime, or `nil` when the runtime runs no CLI
+  /// of its own and there is nothing to ask.
+  func runtimeModelOffer(for kind: RuntimeDriverKind) -> RuntimeModelOffer? {
+    guard let cli = kind.localAgentCLI else { return nil }
+    return runtimeModelOffers[cli]
+  }
+
+  /// Asks each CLI what it offers, reusing a remembered answer when one still
+  /// stands.
+  ///
+  /// Driven by the screens that show a model choice rather than at launch, so an
+  /// owner who never opens a contract never pays for a process they did not ask
+  /// for.
+  func refreshRuntimeModelOffers() async {
+    for cli in LocalAgentCLI.allCases {
+      let path = agentDiscovery.locate(cli)?.executableURL.path
+      let now = Date()
+      if let remembered = modelOfferCache.offer(for: cli, executablePath: path, now: now) {
+        runtimeModelOffers[cli] = remembered
+        continue
+      }
+      let offer = await modelInquiry.offer(for: cli, now: now)
+      modelOfferCache.record(offer)
+      runtimeModelOffers[cli] = offer
+    }
   }
 
   var webResearchGranted: Bool {

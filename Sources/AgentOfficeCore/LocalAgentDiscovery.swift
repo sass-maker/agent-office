@@ -305,7 +305,7 @@ public final class SystemLocalAgentEnvironmentProbe: LocalAgentEnvironmentProbe,
 }
 
 /// Carries bytes off the reading thread without sharing mutable state.
-private final class DataBox: @unchecked Sendable {
+final class DataBox: @unchecked Sendable {
   private let lock = NSLock()
   private var storage = Data()
 

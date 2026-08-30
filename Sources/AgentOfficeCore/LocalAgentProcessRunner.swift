@@ -33,26 +33,6 @@ public enum RuntimeModelChoice: Codable, Sendable, Equatable {
   public var isAuto: Bool { self == .auto }
 }
 
-/// The models Office OS will offer for a runtime, so the owner picks from what
-/// the selected runtime actually supports instead of typing a name that will
-/// fail at run time.
-///
-/// `auto` is always offered and always first. An unlisted name is still allowed
-/// through the working contract; this is the offered set, not a whitelist.
-public enum RuntimeModelCatalog {
-  public static func offeredModels(for cli: LocalAgentCLI) -> [String] {
-    switch cli {
-    case .codex: ["gpt-5.1-codex", "gpt-5.1-codex-mini", "gpt-5.1"]
-    case .claudeCode: ["opus", "sonnet", "haiku"]
-    }
-  }
-
-  public static func offeredModels(for kind: RuntimeDriverKind) -> [String] {
-    guard let cli = kind.localAgentCLI else { return [] }
-    return offeredModels(for: cli)
-  }
-}
-
 /// Which executable to run, and which model to ask it for.
 struct LocalAgentInvocation: Sendable {
   var executableURL: URL

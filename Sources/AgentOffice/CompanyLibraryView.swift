@@ -901,19 +901,29 @@ private struct WorkingContractEditor: View {
                 .foregroundStyle(EditorialOfficeTheme.attention)
               // Installing a CLI while the app is open should not require a
               // relaunch to be noticed.
-              Button("Check again") { model.recheckAgentInstallations() }
-                .font(.caption)
+              Button("Check again") {
+                model.recheckAgentInstallations()
+                Task { await model.refreshRuntimeModelOffers() }
+              }
+              .font(.caption)
             }
           }
           Picker("Model", selection: $modelName) {
             Text("Auto — the runtime's own default").tag("")
             ForEach(offeredModelNames, id: \.self) { Text($0).tag($0) }
+            // A name this contract already carries stays selectable even when
+            // the runtime did not list it, so an ask that failed cannot quietly
+            // reset a choice the owner made.
+            if let unlisted = unlistedSelectedModelName {
+              Text("\(unlisted) — not listed by this runtime").tag(unlisted)
+            }
           }
-          .disabled(offeredModelNames.isEmpty)
-          if offeredModelNames.isEmpty {
-            Text(modelPickerExplanation)
-              .font(.caption).foregroundStyle(EditorialOfficeTheme.graphite)
-          }
+          .disabled(offeredModelNames.isEmpty && unlistedSelectedModelName == nil)
+          Text(modelPickerExplanation)
+            .font(modelExplanationIsCaution ? .caption.weight(.semibold) : .caption)
+            .foregroundStyle(
+              modelExplanationIsCaution
+                ? EditorialOfficeTheme.attention : EditorialOfficeTheme.graphite)
           Picker("Plan review", selection: $reviewPolicy) {
             ForEach(PlanReviewPolicy.allCases, id: \.self) { Text(reviewPolicyLabel($0)).tag($0) }
           }
@@ -948,6 +958,10 @@ private struct WorkingContractEditor: View {
         }
       }
       .formStyle(.grouped)
+      // The models are asked for when a screen needs them rather than at launch,
+      // and a remembered answer means opening this editor again starts no
+      // process.
+      .task { await model.refreshRuntimeModelOffers() }
       Divider()
       HStack {
         Spacer()
@@ -1011,24 +1025,53 @@ private struct WorkingContractEditor: View {
     model.agentAvailable(value) ? value.displayName : "\(value.displayName) — unavailable"
   }
 
-  /// Models the selected agent actually supports.
+  /// What the selected agent last said about the models it offers.
   ///
-  /// Empty for Auto and Practice mode: an explicit model cannot be promised
-  /// before the runtime that would honour it is known.
-  private var offeredModelNames: [String] {
-    guard let kind = provider.explicitDriverKind else { return [] }
-    return RuntimeModelCatalog.offeredModels(for: kind)
+  /// Absent for Auto and Practice mode, which run no CLI of their own, and
+  /// absent until the first ask returns.
+  private var modelOffer: RuntimeModelOffer? {
+    guard let kind = provider.explicitDriverKind else { return nil }
+    return model.runtimeModelOffer(for: kind)
   }
 
+  /// Models the selected agent actually reports, or assumes when it cannot be
+  /// asked.
+  ///
+  /// Empty for Auto and Practice mode: an explicit model cannot be promised
+  /// before the runtime that would honour it is known. Empty, too, when the ask
+  /// failed — a guess there would make a failure look like an answer.
+  private var offeredModelNames: [String] { modelOffer?.names ?? [] }
+
+  /// Why the picker is showing what it is showing.
+  ///
+  /// An assumption says so in the owner's view, not only in a log, so "these are
+  /// the models your CLI reports" is never confused with "we could not ask".
   private var modelPickerExplanation: String {
     switch provider {
     case .auto:
-      "Auto picks the runtime at run time, so the model is left to whichever runtime it chooses."
+      return
+        "Auto picks the runtime at run time, so the model is left to whichever runtime it chooses."
     case .demo:
-      "Practice mode runs no model. Its output is a rehearsal, not real work."
+      return "Practice mode runs no model. Its output is a rehearsal, not real work."
     default:
-      "This runtime does not offer a model choice."
+      guard let offer = modelOffer else {
+        return "Office OS is asking \(provider.displayName) which models it offers."
+      }
+      return offer.explanation
     }
+  }
+
+  /// Whether the explanation is a caution rather than a note, so a list Office
+  /// OS could not confirm does not read as a confirmed one.
+  private var modelExplanationIsCaution: Bool {
+    guard let provenance = modelOffer?.provenance else { return false }
+    return !provenance.isReported
+  }
+
+  /// A model this contract already names that the runtime did not list.
+  private var unlistedSelectedModelName: String? {
+    guard !modelName.isEmpty, !offeredModelNames.contains(modelName) else { return nil }
+    return modelName
   }
 
   private func reviewPolicyLabel(_ value: PlanReviewPolicy) -> String {
