@@ -43,6 +43,12 @@ public enum EmployeeExecutionProvider: String, Codable, Sendable, CaseIterable {
     }
   }
 
+  /// A compatibility projection for organization snapshots written before
+  /// per-employee providers. Current runtime policy must not read it back.
+  public var legacyExecutionModeProjection: ExecutionMode {
+    self == .localCodex ? .localCodex : .demo
+  }
+
   /// The agent choices offered in the interface, Auto first.
   public static let agentChoices: [EmployeeExecutionProvider] = [
     .auto, .localCodex, .localClaudeCode, .demo,
@@ -934,7 +940,7 @@ extension OrganizationState {
       capabilityGrants: employee.capabilityGrants,
       executionProvider: source == .migration
         ? EmployeeExecutionProvider(executionMode)
-        : (package?.preferredProvider ?? EmployeeExecutionProvider(executionMode)),
+        : (package?.preferredProvider ?? .auto),
       modelName: package?.defaultModelName,
       workspacePath: "employees/\(employeeID)",
       boundaries: package?.boundaries ?? AutonomyBoundaries(),

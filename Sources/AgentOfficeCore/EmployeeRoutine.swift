@@ -84,7 +84,7 @@ extension OrganizationState {
       boundaries: contract?.boundaries ?? AutonomyBoundaries(),
       reviewPolicy: contract?.reviewPolicy ?? .always,
       reviewerName: routineReviewerName(for: employeeID),
-      executionProvider: contract?.executionProvider ?? EmployeeExecutionProvider(executionMode),
+      executionProvider: contract?.executionProvider ?? .auto,
       modelName: contract?.modelName,
       lastRun: latestRunReceipt(forEmployee: employeeID),
       openCommitment: activeEmployeeOutcome(for: employeeID)?.outcome

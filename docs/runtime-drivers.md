@@ -243,3 +243,11 @@ mode still says Practice.
 Engines default `runtimeHealth` to `.practiceOnly`, which reports no real
 runtime. That fails closed: a caller that forgets to probe gets a refusal, never
 a silent rehearsal.
+
+The persisted two-valued `executionMode` field is retired from current runtime
+policy. It remains in the organization snapshot only so older files and older
+app versions can decode one another. During legacy migration its value may be
+copied into a missing employee contract; after that, execution, preflight,
+routine projection, and onboarding read per-employee working contracts. If a
+contract is unexpectedly absent, resolution uses Auto and fails closed rather
+than consulting the legacy field or silently rehearsing.

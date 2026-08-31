@@ -770,6 +770,9 @@ public struct OrganizationState: Codable, Sendable, Equatable {
   public var name: String
   public var outcome: String
   public var workdayStatus: WorkdayStatus
+  /// Legacy persistence compatibility for organization files written before
+  /// per-employee working contracts. Runtime decisions must never read this
+  /// field; migration may copy it into a missing contract exactly once.
   public var executionMode: ExecutionMode
   public var dayNumber: Int
   public var employees: [Employee]
@@ -1245,16 +1248,17 @@ public struct OrganizationState: Codable, Sendable, Equatable {
     knowledge?.productBrief ?? ""
   }
 
-  /// Applies first-run identity, company memory, execution mode, and the
-  /// initial web-research grant to one in-memory snapshot. Callers can then
-  /// persist that snapshot once, avoiding competing pre-setup saves.
+  /// Applies first-run identity, company memory, the initial employee runtime
+  /// choice, and the initial web-research grant to one in-memory snapshot.
+  /// Callers can then persist that snapshot once, avoiding competing pre-setup
+  /// saves.
   public mutating func applyOnboarding(
     name: String,
     ownerName: String,
     outcome: String,
     productBrief: String,
     profile: OrganizationProfile,
-    executionMode: ExecutionMode,
+    executionProvider: EmployeeExecutionProvider,
     webResearchGranted: Bool,
     now: Date = Date()
   ) {
@@ -1285,7 +1289,9 @@ public struct OrganizationState: Codable, Sendable, Equatable {
       if profile != .empty { knowledge?.profile = profile }
     }
 
-    self.executionMode = executionMode
+    // Keep writing the legacy field so older app versions can still decode the
+    // snapshot. Current execution policy reads working contracts only.
+    self.executionMode = executionProvider.legacyExecutionModeProjection
     if let niaIndex = employees.firstIndex(where: { $0.id == "nia" }) {
       let hadGrant = employees[niaIndex].capabilityGrants.contains("web-research")
       if webResearchGranted && !hadGrant {

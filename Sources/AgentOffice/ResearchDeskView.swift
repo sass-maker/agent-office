@@ -369,7 +369,7 @@ struct ResearchDeskCard: View {
       .help(reason)
     case .rehearseWholeOrganization:
       actionButton("Move everyone to a practice run", icon: "theatermasks.fill") {
-        model.setExecutionMode(.demo)
+        model.setOrganizationExecutionProvider(.demo)
       }
       .help(
         "Rewrites every hired employee's contract to Practice mode. To change one employee, edit their contract in Company."

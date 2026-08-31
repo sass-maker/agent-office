@@ -92,12 +92,12 @@ extension OrganizationState {
     let package = employee(employeeID)?.packageID.flatMap {
       employeePackage(id: $0, version: employee(employeeID)?.packageVersion)
     }
-    // A contract is the canonical statement of what the owner chose. An
-    // organization that predates working contracts has still made a choice —
-    // the org-wide execution mode — so that stands in rather than being read as
-    // Auto, which would silently widen the owner's decision.
-    let explicit =
-      contract.map(\.executionProvider) ?? EmployeeExecutionProvider(executionMode)
+    // A contract is the canonical statement of what the owner chose. Legacy
+    // organizations have their old organization-wide choice copied into
+    // contracts during migration. If a contract is nevertheless absent, Auto
+    // fails closed against the observed runtime health instead of reviving the
+    // retired organization-wide execution mode or silently rehearsing.
+    let explicit = contract?.executionProvider ?? .auto
     return RuntimeSelectionInputs(
       explicitChoice: explicit.explicitDriverKind,
       lastSuccessful: lastSuccessfulRuntimeKind(for: employeeID),

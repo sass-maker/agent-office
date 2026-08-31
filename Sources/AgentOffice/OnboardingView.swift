@@ -746,7 +746,12 @@ struct OnboardingView: View {
     stage = profile.stage
     operatingPrinciples = profile.operatingPrinciples
     constraints = profile.constraints
-    useLocalCodex = model.organization.executionMode == .localCodex
+    let hiredProviders = Set(
+      model.organization.workingContracts.compactMap { contract in
+        model.organization.employee(contract.employeeID)?.effectiveEmploymentState == .hired
+          ? contract.executionProvider : nil
+      })
+    useLocalCodex = hiredProviders == [.localCodex]
     allowWebResearch = model.webResearchGranted
     startImmediately = model.organization.setupCompleted == true ? false : true
   }
@@ -760,7 +765,7 @@ struct OnboardingView: View {
         outcome: outcome,
         productBrief: onboardingProductBrief,
         profile: currentProfile,
-        executionMode: useLocalCodex ? .localCodex : .demo,
+        executionProvider: useLocalCodex ? .localCodex : .demo,
         webResearchGranted: allowWebResearch,
         hiredPackageIDs: selectedStarterPackageIDs,
         startImmediately: startImmediately

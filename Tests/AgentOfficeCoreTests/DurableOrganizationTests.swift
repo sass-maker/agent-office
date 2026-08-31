@@ -69,7 +69,7 @@ final class DurableOrganizationTests: XCTestCase {
       productBrief:
         "A complete grounded product brief for Juniper House and its first bounded mission.",
       profile: profile,
-      executionMode: .localCodex,
+      executionProvider: .localCodex,
       webResearchGranted: true,
       now: Date(timeIntervalSince1970: 200)
     )

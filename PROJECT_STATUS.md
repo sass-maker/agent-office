@@ -1,6 +1,6 @@
 # Agent Office — PROJECT STATUS
 
-Last updated: 2026-08-15
+Last updated: 2026-08-31
 
 ## Why / What
 
@@ -112,6 +112,10 @@ durable people-like collaborators whose execution remains bounded software.
   responsibility, manager, skills, connections, grants, provider, model,
   boundaries and review policy move as one attributable event that replays to
   the same contract, and resubmitting the same edit changes nothing twice.
+- 2026-08-31 — Runtime selection became fully per-employee: live preflight and
+  execution use working contracts and commitment pins, installed CLIs report
+  model choices with explicit provenance, and the legacy organization-wide mode
+  remains only for persistence and one-time migration compatibility.
 
 ## Products
 
@@ -163,6 +167,10 @@ durable people-like collaborators whose execution remains bounded software.
 - Permission-aware knowledge retrieval with mandatory provenance, entity history
   read from retained events, and derived flow timing that reports unknown where
   nothing supports a figure.
+- Per-employee runtime resolution across execution and owner-facing preflight,
+  with commitment-time pins, explicit refusal instead of silent substitution,
+  bounded local CLI model discovery, and fail-closed Auto behavior when a
+  working contract is unexpectedly absent.
 
 - A native SwiftUI and SpriteKit organization home with a cosy, authored
   monochrome editorial office, a human owner, a paired executive assistant,

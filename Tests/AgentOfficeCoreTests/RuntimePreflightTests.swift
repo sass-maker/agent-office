@@ -62,16 +62,33 @@ final class RuntimePreflightTests: XCTestCase {
     )
   }
 
-  func testAnOrganizationWideDemoDefaultStillRehearsesWhenNoContractDisagrees() throws {
-    let state = try organization(contracts: [:])
+  func testMissingContractUsesAutoRatherThanTheRetiredOrganizationDefault() throws {
+    var state = try organization(contracts: [:])
+    state.knowledge?.workingContracts.removeAll { $0.employeeID == "theo" }
 
     let preflight = state.runtimePreflight(for: "theo", health: .localAgents(codex: .available))
 
     XCTAssertNil(preflight.refusal)
-    XCTAssertFalse(
+    XCTAssertTrue(
       preflight.performsRealWork,
-      "Without a contract the organization-wide choice still stands in, and it says Demo."
+      "Without a contract Auto may choose healthy Codex; the retired Demo default must not force a rehearsal."
     )
+  }
+
+  func testChangingTheRetiredOrganizationModeCannotChangeMissingContractResolution() throws {
+    var demoState = try organization(contracts: [:])
+    demoState.knowledge?.workingContracts.removeAll { $0.employeeID == "theo" }
+    var codexState = demoState
+    demoState.executionMode = .demo
+    codexState.executionMode = .localCodex
+
+    let health = RuntimeHealthSnapshot.localAgents(claudeCode: .available)
+    let fromDemo = demoState.resolveRuntime(for: "theo", health: health)
+    let fromCodex = codexState.resolveRuntime(for: "theo", health: health)
+
+    XCTAssertEqual(fromDemo, fromCodex)
+    XCTAssertEqual(fromDemo.selection?.driverKind, .localClaudeCode)
+    XCTAssertEqual(fromDemo.selection?.rule, .firstHealthyRuntime)
   }
 
   // MARK: - Refusals carry the policy's own reason

@@ -264,12 +264,11 @@ final class AppModel: ObservableObject {
     outcome: String,
     productBrief: String,
     profile: OrganizationProfile = .empty,
-    executionMode: ExecutionMode? = nil,
+    executionProvider: EmployeeExecutionProvider = .demo,
     webResearchGranted: Bool? = nil,
     hiredPackageIDs: Set<String>? = nil,
     startImmediately: Bool
   ) async -> Bool {
-    let requestedMode = executionMode ?? organization.executionMode
     var next = organization
     next.applyOnboarding(
       name: name,
@@ -277,7 +276,7 @@ final class AppModel: ObservableObject {
       outcome: outcome,
       productBrief: productBrief,
       profile: profile,
-      executionMode: requestedMode,
+      executionProvider: executionProvider,
       webResearchGranted: webResearchGranted ?? self.webResearchGranted
     )
     let acceptedPackages = hiredPackageIDs ?? Set(next.employeePackages.map(\.id))
@@ -285,7 +284,7 @@ final class AppModel: ObservableObject {
       _ = try? next.hireEmployee(packageID: packageID, actorID: "owner")
     }
     next.applyExecutionProvider(
-      EmployeeExecutionProvider(requestedMode),
+      executionProvider,
       reason: "Selected during organization setup."
     )
     do {
@@ -435,20 +434,22 @@ final class AppModel: ObservableObject {
     showsOnboarding = false
   }
 
-  func setExecutionMode(_ mode: ExecutionMode) {
+  func setOrganizationExecutionProvider(_ provider: EmployeeExecutionProvider) {
     guard workTask == nil, organization.workdayStatus != .active else { return }
-    if mode == .localCodex && !codexAvailable {
+    if provider == .localCodex && !codexAvailable {
       lastError = "Local Codex is not installed or discoverable. Demo mode remains available."
       organization.executionMode = .demo
       return
     }
-    organization.executionMode = mode
+    // Compatibility projection only; current execution reads employee
+    // contracts and never this two-valued field.
+    organization.executionMode = provider.legacyExecutionModeProjection
     organization.applyExecutionProvider(
-      EmployeeExecutionProvider(mode),
+      provider,
       reason: "Changed the default local execution route."
     )
     persistSoon()
-    if mode == .demo, let assignment = organization.activeResearchAssignment,
+    if provider == .demo, let assignment = organization.activeResearchAssignment,
       assignment.status == .waiting
     {
       retryResearchAssignment(assignment.id)

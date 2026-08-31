@@ -68,7 +68,11 @@ final class EmployeeOutcomeEngineTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: root) }
     let store = LocalOrganizationStore(rootURL: root)
     let engine = EmployeeOutcomeEngine()
-    var organization = OrganizationState.seeded(now: Date(timeIntervalSince1970: 100))
+    var organization = LocalOrganizationStore.migrated(
+      .seeded(now: Date(timeIntervalSince1970: 100)),
+      now: Date(timeIntervalSince1970: 100)
+    )
+    try allowUnreviewedPlans(for: "theo", in: &organization)
     let outcomeID = try organization.createEmployeeOutcome(
       employeeID: "theo",
       outcome: "Draft a concise launch note",
