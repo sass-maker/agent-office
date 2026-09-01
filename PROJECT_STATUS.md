@@ -24,6 +24,10 @@ durable people-like collaborators whose execution remains bounded software.
 
 ## Timeline
 
+- 2026-08-31 — Added source-ready product-owned Microsoft Clarity tracking to
+  the public informational site and corrected its HTML and Markdown privacy
+  statements. The native workplace remains analytics-free and no deployment
+  ran.
 - 2026-08-12 — Adopted the Fleet native code-health standard with hosted macOS
   tests, core coverage, build, formatting, unused-code, complexity, duplication,
   dependency, suppression, hygiene, and static-site gates. Existing measured

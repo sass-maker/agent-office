@@ -30,7 +30,9 @@ const requiredCopy = [
   "no public download or checkout",
   "pricing and checkout not live",
   "The repository is private",
-  "this informational site does not load analytics",
+  "This public informational site uses Microsoft Clarity",
+  '"y6bwaot70j"',
+  '"project_id","agent-office"',
 ];
 
 for (const copy of requiredCopy) {
@@ -56,8 +58,12 @@ if (binaryUrls.length > 0 && release.downloadUrl === null) {
   throw new Error("The page exposes a binary URL while release metadata is closed");
 }
 
-if (/posthog|clarity\.ms|google-analytics|googletagmanager/i.test(html)) {
-  throw new Error("The informational site promises no analytics but still loads an analytics provider");
+if (!html.includes("https://www.clarity.ms/tag/")) {
+  throw new Error("The informational site must load its product-owned Clarity project");
+}
+
+if (/posthog|google-analytics|googletagmanager/i.test(html)) {
+  throw new Error("The informational site must not load an undeclared analytics provider");
 }
 
 console.log("Office OS site check passed; binary distribution remains fail-closed.");
