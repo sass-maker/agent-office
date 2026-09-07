@@ -147,3 +147,16 @@ Open `http://localhost:4173`.
 The intended commercial model is explicit on the page: the Mac workplace is a
 one-time purchase, while optional employees may be separate subscriptions.
 Prices, checkout, and the employee marketplace are not live.
+
+
+## Shareability and retained tasks — 2026-09-07
+
+The [current review](docs/shareability-review-2026-09-07.md) records 27 passing
+focused tests and a successful native build/launch. UI automation was unavailable;
+a completed native employee assignment remains unverified. No task was closed
+without evidence, and no new feature scope was introduced.
+
+Keep the employee-contract research inactive. For ordinary delegated knowledge
+work, test an existing assistant before rebuilding its capabilities here. The
+review retains the exact UI, artifact/recovery, comparative-use and installation
+gates required before broader sharing or renewed product investment.
