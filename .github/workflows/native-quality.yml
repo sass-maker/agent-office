@@ -27,3 +27,5 @@ jobs:
         run: brew install periphery
       - name: Run native and site quality gates
         run: node scripts/check-code-health.mjs all
+      - name: Run Swift tests directly
+        run: swift test
