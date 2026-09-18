@@ -1,3 +1,5 @@
+> **Owner retirement decision:** Read [CONCEPT_STATUS.md](CONCEPT_STATUS.md) first. No autonomous product work; historical instructions below do not reopen this archived experiment.
+
 # Agent Office instructions
 
 - This is a standalone native macOS product, currently using a descriptive

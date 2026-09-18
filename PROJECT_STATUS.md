@@ -1,3 +1,5 @@
+> **Current owner decision (2026-09-10): archived experimental concept; no ongoing development.** [Decision and return condition](CONCEPT_STATUS.md). Earlier entries below are historical.
+
 # Agent Office — PROJECT STATUS
 
 Last updated: 2026-08-31

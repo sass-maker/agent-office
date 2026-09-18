@@ -1,5 +1,7 @@
 # Agent Office
 
+> **Archived experimental concept — no longer maintained.** See [owner decision and return condition](CONCEPT_STATUS.md). Historical setup instructions and roadmaps are retained for reference.
+
 `Agent Office` is the temporary development name for a native Mac proof of
 concept: a cosy local workplace where an owner gives a small team of AI
 employees an outcome, starts the day, watches their handoffs, and inspects the
